@@ -1,0 +1,5 @@
+{
+  "name": "Trích Xuất Âm Thanh AI",
+  "description": "Ứng dụng chuyển đổi âm thanh và video thành văn bản (Speech-to-Text) hỗ trợ Tiếng Việt, với tùy chọn dòng thời gian hoặc văn bản thuần.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light;
+  --app-ink: #0f172a;
+  --app-brand: #0d7c66;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  color: var(--app-ink);
+  background:
+    radial-gradient(circle at top left, rgba(122, 242, 209, 0.22), transparent 34%),
+    radial-gradient(circle at top right, rgba(13, 124, 102, 0.12), transparent 26%),
+    linear-gradient(180deg, #f5fbf8 0%, #eef4ff 48%, #f8fafc 100%);
+}
+
+code,
+pre,
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.app-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell__mesh {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(110deg, rgba(13, 124, 102, 0.04), transparent 38%),
+    radial-gradient(circle at 20% 20%, rgba(122, 242, 209, 0.18), transparent 30%),
+    radial-gradient(circle at 80% 0%, rgba(15, 23, 42, 0.05), transparent 22%);
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}

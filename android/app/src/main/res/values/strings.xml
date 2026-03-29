@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TSrecord</string>
+    <string name="title_activity_main">TSrecord</string>
+    <string name="package_name">com.trichxuatamthanh.app</string>
+    <string name="custom_url_scheme">com.trichxuatamthanh.app</string>
+    <string name="app_developer">Antonio Nguyen 0936389010</string>
+</resources>
