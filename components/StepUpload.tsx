@@ -1,7 +1,20 @@
 import React, { useRef, useState } from 'react';
-import { ArrowRight, CloudUpload, FileAudio, FileVideo, Upload, X } from 'lucide-react';
+import {
+  ArrowRight,
+  BriefcaseBusiness,
+  CloudUpload,
+  FileAudio,
+  FileText,
+  FileVideo,
+  Upload,
+  Users,
+  X,
+} from 'lucide-react';
+import { SessionContext } from '../types';
 
 interface StepUploadProps {
+  sessionContext: SessionContext;
+  setSessionContext: (context: SessionContext) => void;
   file: File | null;
   setFile: (file: File | null) => void;
   onNext: () => void;
@@ -15,9 +28,36 @@ const formatFileSize = (bytes: number) => {
   return `${parseFloat((bytes / Math.pow(k, index)).toFixed(2))} ${sizes[index]}`;
 };
 
-export const StepUpload: React.FC<StepUploadProps> = ({ file, setFile, onNext }) => {
+export const StepUpload: React.FC<StepUploadProps> = ({
+  sessionContext,
+  setSessionContext,
+  file,
+  setFile,
+  onNext,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const contextOptions = [
+    {
+      id: SessionContext.TRANSCRIPTION,
+      title: 'Chỉ trích transcript',
+      description: 'Phù hợp khi bạn chỉ cần bản chép lời sạch từ file audio/video có sẵn.',
+      icon: FileText,
+    },
+    {
+      id: SessionContext.MEETING,
+      title: 'Phân tích thành biên bản họp',
+      description: 'Sinh transcript, summary, decisions, risks, action items, folder tree và mindmap từ file đã tải lên.',
+      icon: BriefcaseBusiness,
+    },
+    {
+      id: SessionContext.INTERVIEW,
+      title: 'Chép nội dung phỏng vấn',
+      description: 'Giữ luồng transcript gọn cho bản ghi phỏng vấn đã có sẵn.',
+      icon: Users,
+    },
+  ];
 
   const validateAndSetFile = (uploadedFile: File) => {
     if (
@@ -66,9 +106,39 @@ export const StepUpload: React.FC<StepUploadProps> = ({ file, setFile, onNext })
             Nhập file có sẵn để trích xuất transcript
           </h2>
           <p className="mt-4 text-sm leading-7 text-slate-500">
-            Đây là luồng riêng cho việc xử lý hậu kỳ từ audio/video đã có. Màn này chỉ nhận file,
-            không lẫn với phần ghi âm trực tiếp hay tạo ghi chú họp.
+            Đây là luồng xử lý hậu kỳ từ audio/video đã có. Bạn có thể chỉ lấy transcript hoặc dùng
+            chính file tải lên để sinh biên bản họp đầy đủ.
           </p>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
+          {contextOptions.map((item) => {
+            const Icon = item.icon;
+            const active = sessionContext === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSessionContext(item.id)}
+                className={`rounded-[26px] border p-5 text-left transition-all ${
+                  active
+                    ? 'border-[#0d7c66] bg-[#0d7c66]/5 shadow-lg shadow-[#0d7c66]/10'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                    active ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div className="mt-4 text-lg font-bold text-slate-900">{item.title}</div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
+              </button>
+            );
+          })}
         </div>
 
         {!file ? (
@@ -149,12 +219,28 @@ export const StepUpload: React.FC<StepUploadProps> = ({ file, setFile, onNext })
             <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
               Transcript
             </span>
-            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
-              Timeline hoặc plain text
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
-              Không sinh note họp
-            </span>
+            {sessionContext === SessionContext.MEETING ? (
+              <>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
+                  Summary
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
+                  Decisions / Risks
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
+                  Folder tree / Mindmap
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
+                  Timeline hoặc plain text
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/82">
+                  {sessionContext === SessionContext.INTERVIEW ? 'Transcript phỏng vấn' : 'Không sinh note họp'}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>

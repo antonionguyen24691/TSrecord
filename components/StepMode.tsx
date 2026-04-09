@@ -48,20 +48,20 @@ export const StepMode: React.FC<StepModeProps> = ({
   isProcessing,
 }) => {
   const isMeeting = sessionContext === SessionContext.MEETING;
+  const isInterview = sessionContext === SessionContext.INTERVIEW;
 
-  const deliverables =
-    module === AppModule.TRANSCRIBE
-      ? ['Transcript']
-      : isMeeting
-        ? ['Transcript', 'Tóm tắt', 'Folder tree', 'Mindmap', 'Checklist']
-        : ['Transcript'];
+  const deliverables = isMeeting
+    ? ['Transcript', 'Tóm tắt', 'Decisions', 'Risks', 'Folder tree', 'Mindmap', 'Checklist']
+    : ['Transcript'];
 
   const summaryText =
-    module === AppModule.TRANSCRIBE
-      ? 'Phân hệ này chỉ tập trung vào transcript từ file có sẵn, không gắn note họp hay mindmap.'
-      : isMeeting
-        ? 'Nhánh này sẽ chép lại, tóm tắt, trích quyết định, dựng folder tree đề xuất và mindmap hệ thống từ cùng một bản ghi.'
-        : 'Nhánh này chỉ tập trung vào transcript rõ ràng cho bản phỏng vấn, không dựng thêm cấu trúc hệ thống.';
+    isMeeting
+      ? source === InputSource.UPLOAD
+        ? 'File tải lên sẽ được phân tích như một phiên họp hoàn chỉnh: transcript, summary, decisions, risks, folder tree và mindmap.'
+        : 'Nhánh này sẽ chép lại, tóm tắt, tách quyết định và rủi ro, dựng folder tree đề xuất và mindmap hệ thống từ cùng một bản ghi.'
+      : isInterview
+        ? 'Nhánh này chỉ tập trung vào transcript rõ ràng cho bản phỏng vấn, không dựng thêm cấu trúc hệ thống.'
+        : 'Phân hệ này chỉ tập trung vào transcript sạch từ file có sẵn, không gắn note họp hay mindmap.';
 
   return (
     <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
@@ -119,7 +119,11 @@ export const StepMode: React.FC<StepModeProps> = ({
             </div>
             <div className="mt-3 text-2xl font-black">
               {module === AppModule.TRANSCRIBE
-                ? 'Transcript từ file'
+                ? isMeeting
+                  ? 'Biên bản họp từ file'
+                  : isInterview
+                    ? 'Transcript phỏng vấn từ file'
+                    : 'Transcript từ file'
                 : isMeeting
                   ? 'Phiên cuộc họp đầy đủ'
                   : 'Phiên transcript phỏng vấn'}

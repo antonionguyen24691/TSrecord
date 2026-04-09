@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Check,
   Download,
-  FileDown,
-  FileText,
+  FileCode2,
+  FileImage,
   FolderArchive,
   Mail,
   RotateCcw,
@@ -15,8 +15,9 @@ import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { SessionAnalysis, SessionContext } from '../types';
 import {
   buildCombinedReport,
-  buildWordHtml,
-  downloadBlobFile,
+  buildPresentationHtml,
+  downloadHtmlReport,
+  downloadPresentationDeck,
   downloadTextFile,
   saveSessionPackage,
 } from '../services/sessionPackageService';
@@ -65,8 +66,8 @@ export const StepExport: React.FC<StepExportProps> = ({
   const reportText = buildCombinedReport(analysis);
   const isMeeting = analysis.context === SessionContext.MEETING;
   const isTranscriptionOnly = analysis.context === SessionContext.TRANSCRIPTION;
-  const docFileName = `${fileName || 'session'}.doc`;
-  const reportFileName = `${fileName || 'session'}-report.md`;
+  const htmlFileName = `${fileName || 'session'}-report.html`;
+  const [pptxStatus, setPptxStatus] = useState<'idle' | 'building' | 'success' | 'error'>('idle');
   const transcriptFileName = `${fileName || 'session'}-transcript.txt`;
 
   const handleDownloadTranscript = () => {
@@ -76,24 +77,28 @@ export const StepExport: React.FC<StepExportProps> = ({
     });
   };
 
-  const handleDownloadMarkdownReport = () => {
-    downloadTextFile({
-      content: reportText,
-      fileName: reportFileName,
-      mimeType: 'text/markdown;charset=utf-8',
+  const handleDownloadHtmlReport = () => {
+    downloadHtmlReport({
+      analysis,
+      fileName: htmlFileName,
     });
   };
 
-  const handleDownloadDoc = () => {
-    const sourceHTML = buildWordHtml(analysis.title, reportText);
-    const file = new Blob(['\ufeff', sourceHTML], {
-      type: 'application/msword',
-    });
-
-    downloadBlobFile({
-      blob: file,
-      fileName: docFileName,
-    });
+  const handleDownloadPptx = async () => {
+    try {
+      setPptxStatus('building');
+      await downloadPresentationDeck({
+        analysis,
+        preferredBaseName: fileName,
+      });
+      setPptxStatus('success');
+      window.setTimeout(() => setPptxStatus('idle'), 1800);
+    } catch (error) {
+      console.error('PPTX export failed:', error);
+      setPptxStatus('error');
+      alert(`Không thể tạo file PPTX: ${error}`);
+      window.setTimeout(() => setPptxStatus('idle'), 1800);
+    }
   };
 
   const handleSavePackage = async () => {
@@ -115,8 +120,8 @@ export const StepExport: React.FC<StepExportProps> = ({
 
   const handleNativeShare = async () => {
     try {
-      const shareFileName = `${fileName || 'session'}-report.doc`;
-      const fileContent = buildWordHtml(analysis.title, reportText);
+      const shareFileName = `${fileName || 'session'}-report.html`;
+      const fileContent = buildPresentationHtml(analysis);
 
       const result = await Filesystem.writeFile({
         path: shareFileName,
@@ -151,13 +156,13 @@ export const StepExport: React.FC<StepExportProps> = ({
       return;
     }
 
-    handleDownloadDoc();
+    handleDownloadHtmlReport();
 
     const subject = encodeURIComponent(`[AI Session] ${analysis.title}`);
     const summaryBody =
       reportText.length < 1500
         ? reportText
-        : `${reportText.slice(0, 1500)}\n\n[... đã cắt bớt, xem file đính kèm .doc]`;
+        : `${reportText.slice(0, 1500)}\n\n[... Da cat bot, xem file HTML report da tai]`;
 
     const mailtoLink = `mailto:${email}?subject=${subject}&body=${encodeURIComponent(
       summaryBody
@@ -181,7 +186,7 @@ export const StepExport: React.FC<StepExportProps> = ({
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
               {isMeeting
-                ? 'Package lưu ra sẽ gồm transcript, summary, folder tree, mindmap, metadata và bản report tổng hợp.'
+                ? 'Package lưu ra sẽ gồm transcript, summary, decisions, risks, folder tree, mindmap, metadata và bản report tổng hợp.'
                 : isTranscriptionOnly
                   ? 'Package lưu ra sẽ tập trung vào transcript, metadata và report tổng hợp của file đã nhập.'
                   : 'Package lưu ra sẽ gọn hơn và tập trung vào transcript phỏng vấn cùng metadata phiên ghi.'}
@@ -199,9 +204,9 @@ export const StepExport: React.FC<StepExportProps> = ({
                 placeholder="meeting_session_2026_03_29"
               />
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                <span className="rounded-full bg-white px-3 py-2 shadow-sm">.doc</span>
+                <span className="rounded-full bg-white px-3 py-2 shadow-sm">.html</span>
+                <span className="rounded-full bg-white px-3 py-2 shadow-sm">.pptx</span>
                 <span className="rounded-full bg-white px-3 py-2 shadow-sm">.txt</span>
-                <span className="rounded-full bg-white px-3 py-2 shadow-sm">.md</span>
                 <span className="rounded-full bg-white px-3 py-2 shadow-sm">metadata.json</span>
               </div>
             </div>
@@ -209,15 +214,32 @@ export const StepExport: React.FC<StepExportProps> = ({
             <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
                 type="button"
-                onClick={handleDownloadDoc}
+                onClick={handleDownloadHtmlReport}
                 className="rounded-[26px] border border-slate-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-[#0d7c66] hover:shadow-lg hover:shadow-[#0d7c66]/10"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0d7c66]/10 text-[#0d7c66]">
-                  <FileText className="h-6 w-6" />
+                  <FileCode2 className="h-6 w-6" />
                 </div>
-                <div className="mt-4 text-lg font-bold text-slate-900">Tải bản Word</div>
+                <div className="mt-4 text-lg font-bold text-slate-900">Tải HTML report</div>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Xuất report tổng hợp thành file Word để gửi nhanh cho người khác.
+                  Xuất trang HTML tổng hợp dạng slide, giữ đúng bố cục trình bày.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadPptx}
+                disabled={pptxStatus === 'building'}
+                className="rounded-[26px] border border-slate-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-100 disabled:cursor-wait disabled:opacity-70"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
+                  <FileImage className="h-6 w-6" />
+                </div>
+                <div className="mt-4 text-lg font-bold text-slate-900">
+                  {pptxStatus === 'building' ? 'Đang tạo PPTX...' : 'Tải bản PPTX'}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Xuất deck trình bày nhiều slide với summary, decisions, risks, action plan và transcript highlights.
                 </p>
               </button>
 
@@ -235,19 +257,6 @@ export const StepExport: React.FC<StepExportProps> = ({
                 </p>
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadMarkdownReport}
-                className="rounded-[26px] border border-slate-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/60"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-                  <FileDown className="h-6 w-6" />
-                </div>
-                <div className="mt-4 text-lg font-bold text-slate-900">Tải report Markdown</div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Xuất toàn bộ phiên ở định dạng markdown để nhập vào wiki hoặc Git.
-                </p>
-              </button>
             </div>
           </div>
 

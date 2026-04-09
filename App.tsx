@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Settings, Sparkles } from 'lucide-react';
 import { ModuleHome } from './components/ModuleHome';
 import { StepUpload } from './components/StepUpload';
@@ -16,7 +16,10 @@ import {
   SessionAnalysis,
   SessionContext,
 } from './types';
-import { processMediaSession } from './services/geminiService';
+import { processWithOrchestrator } from './services/transcriptionOrchestrator';
+import { checkForUpdate } from './services/updateService';
+import type { ReleaseInfo } from './services/updateService';
+import { UpdateDialog } from './components/UpdateDialog';
 
 const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<AppModule | null>(null);
@@ -35,6 +38,16 @@ const App: React.FC = () => {
   const [fileName, setFileName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
+  const [updateRelease, setUpdateRelease] = useState<ReleaseInfo | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkForUpdate().then((release) => {
+        if (release) setUpdateRelease(release);
+      });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const resetSharedState = () => {
     setFile(null);
@@ -79,17 +92,19 @@ const App: React.FC = () => {
       status: 'processing',
       stageLabel:
         sessionContext === SessionContext.MEETING
-          ? 'AI đang tạo transcript, summary, folder tree và mindmap...'
-          : 'AI đang tạo transcript...',
+          ? 'AI Ä‘ang táº¡o transcript, summary, decisions, risks, folder tree vÃ  mindmap...'
+          : 'AI Ä‘ang táº¡o transcript...',
     });
 
     try {
-      const nextAnalysis = await processMediaSession({
+      const nextAnalysis = await processWithOrchestrator({
         file,
         mode,
         source,
         context: sessionContext,
         savedRecording,
+        onStageChange: (stage) =>
+          setProcessingState((prev) => ({ ...prev, stageLabel: stage })),
       });
 
       setAnalysis(nextAnalysis);
@@ -116,16 +131,16 @@ const App: React.FC = () => {
 
   const moduleTitle =
     activeModule === AppModule.RECORD_NOTES
-      ? 'Ghi âm & ghi chú theo cuộc họp hoặc phỏng vấn'
+      ? 'Ghi Ã¢m & ghi chÃº theo cuá»™c há»p hoáº·c phá»ng váº¥n'
       : activeModule === AppModule.TRANSCRIBE
-        ? 'Trích xuất transcript từ file có sẵn'
+        ? 'TrÃ­ch xuáº¥t transcript tá»« file cÃ³ sáºµn'
         : 'TSrecord';
 
   const moduleSubtitle =
     activeModule === AppModule.RECORD_NOTES
-      ? 'MODULE GHI ÂM & GHI CHÚ'
+      ? 'MODULE GHI Ã‚M & GHI CHÃš'
       : activeModule === AppModule.TRANSCRIBE
-        ? 'MODULE TRÍCH XUẤT GHI ÂM'
+        ? 'MODULE TRÃCH XUáº¤T GHI Ã‚M'
         : 'AI RECORDING & TRANSCRIPT STUDIO';
 
   return (
@@ -151,16 +166,16 @@ const App: React.FC = () => {
               <button
                 onClick={handleLeaveModule}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition-all hover:border-slate-300 hover:text-slate-900"
-                title="Đổi phân hệ"
+                title="Äá»•i phÃ¢n há»‡"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Phân hệ
+                PhÃ¢n há»‡
               </button>
             )}
             <button
               onClick={() => setShowSettings(true)}
               className="rounded-full border border-slate-200 bg-white p-3 text-slate-500 transition-all hover:border-[#0d7c66] hover:text-[#0d7c66]"
-              title="Cài đặt"
+              title="CÃ i Ä‘áº·t"
             >
               <Settings className="h-5 w-5" />
             </button>
@@ -185,7 +200,13 @@ const App: React.FC = () => {
         {!activeModule && <ModuleHome onSelect={activateModule} />}
 
         {activeModule === AppModule.TRANSCRIBE && step === 1 && (
-          <StepUpload file={file} setFile={setFile} onNext={handleInputNext} />
+          <StepUpload
+            sessionContext={sessionContext}
+            setSessionContext={setSessionContext}
+            file={file}
+            setFile={setFile}
+            onNext={handleInputNext}
+          />
         )}
 
         {activeModule === AppModule.RECORD_NOTES && step === 1 && (
@@ -233,6 +254,13 @@ const App: React.FC = () => {
 
         <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
       </main>
+
+      {updateRelease && (
+        <UpdateDialog
+          release={updateRelease}
+          onDismiss={() => setUpdateRelease(null)}
+        />
+      )}
     </div>
   );
 };

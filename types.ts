@@ -22,6 +22,8 @@ export enum SessionContext {
 export type ArtifactKey =
   | 'transcript'
   | 'summary'
+  | 'decisions'
+  | 'risks'
   | 'folderTree'
   | 'mindmap'
   | 'actionItems';
@@ -44,6 +46,8 @@ export interface SavedDeviceFile {
 export interface SessionArtifacts {
   transcript: string;
   summary: string;
+  decisions: string;
+  risks: string;
   folderTree: string;
   mindmap: string;
   actionItems: string;

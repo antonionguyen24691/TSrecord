@@ -3,15 +3,24 @@ import {
   ArrowRight,
   BriefcaseBusiness,
   FileAudio,
+  ListChecks,
   Mic,
   Pause,
   Play,
+  ShieldAlert,
+  Sparkles,
   Square,
   Users,
   Waves,
   X,
 } from 'lucide-react';
 import { SavedDeviceFile, SessionContext } from '../types';
+import {
+  DEFAULT_REALTIME_MODE,
+  RealtimeMode,
+  loadAiSettings,
+} from '../services/aiSettingsService';
+import { processRealtimeMeetingChunk } from '../services/geminiService';
 import {
   createRecordedFile,
   createSessionWorkspaceName,
@@ -28,6 +37,31 @@ interface StepRecordProps {
   setSavedRecording: (file: SavedDeviceFile | null) => void;
   onNext: () => void;
 }
+
+interface LiveMeetingState {
+  status: 'idle' | 'disabled' | 'listening' | 'processing' | 'error';
+  statusMessage: string;
+  processedChunks: number;
+  transcriptPreview: string;
+  summaryPreview: string;
+  decisionsPreview: string;
+  risksPreview: string;
+  actionItemsPreview: string;
+  errorMessage?: string;
+}
+
+const LIVE_CHUNK_TIMESLICE_MS = 15000;
+
+const createEmptyLiveMeetingState = (statusMessage: string): LiveMeetingState => ({
+  status: 'idle',
+  statusMessage,
+  processedChunks: 0,
+  transcriptPreview: '',
+  summaryPreview: '',
+  decisionsPreview: '',
+  risksPreview: '',
+  actionItemsPreview: '',
+});
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 B';
@@ -48,6 +82,12 @@ const formatDuration = (seconds: number) => {
     .join(':');
 };
 
+const appendTranscriptChunk = (current: string, incoming: string) => {
+  const next = incoming.trim();
+  if (!next) return current;
+  return current ? `${current.trim()}\n${next}` : next;
+};
+
 export const StepRecord: React.FC<StepRecordProps> = ({
   sessionContext,
   setSessionContext,
@@ -61,6 +101,14 @@ export const StepRecord: React.FC<StepRecordProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const liveChunkQueueRef = useRef<Blob[]>([]);
+  const liveChunkProcessingRef = useRef(false);
+  const liveChunkIndexRef = useRef(0);
+  const realtimeModeRef = useRef<RealtimeMode>(DEFAULT_REALTIME_MODE);
+  const isRecordingRef = useRef(false);
+  const liveMeetingStateRef = useRef<LiveMeetingState>(
+    createEmptyLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.')
+  );
 
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -69,6 +117,22 @@ export const StepRecord: React.FC<StepRecordProps> = ({
     'Chọn ngữ cảnh rồi bắt đầu ghi âm phiên mới.'
   );
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [liveMeetingState, setLiveMeetingState] = useState<LiveMeetingState>(
+    createEmptyLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.')
+  );
+
+  useEffect(() => {
+    liveMeetingStateRef.current = liveMeetingState;
+  }, [liveMeetingState]);
+
+  const resetLiveMeetingState = (message: string) => {
+    liveChunkQueueRef.current = [];
+    liveChunkProcessingRef.current = false;
+    liveChunkIndexRef.current = 0;
+    const nextState = createEmptyLiveMeetingState(message);
+    liveMeetingStateRef.current = nextState;
+    setLiveMeetingState(nextState);
+  };
 
   const stopTimer = () => {
     if (timerRef.current) {
@@ -96,11 +160,93 @@ export const StepRecord: React.FC<StepRecordProps> = ({
     }
   };
 
+  const processQueuedMeetingChunks = async () => {
+    if (liveChunkProcessingRef.current || sessionContext !== SessionContext.MEETING) {
+      return;
+    }
+
+    const nextChunk = liveChunkQueueRef.current.shift();
+    if (!nextChunk) {
+      setLiveMeetingState((current) => ({
+        ...current,
+        status: isRecordingRef.current ? 'listening' : current.status,
+        statusMessage: isRecordingRef.current
+          ? 'Realtime note đang chờ đoạn ghi tiếp theo.'
+          : current.statusMessage,
+      }));
+      return;
+    }
+
+    liveChunkProcessingRef.current = true;
+    const nextIndex = liveChunkIndexRef.current + 1;
+    liveChunkIndexRef.current = nextIndex;
+
+    setLiveMeetingState((current) => ({
+      ...current,
+      status: 'processing',
+      statusMessage: `AI đang cập nhật từ đoạn ghi số ${nextIndex}...`,
+      errorMessage: undefined,
+    }));
+
+    try {
+      const liveChunkFile = createRecordedFile({
+        blob: nextChunk,
+        baseLabel: `meeting-live-chunk-${nextIndex}`,
+      });
+
+      const result = await processRealtimeMeetingChunk({
+        file: liveChunkFile,
+        previousSummary: liveMeetingStateRef.current.summaryPreview,
+        previousDecisions: liveMeetingStateRef.current.decisionsPreview,
+        previousRisks: liveMeetingStateRef.current.risksPreview,
+        previousActionItems: liveMeetingStateRef.current.actionItemsPreview,
+        realtimeMode: realtimeModeRef.current,
+      });
+
+      setLiveMeetingState((current) => ({
+        ...current,
+        status: isRecordingRef.current ? 'listening' : 'processing',
+        statusMessage: isRecordingRef.current
+          ? `Realtime note đã cập nhật ${nextIndex} đoạn ghi.`
+          : 'Đang hoàn tất các cập nhật AI cuối cùng...',
+        processedChunks: nextIndex,
+        transcriptPreview: appendTranscriptChunk(current.transcriptPreview, result.transcriptChunk),
+        summaryPreview: result.rollingSummary || current.summaryPreview,
+        decisionsPreview: result.decisions || current.decisionsPreview,
+        risksPreview: result.risks || current.risksPreview,
+        actionItemsPreview: result.actionItems || current.actionItemsPreview,
+        errorMessage: undefined,
+      }));
+    } catch (error: any) {
+      setLiveMeetingState((current) => ({
+        ...current,
+        status: 'error',
+        statusMessage: 'Realtime note gặp lỗi, bản ghi chính vẫn có thể xử lý sau khi dừng ghi âm.',
+        errorMessage: error?.message || 'Không thể cập nhật realtime.',
+      }));
+    } finally {
+      liveChunkProcessingRef.current = false;
+      if (liveChunkQueueRef.current.length > 0) {
+        void processQueuedMeetingChunks();
+      }
+    }
+  };
+
+  const enqueueLiveChunk = (blob: Blob) => {
+    if (!blob.size || sessionContext !== SessionContext.MEETING) {
+      return;
+    }
+
+    liveChunkQueueRef.current.push(blob);
+    void processQueuedMeetingChunks();
+  };
+
   const clearSelectedRecording = () => {
     setFile(null);
     setSavedRecording(null);
     setRecordingSeconds(0);
     setStatusMessage('Đã xoá phiên ghi hiện tại.');
+    resetLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.');
     clearPreview();
   };
 
@@ -114,10 +260,48 @@ export const StepRecord: React.FC<StepRecordProps> = ({
     };
   }, [audioPreviewUrl]);
 
+  useEffect(() => {
+    if (sessionContext === SessionContext.INTERVIEW && !isRecording) {
+      resetLiveMeetingState('Phỏng vấn chỉ ghi âm và chép transcript sau khi kết thúc.');
+    }
+
+    if (sessionContext === SessionContext.MEETING && !isRecording && !file) {
+      resetLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.');
+    }
+  }, [file, isRecording, sessionContext]);
+
   const handleStartRecording = async () => {
     try {
       clearSelectedRecording();
       setStatusMessage('Đang xin quyền microphone...');
+      let realtimeEnabled = false;
+      let realtimeMode: RealtimeMode = DEFAULT_REALTIME_MODE;
+
+      if (sessionContext === SessionContext.MEETING) {
+        const settings = await loadAiSettings();
+        realtimeMode = settings.realtimeMode;
+        realtimeModeRef.current = realtimeMode;
+        realtimeEnabled = realtimeMode !== 'OFF' && Boolean(settings.apiKey.trim());
+        resetLiveMeetingState(
+          realtimeEnabled
+            ? realtimeMode === 'HYBRID'
+              ? 'Realtime đang chạy HYBRID: cập nhật transcript + summary nhanh theo từng chunk.'
+              : 'Realtime đang chạy FULL: cập nhật đầy đủ notes theo từng chunk.'
+            : realtimeMode === 'OFF'
+              ? 'Realtime đang tắt theo cài đặt. App sẽ phân tích 1 lần khi kết thúc phiên.'
+              : 'Chưa có Gemini API Key nên realtime note đang tắt. Bạn vẫn có thể ghi âm và xử lý đầy đủ sau khi kết thúc.'
+        );
+
+        if (!realtimeEnabled) {
+          setLiveMeetingState((current) => ({
+            ...current,
+            status: 'disabled',
+          }));
+        }
+      } else {
+        realtimeModeRef.current = DEFAULT_REALTIME_MODE;
+        resetLiveMeetingState('Phỏng vấn chỉ ghi âm và chép transcript sau khi kết thúc.');
+      }
 
       const { recorder, stream, mimeType } = await startRecordingStream();
       mediaRecorderRef.current = recorder;
@@ -127,6 +311,9 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunksRef.current.push(event.data);
+          if (sessionContext === SessionContext.MEETING && realtimeEnabled) {
+            enqueueLiveChunk(event.data);
+          }
         }
       };
 
@@ -173,19 +360,44 @@ export const StepRecord: React.FC<StepRecordProps> = ({
           );
         }
 
+        if (sessionContext === SessionContext.MEETING) {
+          setLiveMeetingState((current) => ({
+            ...current,
+            status:
+              current.status === 'disabled'
+                ? 'disabled'
+                : liveChunkQueueRef.current.length > 0 || liveChunkProcessingRef.current
+                  ? 'processing'
+                  : 'listening',
+            statusMessage:
+              current.status === 'disabled'
+                ? current.statusMessage
+                : liveChunkQueueRef.current.length > 0 || liveChunkProcessingRef.current
+                  ? 'Đang hoàn tất các cập nhật realtime cuối cùng trước khi bạn sang bước AI đầy đủ.'
+                  : 'Realtime note đã cập nhật xong cho phiên ghi hiện tại.',
+          }));
+        }
+
         stopActiveStream();
       };
 
-      recorder.start();
+      if (sessionContext === SessionContext.MEETING) {
+        recorder.start(LIVE_CHUNK_TIMESLICE_MS);
+      } else {
+        recorder.start();
+      }
+
       setRecordingSeconds(0);
       startTimer();
       setIsRecording(true);
+      isRecordingRef.current = true;
       setIsPaused(false);
       setStatusMessage('Đang ghi âm trực tiếp...');
     } catch (error: any) {
       console.error('Recording start failed:', error);
       stopTimer();
       setIsRecording(false);
+      isRecordingRef.current = false;
       setIsPaused(false);
       stopActiveStream();
       setStatusMessage(error.message || 'Không thể khởi động ghi âm.');
@@ -219,6 +431,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
 
     stopTimer();
     setIsRecording(false);
+    isRecordingRef.current = false;
     setIsPaused(false);
     setStatusMessage('Đang hoàn tất file ghi âm...');
     recorder.stop();
@@ -229,7 +442,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       id: SessionContext.MEETING,
       title: 'Cuộc họp',
       description:
-        'Ghi âm rồi sinh transcript, tóm tắt, action items, folder tree và mindmap.',
+        'Ghi âm rồi sinh transcript, tóm tắt, decisions, risks, action items, folder tree và mindmap.',
       icon: BriefcaseBusiness,
     },
     {
@@ -240,6 +453,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       icon: Users,
     },
   ];
+
+  const showLivePanel = sessionContext === SessionContext.MEETING;
 
   return (
     <div className="flex flex-col items-center w-full animate-fade-in">
@@ -252,7 +467,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
             Chọn loại phiên trước khi bắt đầu thu
           </h2>
           <p className="mt-4 text-sm leading-7 text-white/68">
-            Màn này chỉ phục vụ ghi âm trực tiếp và sinh kết quả theo ngữ cảnh tương ứng.
+            Màn này phục vụ ghi âm trực tiếp. Nếu chọn cuộc họp, app sẽ vừa ghi vừa cập nhật note
+            realtime theo từng đoạn ghi.
           </p>
 
           <div className="mt-8 space-y-4">
@@ -289,6 +505,27 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               );
             })}
           </div>
+
+          {showLivePanel && (
+            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
+              <div className="flex items-center gap-3 text-[#7af2d1]">
+                <Sparkles className="h-5 w-5" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.28em]">
+                  Live meeting notes
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-white/68">
+                Realtime chạy theo từng chunk khoảng 15 giây. Ở mode Hybrid, phần realtime chỉ cập nhật
+                transcript + summary nhanh; sau khi dừng ghi, bước AI đầy đủ vẫn chạy lại trên toàn bộ file.
+              </p>
+              <div className="mt-4 rounded-2xl bg-white/[0.06] px-4 py-4 text-sm leading-6 text-white/75">
+                {liveMeetingState.statusMessage}
+                {liveMeetingState.errorMessage && (
+                  <div className="mt-2 text-rose-300">{liveMeetingState.errorMessage}</div>
+                )}
+              </div>
+            </div>
+          )}
         </aside>
 
         <section className="rounded-[32px] border border-white/60 bg-white/90 p-6 md:p-8 shadow-[0_24px_80px_rgba(12,74,60,0.12)]">
@@ -376,6 +613,66 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               </div>
             </div>
           </div>
+
+          {showLivePanel && (
+            <div className="mt-6 rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#f8fffc,white)] p-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
+                    Realtime meeting note
+                  </div>
+                  <div className="mt-2 text-xl font-black text-slate-900">
+                    Transcript và ghi chú đang cập nhật dần
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white">
+                  <Sparkles className="h-4 w-4 text-[#7af2d1]" />
+                  {liveMeetingState.processedChunks} đoạn đã xử lý
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                  <div className="text-sm font-bold text-slate-900">Transcript preview</div>
+                  <div className="mt-3 max-h-64 overflow-auto rounded-2xl bg-slate-50 px-4 py-4 font-mono text-xs leading-6 text-slate-700">
+                    {liveMeetingState.transcriptPreview || 'Chưa có transcript realtime.'}
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                  <div className="text-sm font-bold text-slate-900">Rolling summary</div>
+                  <div className="mt-3 max-h-64 overflow-auto rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+                    {liveMeetingState.summaryPreview || 'Chưa có tóm tắt realtime.'}
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <ListChecks className="h-4 w-4 text-[#0d7c66]" />
+                    Decisions & action items
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+                      {liveMeetingState.decisionsPreview || 'Chưa có quyết định nào được tách riêng.'}
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+                      {liveMeetingState.actionItemsPreview || 'Chưa có action item realtime.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <ShieldAlert className="h-4 w-4 text-amber-600" />
+                    Risks / blockers
+                  </div>
+                  <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+                    {liveMeetingState.risksPreview || 'Chưa có rủi ro hoặc blocker nào được phát hiện.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {file && (
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
