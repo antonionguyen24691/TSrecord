@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   Check,
+  ChevronDown,
   Download,
   FileCode2,
   FileImage,
+  FileText,
   FolderArchive,
   Mail,
   RotateCcw,
@@ -18,6 +20,7 @@ import {
   buildPresentationHtml,
   downloadHtmlReport,
   downloadPresentationDeck,
+  downloadDocxReport,
   downloadTextFile,
   saveSessionPackage,
 } from '../services/sessionPackageService';
@@ -46,6 +49,7 @@ export const StepExport: React.FC<StepExportProps> = ({
     'idle'
   );
   const [savedPackagePath, setSavedPackagePath] = useState<string>('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
@@ -68,6 +72,7 @@ export const StepExport: React.FC<StepExportProps> = ({
   const isTranscriptionOnly = analysis.context === SessionContext.TRANSCRIPTION;
   const htmlFileName = `${fileName || 'session'}-report.html`;
   const [pptxStatus, setPptxStatus] = useState<'idle' | 'building' | 'success' | 'error'>('idle');
+  const [docxStatus, setDocxStatus] = useState<'idle' | 'building' | 'success' | 'error'>('idle');
   const transcriptFileName = `${fileName || 'session'}-transcript.txt`;
 
   const handleDownloadTranscript = () => {
@@ -82,6 +87,23 @@ export const StepExport: React.FC<StepExportProps> = ({
       analysis,
       fileName: htmlFileName,
     });
+  };
+
+  const handleDownloadDocx = async () => {
+    try {
+      setDocxStatus('building');
+      await downloadDocxReport({
+        analysis,
+        fileName: fileName || 'session',
+      });
+      setDocxStatus('success');
+      window.setTimeout(() => setDocxStatus('idle'), 1800);
+    } catch (error) {
+      console.error('DOCX export failed:', error);
+      setDocxStatus('error');
+      alert(`Không thể tạo file Word: ${error}`);
+      window.setTimeout(() => setDocxStatus('idle'), 1800);
+    }
   };
 
   const handleDownloadPptx = async () => {
@@ -204,6 +226,7 @@ export const StepExport: React.FC<StepExportProps> = ({
                 placeholder="meeting_session_2026_03_29"
               />
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                <span className="rounded-full bg-white px-3 py-2 shadow-sm">.docx</span>
                 <span className="rounded-full bg-white px-3 py-2 shadow-sm">.html</span>
                 <span className="rounded-full bg-white px-3 py-2 shadow-sm">.pptx</span>
                 <span className="rounded-full bg-white px-3 py-2 shadow-sm">.txt</span>
@@ -211,52 +234,81 @@ export const StepExport: React.FC<StepExportProps> = ({
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-stretch">
               <button
                 type="button"
-                onClick={handleDownloadHtmlReport}
-                className="rounded-[26px] border border-slate-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-[#0d7c66] hover:shadow-lg hover:shadow-[#0d7c66]/10"
+                onClick={handleDownloadDocx}
+                disabled={docxStatus === 'building'}
+                className="flex-[1.5] rounded-[26px] border border-blue-200 bg-blue-50/50 p-5 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100/50 disabled:cursor-wait disabled:opacity-70"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0d7c66]/10 text-[#0d7c66]">
-                  <FileCode2 className="h-6 w-6" />
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-200">
+                    <FileText className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-blue-950">
+                      {docxStatus === 'building' ? 'Đang tạo Word...' : 'Tải file Word (.docx)'}
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-blue-800">
+                      Định dạng ưu tiên, nội dung đầy đủ và dễ dàng chỉnh sửa.
+                    </p>
+                  </div>
                 </div>
-                <div className="mt-4 text-lg font-bold text-slate-900">Tải HTML report</div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Xuất trang HTML tổng hợp dạng slide, giữ đúng bố cục trình bày.
-                </p>
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadPptx}
-                disabled={pptxStatus === 'building'}
-                className="rounded-[26px] border border-slate-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-100 disabled:cursor-wait disabled:opacity-70"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
-                  <FileImage className="h-6 w-6" />
-                </div>
-                <div className="mt-4 text-lg font-bold text-slate-900">
-                  {pptxStatus === 'building' ? 'Đang tạo PPTX...' : 'Tải bản PPTX'}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Xuất deck trình bày nhiều slide với summary, decisions, risks, action plan và transcript highlights.
-                </p>
-              </button>
+              <div className="relative flex-1">
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}
+                  className="flex h-full min-h-[90px] w-full items-center justify-center gap-2 rounded-[26px] border border-slate-200 bg-white px-6 font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-md focus:outline-none"
+                >
+                  <span className="text-center">Định dạng<br />khác</span>
+                  <ChevronDown className={`h-5 w-5 opacity-70 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadTranscript}
-                className="rounded-[26px] border border-slate-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/60"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                  <Download className="h-6 w-6" />
-                </div>
-                <div className="mt-4 text-lg font-bold text-slate-900">Tải transcript</div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Lấy nhanh phần transcript thô để tiếp tục biên tập bên ngoài.
-                </p>
-              </button>
-
+                {dropdownOpen && (
+                  <div className="absolute left-0 sm:right-0 sm:left-auto top-[100%] mt-3 w-64 z-20 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl animate-fade-in">
+                    <button
+                      onClick={() => handleDownloadHtmlReport()}
+                      className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-slate-50"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#0d7c66]/10 text-[#0d7c66]">
+                        <FileCode2 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">HTML Report</div>
+                        <div className="text-xs mt-0.5 text-slate-500">Giữ nguyên bố cục web</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleDownloadPptx()}
+                      disabled={pptxStatus === 'building'}
+                      className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-indigo-50 text-indigo-600">
+                        <FileImage className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">Slide PPTX</div>
+                        <div className="text-xs mt-0.5 text-slate-500">Tạo slide thuyết trình</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleDownloadTranscript()}
+                      className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-slate-50"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-slate-100 text-slate-600">
+                        <Download className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">Transcript thô</div>
+                        <div className="text-xs mt-0.5 text-slate-500">File text nguyên bản</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
