@@ -49,6 +49,7 @@ export const StepExport: React.FC<StepExportProps> = ({
     'idle'
   );
   const [savedPackagePath, setSavedPackagePath] = useState<string>('');
+  const [lastExportPath, setLastExportPath] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const isNative = Capacitor.isNativePlatform();
 
@@ -75,27 +76,38 @@ export const StepExport: React.FC<StepExportProps> = ({
   const [docxStatus, setDocxStatus] = useState<'idle' | 'building' | 'success' | 'error'>('idle');
   const transcriptFileName = `${fileName || 'session'}-transcript.txt`;
 
-  const handleDownloadTranscript = () => {
-    downloadTextFile({
+  const handleDownloadTranscript = async () => {
+    const savedFile = await downloadTextFile({
       content: analysis.artifacts.transcript,
       fileName: transcriptFileName,
     });
+
+    if (savedFile?.path) {
+      setLastExportPath(savedFile.path);
+    }
   };
 
-  const handleDownloadHtmlReport = () => {
-    downloadHtmlReport({
+  const handleDownloadHtmlReport = async () => {
+    const savedFile = await downloadHtmlReport({
       analysis,
       fileName: htmlFileName,
     });
+
+    if (savedFile?.path) {
+      setLastExportPath(savedFile.path);
+    }
   };
 
   const handleDownloadDocx = async () => {
     try {
       setDocxStatus('building');
-      await downloadDocxReport({
+      const savedFile = await downloadDocxReport({
         analysis,
         fileName: fileName || 'session',
       });
+      if (savedFile?.path) {
+        setLastExportPath(savedFile.path);
+      }
       setDocxStatus('success');
       window.setTimeout(() => setDocxStatus('idle'), 1800);
     } catch (error) {
@@ -109,10 +121,13 @@ export const StepExport: React.FC<StepExportProps> = ({
   const handleDownloadPptx = async () => {
     try {
       setPptxStatus('building');
-      await downloadPresentationDeck({
+      const savedFile = await downloadPresentationDeck({
         analysis,
         preferredBaseName: fileName,
       });
+      if (savedFile?.path) {
+        setLastExportPath(savedFile.path);
+      }
       setPptxStatus('success');
       window.setTimeout(() => setPptxStatus('idle'), 1800);
     } catch (error) {
@@ -178,7 +193,7 @@ export const StepExport: React.FC<StepExportProps> = ({
       return;
     }
 
-    handleDownloadHtmlReport();
+    void handleDownloadHtmlReport();
 
     const subject = encodeURIComponent(`[AI Session] ${analysis.title}`);
     const summaryBody =
@@ -353,6 +368,12 @@ export const StepExport: React.FC<StepExportProps> = ({
             {savedPackagePath && (
               <p className="mt-4 break-all rounded-2xl bg-white/[0.06] px-4 py-4 font-mono text-xs text-white/72">
                 {savedPackagePath}
+              </p>
+            )}
+
+            {lastExportPath && (
+              <p className="mt-4 break-all rounded-2xl bg-white/[0.06] px-4 py-4 font-mono text-xs text-white/72">
+                File export gần nhất: {lastExportPath}
               </p>
             )}
 

@@ -606,9 +606,9 @@ const PreviewCard: React.FC<{
   subtitle?: string;
   children: React.ReactNode;
 }> = ({ title, subtitle, children }) => (
-  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-    <div className="text-sm font-bold text-slate-900">{title}</div>
-    {subtitle && <div className="mt-1 text-xs text-slate-500">{subtitle}</div>}
+  <div className="rounded-[24px] border border-slate-200 bg-white p-1.5 md:p-4 shadow-sm">
+    <div className="text-sm font-bold text-slate-900 px-2 md:px-0">{title}</div>
+    {subtitle && <div className="mt-1 text-xs text-slate-500 px-2 md:px-0">{subtitle}</div>}
     <div className="mt-4">{children}</div>
   </div>
 );
@@ -636,21 +636,21 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
     return (
       <PreviewCard title="Transcript đã chuẩn hóa" subtitle="Giữ nguyên nội dung chép lời, dễ rà soát và đối chiếu.">
         {hasTimeline ? (
-          <div className="max-h-[60vh] space-y-3 overflow-auto rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-4">
+          <div className="max-h-[60vh] space-y-3 overflow-auto rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-1.5 md:p-4">
             {timelineSegments.map((segment, index) => (
               <div
                 key={`segment-${index}`}
-                className="grid grid-cols-1 gap-3 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[120px_1fr]"
+                className="grid grid-cols-1 gap-2 rounded-[22px] border border-slate-200 bg-white p-2 md:p-4 shadow-sm md:grid-cols-[120px_1fr]"
               >
-                <div className="inline-flex h-fit items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 font-mono text-sm font-bold text-[#7af2d1]">
+                <div className="inline-flex h-fit items-center justify-center rounded-2xl bg-slate-950 px-3 py-2 md:px-4 md:py-3 font-mono text-sm font-bold text-[#7af2d1]">
                   {segment.timestamp || '--:--:--'}
                 </div>
-                <div className="text-sm leading-7 text-slate-800">{segment.text}</div>
+                <div className="text-sm leading-7 text-slate-800 text-justify">{segment.text}</div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="max-h-[60vh] overflow-auto rounded-2xl bg-slate-50 px-4 py-4 font-mono text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+          <div className="max-h-[60vh] overflow-auto rounded-2xl bg-slate-50 px-2 py-3 md:px-4 md:py-4 font-mono text-sm leading-7 text-slate-700 whitespace-pre-wrap text-justify">
             {content}
           </div>
         )}
@@ -665,7 +665,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
         title="Meeting summary"
         subtitle="Markdown được render thành layout đọc được thay vì text thô."
       >
-        <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-6 shadow-sm">
+        <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-3 md:p-6 shadow-sm">
           <div className="space-y-4">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -682,13 +682,13 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
                   <h3 className="mt-6 text-xl font-bold text-slate-900">{children}</h3>
                 ),
                 p: ({ children }) => (
-                  <p className="text-sm leading-7 text-slate-700">{children}</p>
+                  <p className="text-sm leading-7 text-slate-700 text-justify">{children}</p>
                 ),
                 ul: ({ children }) => <ul className="space-y-3 pl-0">{children}</ul>,
                 ol: ({ children }) => <ol className="space-y-3 pl-0">{children}</ol>,
                 li: ({ children }) => (
-                  <li className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-800">
-                    <span className="mt-2 h-2 w-2 rounded-full bg-[#0d7c66]" />
+                  <li className="flex items-start gap-2.5 rounded-2xl bg-slate-50 px-3 py-2.5 md:px-4 md:py-3 text-sm leading-7 text-slate-800 text-justify">
+                    <span className="mt-2 h-2 w-2 rounded-full bg-[#0d7c66] flex-shrink-0" />
                     <span className="flex-1">{children}</span>
                   </li>
                 ),
@@ -715,19 +715,19 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
     const items = parseBulletList(content);
 
     return (
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-2">
         {items.map((item, index) => (
           <div
             key={`${artifact.key}-${index}`}
-            className={`rounded-[22px] border px-4 py-4 text-sm leading-7 ${
+            className={`rounded-[22px] border px-3 py-3 md:px-4 md:py-4 text-sm leading-7 text-justify ${
               artifact.key === 'decisions'
                 ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
                 : 'border-amber-200 bg-amber-50/80 text-amber-950'
             }`}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 text-justify">
               <div
-                className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl ${
+                className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl flex-shrink-0 ${
                   artifact.key === 'decisions'
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-amber-100 text-amber-700'
@@ -751,14 +751,14 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
     const items = parseChecklist(content);
 
     return (
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-2">
         {items.map((item, index) => (
           <div
             key={`action-${index}`}
-            className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-800"
+            className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-3 py-3 md:px-4 md:py-4 text-sm leading-7 text-slate-800 text-justify"
           >
             <div
-              className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg border ${
+              className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg border flex-shrink-0 ${
                 item.checked
                   ? 'border-emerald-500 bg-emerald-500 text-white'
                   : 'border-slate-300 bg-white text-slate-400'
@@ -827,7 +827,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
 
   return (
     <PreviewCard title={artifact.label}>
-      <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+      <div className="rounded-2xl bg-slate-50 px-2 py-3 md:px-4 md:py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap text-justify">
         {content}
       </div>
     </PreviewCard>
@@ -941,7 +941,7 @@ export const StepResult: React.FC<StepResultProps> = ({
 
   return (
     <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
-      <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-6 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+      <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-1.5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-4">
@@ -1090,14 +1090,14 @@ export const StepResult: React.FC<StepResultProps> = ({
               </div>
             </div>
 
-            <div className="min-h-[60vh] bg-white px-5 py-5">
+            <div className="min-h-[60vh] bg-white px-1.5 py-1.5 md:px-5 md:py-5">
               {viewMode === 'preview' ? (
                 <ArtifactPreview artifact={activeArtifact} analysis={analysis} />
               ) : (
                 <textarea
                   value={activeArtifact.content}
                   onChange={(event) => updateArtifact(activeArtifact.key, event.target.value)}
-                  className="min-h-[56vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-mono text-sm leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
+                  className="min-h-[56vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 md:px-4 md:py-4 font-mono text-sm leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white text-justify"
                   placeholder="Nội dung sẽ hiển thị tại đây..."
                 />
               )}

@@ -62,6 +62,84 @@ const writeTextFile = async (path: string, content: string) => {
   });
 };
 
+const blobToBase64 = async (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.includes(',') ? result.split(',')[1] : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+const saveNativeExportText = async ({
+  fileName,
+  content,
+}: {
+  fileName: string;
+  content: string;
+}): Promise<SavedDeviceFile> => {
+  await ensureFilesystemPermission();
+  await ensureDirectory(`${STORAGE_ROOT}/exports`);
+
+  const exportPath = `${STORAGE_ROOT}/exports/${fileName}`;
+  await Filesystem.writeFile({
+    path: exportPath,
+    data: content,
+    directory: Directory.Documents,
+    encoding: Encoding.UTF8,
+    recursive: true,
+  });
+
+  const uriResult = await Filesystem.getUri({
+    path: exportPath,
+    directory: Directory.Documents,
+  });
+
+  return {
+    fileName,
+    path: exportPath,
+    uri: uriResult.uri,
+    workspacePath: `${STORAGE_ROOT}/exports`,
+    directoryLabel: `Documents/${STORAGE_ROOT}/exports`,
+    webPath: Capacitor.convertFileSrc(uriResult.uri),
+  };
+};
+
+const saveNativeExportBlob = async ({
+  fileName,
+  blob,
+}: {
+  fileName: string;
+  blob: Blob;
+}): Promise<SavedDeviceFile> => {
+  await ensureFilesystemPermission();
+  await ensureDirectory(`${STORAGE_ROOT}/exports`);
+
+  const exportPath = `${STORAGE_ROOT}/exports/${fileName}`;
+  await Filesystem.writeFile({
+    path: exportPath,
+    data: await blobToBase64(blob),
+    directory: Directory.Documents,
+    recursive: true,
+  });
+
+  const uriResult = await Filesystem.getUri({
+    path: exportPath,
+    directory: Directory.Documents,
+  });
+
+  return {
+    fileName,
+    path: exportPath,
+    uri: uriResult.uri,
+    workspacePath: `${STORAGE_ROOT}/exports`,
+    directoryLabel: `Documents/${STORAGE_ROOT}/exports`,
+    webPath: Capacitor.convertFileSrc(uriResult.uri),
+  };
+};
+
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, '&amp;')
@@ -309,7 +387,7 @@ export const downloadDocxReport = async ({
 }: {
   analysis: SessionAnalysis;
   fileName: string;
-}) => {
+}): Promise<SavedDeviceFile | void> => {
   const { Document, Packer, Paragraph, HeadingLevel } = await import('docx');
 
   const parseMarkdownToDocx = (text: string) => {
@@ -395,7 +473,7 @@ export const downloadDocxReport = async ({
   });
 
   const blob = await Packer.toBlob(doc);
-  downloadBlobFile({ blob, fileName: `${fileName}.docx` });
+  return downloadBlobFile({ blob, fileName: `${fileName}.docx` });
 };
 
 export const downloadHtmlReport = ({
@@ -404,15 +482,15 @@ export const downloadHtmlReport = ({
 }: {
   analysis: SessionAnalysis;
   fileName: string;
-}) => {
-  downloadTextFile({
+}): Promise<SavedDeviceFile | void> => {
+  return downloadTextFile({
     content: buildPresentationHtml(analysis),
     fileName,
     mimeType: 'text/html;charset=utf-8',
   });
 };
 
-export const downloadTextFile = ({
+export const downloadTextFile = async ({
   content,
   fileName,
   mimeType = 'text/plain;charset=utf-8',
@@ -420,7 +498,11 @@ export const downloadTextFile = ({
   content: string;
   fileName: string;
   mimeType?: string;
-}) => {
+}): Promise<SavedDeviceFile | void> => {
+  if (Capacitor.isNativePlatform()) {
+    return saveNativeExportText({ fileName, content });
+  }
+
   const element = document.createElement('a');
   const file = new Blob([content], { type: mimeType });
 
@@ -431,13 +513,17 @@ export const downloadTextFile = ({
   document.body.removeChild(element);
 };
 
-export const downloadBlobFile = ({
+export const downloadBlobFile = async ({
   blob,
   fileName,
 }: {
   blob: Blob;
   fileName: string;
-}) => {
+}): Promise<SavedDeviceFile | void> => {
+  if (Capacitor.isNativePlatform()) {
+    return saveNativeExportBlob({ fileName, blob });
+  }
+
   const element = document.createElement('a');
 
   element.href = URL.createObjectURL(blob);
@@ -551,7 +637,7 @@ export const downloadPresentationDeck = async ({
 }: {
   analysis: SessionAnalysis;
   preferredBaseName?: string;
-}) => {
+}): Promise<SavedDeviceFile | void> => {
   const [{ default: PptxGenJS }] = await Promise.all([import('pptxgenjs')]);
   const pptx = new PptxGenJS();
 
@@ -863,7 +949,14 @@ export const downloadPresentationDeck = async ({
   }
 
   const safeName = sanitizeFileSegment(preferredBaseName || analysis.suggestedFolderName || analysis.title || 'session');
-  await pptx.writeFile({ fileName: `${safeName || 'session'}-deck.pptx` });
+  const outputFileName = `${safeName || 'session'}-deck.pptx`;
+
+  if (Capacitor.isNativePlatform()) {
+    const blob = await pptx.write({ outputType: 'blob' });
+    return downloadBlobFile({ blob, fileName: outputFileName });
+  }
+
+  await pptx.writeFile({ fileName: outputFileName });
 };
 
 export const saveSessionPackage = async ({
@@ -923,9 +1016,6 @@ export const saveSessionPackage = async ({
   const reportText = buildPresentationHtml(analysis);
   const reportFileName = `${baseName}-report.html`;
   const reportPath = `${exportsPath}/${reportFileName}`;
-
-  await writeTextFile(reportPath, reportText);
-
 
   await writeTextFile(reportPath, reportText);
 

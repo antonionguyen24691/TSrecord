@@ -27,6 +27,18 @@ const formatFileSize = (bytes: number) => {
   return `${parseFloat((bytes / Math.pow(k, index)).toFixed(2))} ${sizes[index]}`;
 };
 
+const SUPPORTED_EXTENSIONS = [
+  '.mp3',
+  '.wav',
+  '.m4a',
+  '.aac',
+  '.ogg',
+  '.webm',
+  '.mp4',
+  '.mov',
+  '.mkv',
+];
+
 export const StepUpload: React.FC<StepUploadProps> = ({
   sessionContext,
   setSessionContext,
@@ -44,7 +56,14 @@ export const StepUpload: React.FC<StepUploadProps> = ({
   ];
 
   const validateAndSetFile = (uploadedFile: File) => {
-    if (uploadedFile.type.startsWith('audio/') || uploadedFile.type.startsWith('video/')) {
+    const lowerName = uploadedFile.name.toLowerCase();
+    const hasSupportedMime =
+      uploadedFile.type.startsWith('audio/') || uploadedFile.type.startsWith('video/');
+    const hasSupportedExtension = SUPPORTED_EXTENSIONS.some((extension) =>
+      lowerName.endsWith(extension)
+    );
+
+    if (hasSupportedMime || hasSupportedExtension) {
       setFile(uploadedFile);
       return;
     }
@@ -139,7 +158,7 @@ export const StepUpload: React.FC<StepUploadProps> = ({
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="audio/*,video/*"
+                accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.webm,.mp4,.mov,.mkv"
                 onChange={handleChange}
                 onClick={(event) => {
                   (event.target as HTMLInputElement).value = '';
@@ -204,4 +223,3 @@ export const StepUpload: React.FC<StepUploadProps> = ({
     </div>
   );
 };
-
