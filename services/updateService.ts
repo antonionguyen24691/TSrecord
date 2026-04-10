@@ -13,8 +13,8 @@
 import { Capacitor } from '@capacitor/core';
 
 // ─── CẤU HÌNH — chỉnh theo GitHub repo của bạn ─────────────────────────────
-const GITHUB_OWNER = 'YOUR_GITHUB_USERNAME'; // Thay bằng username GitHub của bạn
-const GITHUB_REPO = 'YOUR_REPO_NAME';        // Thay bằng tên repo GitHub của bạn
+const GITHUB_OWNER = 'antonionguyen24691'; // Username GitHub của bạn
+const GITHUB_REPO = 'TSrecord';           // Tên repo GitHub của bạn
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Phiên bản hiện tại của app (phải khớp với versionName trong build.gradle) */
