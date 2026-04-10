@@ -12,7 +12,7 @@ import {
   sanitizeFileSegment,
 } from './recordingService';
 
-const STORAGE_ROOT = 'AITranscriber';
+const STORAGE_ROOT = 'TSrecord';
 
 const labelSource = (source: InputSource) =>
   source === InputSource.RECORDING ? 'Ghi âm trực tiếp' : 'Tải file có sẵn';
@@ -297,9 +297,105 @@ export const buildPresentationHtml = (analysis: SessionAnalysis) => {
       ${analysis.context === SessionContext.MEETING ? `<article class="card half"><h2>Folder Tree</h2>${folderTreeHtml}</article><article class="card half"><h2>Mindmap Source</h2>${mindmapHtml}</article>` : ''}
     </section>
   </div>
+  </div>
 </body>
 </html>
   `.trim();
+};
+
+export const downloadDocxReport = async ({
+  analysis,
+  fileName,
+}: {
+  analysis: SessionAnalysis;
+  fileName: string;
+}) => {
+  const { Document, Packer, Paragraph, HeadingLevel } = await import('docx');
+
+  const parseMarkdownToDocx = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    const paragraphs: any[] = [];
+    
+    lines.forEach(line => {
+      if (!line.trim()) {
+         paragraphs.push(new Paragraph(""));
+         return;
+      }
+      
+      if (line.match(/^###\s+/)) {
+         paragraphs.push(new Paragraph({
+           text: line.replace(/^###\s+/, ''),
+           heading: HeadingLevel.HEADING_3,
+         }));
+      } else if (line.match(/^##\s+/)) {
+         paragraphs.push(new Paragraph({
+           text: line.replace(/^##\s+/, ''),
+           heading: HeadingLevel.HEADING_2,
+         }));
+      } else if (line.match(/^#\s+/)) {
+         paragraphs.push(new Paragraph({
+           text: line.replace(/^#\s+/, ''),
+           heading: HeadingLevel.HEADING_1,
+         }));
+      } else if (line.match(/^-\s+\[/)) {
+         paragraphs.push(new Paragraph({
+           text: line.replace(/^-\s+\[[ xX]\]\s*/, ''),
+           bullet: { level: 0 }
+         }));
+      } else if (line.match(/^[-*]\s+/)) {
+         paragraphs.push(new Paragraph({
+           text: line.replace(/^[-*]\s+/, ''),
+           bullet: { level: 0 }
+         }));
+      } else if (line.match(/^> /)) {
+         paragraphs.push(new Paragraph({
+           text: line.replace(/^> /, ''),
+           indent: { left: 720 },
+         }));
+      } else {
+         paragraphs.push(new Paragraph(line));
+      }
+    });
+    return paragraphs;
+  };
+
+  const sections = [
+    new Paragraph({ text: analysis.title || 'TSrecord Session', heading: HeadingLevel.HEADING_1 }),
+    new Paragraph(""),
+    new Paragraph(`Nguồn dữ liệu: ${labelSource(analysis.source)}`),
+    new Paragraph(`Ngữ cảnh: ${labelContext(analysis.context)}`),
+    new Paragraph(`Định dạng transcript: ${labelMode(analysis.mode)}`),
+    new Paragraph(""),
+    new Paragraph({ text: 'Transcript', heading: HeadingLevel.HEADING_2 }),
+    ...parseMarkdownToDocx(analysis.artifacts.transcript || "Chưa có transcript"),
+  ];
+
+  if (analysis.context === SessionContext.MEETING) {
+    sections.push(
+      new Paragraph(""),
+      new Paragraph({ text: 'Tóm tắt cuộc họp', heading: HeadingLevel.HEADING_2 }),
+      ...parseMarkdownToDocx(analysis.artifacts.summary || 'Chưa có phần tóm tắt.'),
+      new Paragraph(""),
+      new Paragraph({ text: 'Các quyết định đã chốt', heading: HeadingLevel.HEADING_2 }),
+      ...parseMarkdownToDocx(analysis.artifacts.decisions || 'Chưa có quyết định.'),
+      new Paragraph(""),
+      new Paragraph({ text: 'Rủi ro / điểm còn mở', heading: HeadingLevel.HEADING_2 }),
+      ...parseMarkdownToDocx(analysis.artifacts.risks || 'Chưa có rủi ro.'),
+      new Paragraph(""),
+      new Paragraph({ text: 'Việc cần làm', heading: HeadingLevel.HEADING_2 }),
+      ...parseMarkdownToDocx(analysis.artifacts.actionItems || 'Chưa có mục hành động.')
+    );
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: {},
+      children: sections,
+    }]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  downloadBlobFile({ blob, fileName: `${fileName}.docx` });
 };
 
 export const downloadHtmlReport = ({
@@ -830,6 +926,9 @@ export const saveSessionPackage = async ({
 
   await writeTextFile(reportPath, reportText);
 
+
+  await writeTextFile(reportPath, reportText);
+
   const uriResult = await Filesystem.getUri({
     path: reportPath,
     directory: Directory.Documents,
@@ -840,7 +939,59 @@ export const saveSessionPackage = async ({
     path: reportPath,
     uri: uriResult.uri,
     workspacePath,
-    directoryLabel: `Documents/${STORAGE_ROOT}`,
+    directoryLabel: `Documents/TSrecord`,
     webPath: Capacitor.convertFileSrc(uriResult.uri),
   };
+};
+
+export const clearAppStorage = async () => {
+  if (!Capacitor.isNativePlatform()) {
+    console.warn('Storage clearing is only supported on native platforms.');
+    return;
+  }
+
+  await ensureFilesystemPermission();
+
+  try {
+    await Filesystem.rmdir({
+      path: 'TSrecord',
+      directory: Directory.Documents,
+      recursive: true,
+    });
+  } catch (error: any) {
+    const message = `${error?.message || ''}`.toLowerCase();
+    if (!message.includes('not found') && !message.includes('exist')) {
+      throw error;
+    }
+  }
+};
+
+export const initAppStorage = async () => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    const root = await Filesystem.readdir({
+      path: '',
+      directory: Directory.Documents,
+    });
+
+    const rootExists = root.files.some((f) => f.name === STORAGE_ROOT);
+    if (!rootExists) {
+      await Filesystem.mkdir({
+        path: STORAGE_ROOT,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+    }
+  } catch (error) {
+    try {
+      await Filesystem.mkdir({
+        path: STORAGE_ROOT,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+    } catch (e) {
+      console.error('Failed to init storage:', e);
+    }
+  }
 };

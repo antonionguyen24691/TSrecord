@@ -94,13 +94,22 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     ? (transcriptionProviderResult as TranscriptionProvider)
     : DEFAULT_TRANSCRIPTION_PROVIDER;
 
+  const sanitizeModelId = (id: string, defaultId: string) => {
+    let cleanId = id || fallbackModel || defaultId;
+    // Map previous or user-tampered versions to the correct API ID
+    if (cleanId === 'gemini-3.1-flash-lite' || cleanId === 'gemini 3.1 flash lite') {
+      return 'gemini-3.1-flash-lite-preview';
+    }
+    return cleanId;
+  };
+
   return {
     apiKey: apiKeyResult,
-    realtimeModelId: realtimeModelIdResult || fallbackModel || DEFAULT_REALTIME_MODEL_ID,
-    analysisModelId: analysisModelIdResult || fallbackModel || DEFAULT_ANALYSIS_MODEL_ID,
+    realtimeModelId: sanitizeModelId(realtimeModelIdResult, DEFAULT_REALTIME_MODEL_ID),
+    analysisModelId: sanitizeModelId(analysisModelIdResult, DEFAULT_ANALYSIS_MODEL_ID),
     realtimeMode:
-      realtimeModeResult === 'FULL' || realtimeModeResult === 'OFF'
-        ? realtimeModeResult
+      realtimeModeResult === 'FULL' || realtimeModeResult === 'HYBRID' || realtimeModeResult === 'OFF'
+        ? (realtimeModeResult as RealtimeMode)
         : DEFAULT_REALTIME_MODE,
     transcriptionProvider: provider,
     assemblyaiApiKey: assemblyaiApiKeyResult,

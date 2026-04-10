@@ -11,6 +11,8 @@ import {
   loadAiSettings,
   saveAiSettings,
 } from '../services/aiSettingsService';
+import { clearAppStorage } from '../services/sessionPackageService';
+import { HardDrive, Trash2 } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -18,6 +20,7 @@ interface SettingsModalProps {
 }
 
 const AVAILABLE_GEMINI_MODELS = [
+  { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite Preview' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Khuyên dùng — Cân bằng)' },
   { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (Tiết kiệm chi phí nhất)' },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Phân tích sâu nhất)' },
@@ -137,7 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   );
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'provider' | 'gemini' | 'realtime'>('provider');
+  const [activeTab, setActiveTab] = useState<'provider' | 'gemini' | 'realtime' | 'storage'>('provider');
 
   useEffect(() => {
     let active = true;
@@ -225,6 +228,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
           <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
             Realtime
+          </button>
+          <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
+            Bộ nhớ
           </button>
         </div>
 
@@ -453,6 +459,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <p className="text-xs text-gray-400 pt-1">
                 * Chế độ Realtime chỉ dùng Google Gemini bất kể cài đặt nguồn transcript ở trên.
               </p>
+            </div>
+          )}
+
+          {/* ─── Tab: Bộ nhớ ────────────────────────────────────────── */}
+          {activeTab === 'storage' && (
+            <div className="space-y-6">
+              <div className="space-y-3 rounded-xl bg-gray-50 p-5">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <HardDrive className="h-4 w-4 text-[#006b68]" />
+                  Vị trí lưu trữ cục bộ
+                </label>
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <code className="text-xs font-mono text-gray-600 break-all">
+                    Documents/TSrecord
+                  </code>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Tất cả file ghi âm, transcript và bản phân tích được lưu tại thư mục này trong bộ nhớ máy của bạn. Bạn có thể truy cập qua ứng dụng Quản lý file trên Android.
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-rose-100 bg-rose-50/50 p-5">
+                <label className="flex items-center gap-2 text-sm font-semibold text-rose-800">
+                  <Trash2 className="h-4 w-4" />
+                  Khu vực nguy hiểm
+                </label>
+                <p className="text-xs text-rose-700">
+                  Hành động này sẽ xóa vĩnh viễn toàn bộ thư mục <b>TSrecord</b>, bao gồm tất cả các bản ghi âm và kết quả đã lưu. Hành động này không thể hoàn tác.
+                </p>
+                <button
+                  onClick={async () => {
+                    const ok = window.confirm(
+                      'CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu ứng dụng (file ghi âm, transcript...) không? Hành động này không thể hoàn tác.'
+                    );
+                    if (ok) {
+                      setIsSaving(true);
+                      try {
+                        await clearAppStorage();
+                        alert('Đã xóa toàn bộ dữ liệu thành công.');
+                      } catch (err: any) {
+                        alert('Lỗi khi xóa dữ liệu: ' + err.message);
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }
+                  }}
+                  disabled={isSaving}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98] disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Xóa toàn bộ dữ liệu
+                </button>
+              </div>
             </div>
           )}
         </div>

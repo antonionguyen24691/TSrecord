@@ -322,8 +322,7 @@ export const StepExport: React.FC<StepExportProps> = ({
 
             <h3 className="mt-4 text-2xl font-black">Lưu toàn bộ phiên xuống thiết bị</h3>
             <p className="mt-3 text-sm leading-6 text-white/68">
-              Thao tác này sẽ tạo cây thư mục hệ thống thực tế cho phiên làm việc, sau đó ghi
-              từng artifact vào các file riêng để bạn quản lý dài hạn.
+              Mọi dữ liệu đã được <b>tự động lưu</b> vào thư mục <b>Documents/TSrecord</b>. Bạn có thể nhấn nút dưới đây để tạo lại cấu trúc thư mục hoặc chia sẻ thủ công nếu cần.
             </p>
 
             <button

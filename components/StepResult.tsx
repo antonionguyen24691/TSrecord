@@ -944,9 +944,15 @@ export const StepResult: React.FC<StepResultProps> = ({
       <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-6 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
-              Kết quả AI
-            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
+                Kết quả AI
+              </p>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-100 shadow-sm">
+                <Check className="h-3 w-3" />
+                ĐÃ TỰ ĐỘNG LƯU VÀO MÁY
+              </div>
+            </div>
             <input
               type="text"
               value={analysis.title}

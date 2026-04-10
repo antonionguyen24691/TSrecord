@@ -72,11 +72,10 @@ export const StepMode: React.FC<StepModeProps> = ({
               Bước xử lý
             </p>
             <h2 className="mt-3 text-3xl font-black text-slate-900">
-              Chọn định dạng transcript và chạy AI
+              Chọn định dạng transcript
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-              Bước này chỉ quyết định cách transcript được hiển thị. Module đã được tách ở đầu
-              flow nên ngữ cảnh nghiệp vụ không còn bị trộn trên cùng màn nhập liệu.
+            <p className="mt-3 hidden max-w-2xl text-sm leading-6 text-slate-500 md:block">
+              Chọn timeline hoặc văn bản liền mạch, sau đó chạy AI.
             </p>
 
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
@@ -138,7 +137,7 @@ export const StepMode: React.FC<StepModeProps> = ({
                 </span>
               ))}
             </div>
-            <p className="mt-4 text-sm leading-6 text-white/68">{summaryText}</p>
+            <p className="mt-4 hidden text-sm leading-6 text-white/68 md:block">{summaryText}</p>
           </aside>
         </div>
 

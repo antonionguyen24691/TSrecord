@@ -1,8 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
+import { MicrophonePermission } from '../plugins/microphonePermission';
 import { SavedDeviceFile } from '../types';
 
-const STORAGE_ROOT = 'AITranscriber';
+const STORAGE_ROOT = 'TSrecord';
 const AUDIO_DIRECTORY = 'media';
 const PREFERRED_MIME_TYPES = [
   'audio/webm;codecs=opus',
@@ -63,6 +64,28 @@ const ensureFilesystemPermission = async () => {
   }
 };
 
+const ensureMicrophonePermission = async () => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    const current = await MicrophonePermission.check();
+    if (current.granted) return;
+
+    const requested = await MicrophonePermission.request();
+    if (!requested.granted) {
+      throw new Error('Microphone permission denied.');
+    }
+  } catch (error: any) {
+    const message = `${error?.message || ''}`.toLowerCase();
+    if (message.includes('denied')) {
+      throw new Error(
+        'Microphone đang bị từ chối. Vào Cài đặt ứng dụng > Quyền > Microphone, bật quyền rồi thử lại.'
+      );
+    }
+    throw new Error('Không thể xác nhận quyền microphone trên thiết bị.');
+  }
+};
+
 const ensureDirectory = async (path: string) => {
   try {
     await Filesystem.mkdir({
@@ -103,6 +126,8 @@ export const startRecordingStream = async () => {
       'Thiết bị hiện tại chưa hỗ trợ MediaRecorder hoặc quyền microphone trong trình duyệt.'
     );
   }
+
+  await ensureMicrophonePermission();
 
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {

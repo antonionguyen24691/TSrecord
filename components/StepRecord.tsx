@@ -463,12 +463,11 @@ export const StepRecord: React.FC<StepRecordProps> = ({
           <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#7af2d1]">
             Phân hệ ghi âm
           </p>
-          <h2 className="mt-3 text-3xl font-black leading-tight">
-            Chọn loại phiên trước khi bắt đầu thu
+          <h2 className="mt-3 text-2xl font-black leading-tight md:text-3xl">
+            Chọn loại phiên ghi
           </h2>
-          <p className="mt-4 text-sm leading-7 text-white/68">
-            Màn này phục vụ ghi âm trực tiếp. Nếu chọn cuộc họp, app sẽ vừa ghi vừa cập nhật note
-            realtime theo từng đoạn ghi.
+          <p className="mt-3 hidden text-sm leading-7 text-white/68 md:block">
+            Cuộc họp sẽ có realtime note, phỏng vấn chỉ ghi và chép transcript.
           </p>
 
           <div className="mt-8 space-y-4">
@@ -482,7 +481,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                   type="button"
                   onClick={() => setSessionContext(item.id)}
                   disabled={isRecording}
-                  className={`w-full rounded-[24px] border p-5 text-left transition-all ${
+                  className={`w-full rounded-[20px] border p-4 text-left transition-all ${
                     active
                       ? 'border-[#7af2d1] bg-white/10 shadow-lg shadow-black/10'
                       : 'border-white/10 bg-white/[0.03] hover:border-white/20'
@@ -498,7 +497,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                     </div>
                     <div>
                       <div className="text-lg font-bold text-white">{item.title}</div>
-                      <p className="mt-2 text-sm leading-6 text-white/68">{item.description}</p>
+                      <p className="mt-1 hidden text-sm leading-6 text-white/68 md:block">{item.description}</p>
                     </div>
                   </div>
                 </button>
@@ -514,7 +513,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                   Live meeting notes
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-white/68">
+              <p className="mt-3 hidden text-sm leading-6 text-white/68 md:block">
                 Realtime chạy theo từng chunk khoảng 15 giây. Ở mode Hybrid, phần realtime chỉ cập nhật
                 transcript + summary nhanh; sau khi dừng ghi, bước AI đầy đủ vẫn chạy lại trên toàn bộ file.
               </p>
@@ -534,10 +533,10 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
                 Ghi âm trực tiếp
               </p>
-              <h3 className="mt-3 text-3xl font-black text-slate-900">
+              <h3 className="mt-3 text-2xl font-black text-slate-900 md:text-3xl">
                 {isRecording ? 'Đang thu âm phiên làm việc' : 'Micro sẵn sàng'}
               </h3>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
+              <p className="mt-3 hidden max-w-2xl text-sm leading-7 text-slate-500 md:block">
                 Sau khi kết thúc, app tạo file audio mới, lưu xuống thiết bị rồi chuyển sang bước
                 xử lý AI cho đúng loại phiên đã chọn.
               </p>
