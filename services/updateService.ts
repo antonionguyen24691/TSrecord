@@ -17,8 +17,7 @@ const GITHUB_OWNER = 'antonionguyen24691'; // Username GitHub của bạn
 const GITHUB_REPO = 'TSrecord';           // Tên repo GitHub của bạn
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Phiên bản hiện tại của app (phải khớp với versionName trong build.gradle) */
-export const CURRENT_VERSION = '1.0.0';
+export const CURRENT_VERSION = '1.1.0';
 
 export interface ReleaseInfo {
   version: string;          // e.g. "1.1.0"
