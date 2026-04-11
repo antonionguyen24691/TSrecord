@@ -324,7 +324,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   );
 
   const tabBtnCls = (tab: typeof activeTab) =>
-    `px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+    `flex-shrink-0 whitespace-nowrap px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
       activeTab === tab
         ? 'bg-[#006b68] text-white shadow-sm'
         : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
@@ -364,22 +364,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 px-6 pt-4 pb-2 flex-shrink-0">
-          <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
-            Nguồn Transcript
-          </button>
-          <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
-            Mô hình Gemini
-          </button>
-          <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
-            Realtime
-          </button>
-          <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
-            Thu âm
-          </button>
-          <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
-            Bộ nhớ
-          </button>
+        <div className="overflow-x-auto px-6 pt-4 pb-2 flex-shrink-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-max gap-1">
+            <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
+              Nguồn Transcript
+            </button>
+            <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
+              Mô hình Gemini
+            </button>
+            <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
+              Realtime
+            </button>
+            <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
+              Thu âm
+            </button>
+            <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
+              Bộ nhớ
+            </button>
+          </div>
         </div>
 
         {/* Body */}
