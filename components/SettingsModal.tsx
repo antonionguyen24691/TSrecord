@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { X, Save, Key, Bot, Sparkles, Zap, ChevronDown } from 'lucide-react';
 import {
+  DEFAULT_AUTO_GAIN_LEVEL,
   DEFAULT_ANALYSIS_MODEL_ID,
+  DEFAULT_ECHO_CANCELLATION_LEVEL,
+  DEFAULT_NOISE_SUPPRESSION_LEVEL,
+  DEFAULT_PREFERRED_CHANNEL_COUNT,
+  DEFAULT_PREFERRED_SAMPLE_RATE,
   DEFAULT_REALTIME_MODE,
   DEFAULT_REALTIME_MODEL_ID,
+  DEFAULT_RECORDING_PROFILE,
   DEFAULT_TRANSCRIPTION_PROVIDER,
+  PreferredChannelCount,
+  PreferredSampleRate,
+  ProcessingStrength,
   RealtimeMode,
+  RecordingProfile,
   TranscriptionProvider,
   clearAiApiKey,
   loadAiSettings,
@@ -44,6 +54,97 @@ const REALTIME_MODES: Array<{ id: RealtimeMode; name: string; description: strin
     description: 'Không gọi AI khi đang ghi âm. Chỉ phân tích 1 lần sau khi dừng ghi.',
   },
 ];
+
+const RECORDING_PROFILES: Array<{
+  id: RecordingProfile;
+  name: string;
+  description: string;
+}> = [
+  {
+    id: 'BALANCED',
+    name: 'Can bang',
+    description: 'Mac dinh cho da so tinh huong. Giu chat giong noi va xu ly on vua phai.',
+  },
+  {
+    id: 'VOICE_FOCUS',
+    name: 'Tap trung giong noi',
+    description: 'Uu tien giong noi gan mic. Hop cho hop, phong van, doc mot nguoi.',
+  },
+  {
+    id: 'NOISY_ENV',
+    name: 'Moi truong on',
+    description: 'Day manh loc on, echo va gain khi ghi ngoai troi hoac phong tap.',
+  },
+  {
+    id: 'RAW',
+    name: 'Thu moc',
+    description: 'Tat xu ly tu dong. Hop khi dung mic roi hoac xu ly hau ky ben ngoai.',
+  },
+  {
+    id: 'CUSTOM',
+    name: 'Tuy chinh',
+    description: 'Tu chon tung muc noise, echo, gain, sample rate va so kenh.',
+  },
+];
+
+const PROCESSING_LEVELS: Array<{ id: ProcessingStrength; name: string }> = [
+  { id: 'OFF', name: 'Tat' },
+  { id: 'LOW', name: 'Thap' },
+  { id: 'MEDIUM', name: 'Vua' },
+  { id: 'HIGH', name: 'Cao' },
+];
+
+const SAMPLE_RATE_OPTIONS: Array<{ id: PreferredSampleRate; name: string }> = [
+  { id: 16000, name: '16 kHz' },
+  { id: 24000, name: '24 kHz' },
+  { id: 44100, name: '44.1 kHz' },
+  { id: 48000, name: '48 kHz' },
+];
+
+const CHANNEL_OPTIONS: Array<{ id: PreferredChannelCount; name: string }> = [
+  { id: 1, name: 'Mono' },
+  { id: 2, name: 'Stereo' },
+];
+
+const RECORDING_PROFILE_PRESETS: Record<
+  Exclude<RecordingProfile, 'CUSTOM'>,
+  {
+    noiseSuppressionLevel: ProcessingStrength;
+    echoCancellationLevel: ProcessingStrength;
+    autoGainLevel: ProcessingStrength;
+    preferredSampleRate: PreferredSampleRate;
+    preferredChannelCount: PreferredChannelCount;
+  }
+> = {
+  BALANCED: {
+    noiseSuppressionLevel: 'MEDIUM',
+    echoCancellationLevel: 'MEDIUM',
+    autoGainLevel: 'LOW',
+    preferredSampleRate: 48000,
+    preferredChannelCount: 1,
+  },
+  VOICE_FOCUS: {
+    noiseSuppressionLevel: 'HIGH',
+    echoCancellationLevel: 'MEDIUM',
+    autoGainLevel: 'MEDIUM',
+    preferredSampleRate: 48000,
+    preferredChannelCount: 1,
+  },
+  NOISY_ENV: {
+    noiseSuppressionLevel: 'HIGH',
+    echoCancellationLevel: 'HIGH',
+    autoGainLevel: 'HIGH',
+    preferredSampleRate: 24000,
+    preferredChannelCount: 1,
+  },
+  RAW: {
+    noiseSuppressionLevel: 'OFF',
+    echoCancellationLevel: 'OFF',
+    autoGainLevel: 'OFF',
+    preferredSampleRate: 48000,
+    preferredChannelCount: 2,
+  },
+};
 
 interface ProviderInfo {
   id: TranscriptionProvider;
@@ -135,12 +236,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [realtimeModelId, setRealtimeModelId] = useState(DEFAULT_REALTIME_MODEL_ID);
   const [analysisModelId, setAnalysisModelId] = useState(DEFAULT_ANALYSIS_MODEL_ID);
   const [realtimeMode, setRealtimeMode] = useState<RealtimeMode>(DEFAULT_REALTIME_MODE);
+  const [recordingProfile, setRecordingProfile] = useState<RecordingProfile>(DEFAULT_RECORDING_PROFILE);
+  const [noiseSuppressionLevel, setNoiseSuppressionLevel] = useState<ProcessingStrength>(
+    DEFAULT_NOISE_SUPPRESSION_LEVEL
+  );
+  const [echoCancellationLevel, setEchoCancellationLevel] = useState<ProcessingStrength>(
+    DEFAULT_ECHO_CANCELLATION_LEVEL
+  );
+  const [autoGainLevel, setAutoGainLevel] = useState<ProcessingStrength>(DEFAULT_AUTO_GAIN_LEVEL);
+  const [preferredSampleRate, setPreferredSampleRate] = useState<PreferredSampleRate>(
+    DEFAULT_PREFERRED_SAMPLE_RATE
+  );
+  const [preferredChannelCount, setPreferredChannelCount] = useState<PreferredChannelCount>(
+    DEFAULT_PREFERRED_CHANNEL_COUNT
+  );
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>(
     DEFAULT_TRANSCRIPTION_PROVIDER
   );
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'provider' | 'gemini' | 'realtime' | 'storage'>('provider');
+  const [activeTab, setActiveTab] = useState<
+    'provider' | 'gemini' | 'realtime' | 'recording' | 'storage'
+  >('provider');
 
   useEffect(() => {
     let active = true;
@@ -154,6 +271,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setRealtimeModelId(settings.realtimeModelId);
         setAnalysisModelId(settings.analysisModelId);
         setRealtimeMode(settings.realtimeMode);
+        setRecordingProfile(settings.recordingProfile);
+        setNoiseSuppressionLevel(settings.noiseSuppressionLevel);
+        setEchoCancellationLevel(settings.echoCancellationLevel);
+        setAutoGainLevel(settings.autoGainLevel);
+        setPreferredSampleRate(settings.preferredSampleRate);
+        setPreferredChannelCount(settings.preferredChannelCount);
         setTranscriptionProvider(settings.transcriptionProvider);
       });
     }
@@ -171,6 +294,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       assemblyaiApiKey,
       groqApiKey,
       openaiApiKey,
+      recordingProfile,
+      noiseSuppressionLevel,
+      echoCancellationLevel,
+      autoGainLevel,
+      preferredSampleRate,
+      preferredChannelCount,
     });
     setIsSaving(false);
     onClose();
@@ -201,6 +330,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
     }`;
 
+  const applyRecordingProfile = (profile: RecordingProfile) => {
+    setRecordingProfile(profile);
+    if (profile === 'CUSTOM') return;
+    const preset = RECORDING_PROFILE_PRESETS[profile];
+    setNoiseSuppressionLevel(preset.noiseSuppressionLevel);
+    setEchoCancellationLevel(preset.echoCancellationLevel);
+    setAutoGainLevel(preset.autoGainLevel);
+    setPreferredSampleRate(preset.preferredSampleRate);
+    setPreferredChannelCount(preset.preferredChannelCount);
+  };
+
+  const handleManualRecordingChange = (setter: (value: any) => void, value: any) => {
+    setter(value);
+    setRecordingProfile('CUSTOM');
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
@@ -228,6 +373,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
           <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
             Realtime
+          </button>
+          <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
+            Thu âm
           </button>
           <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
             Bộ nhớ
@@ -459,6 +607,174 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <p className="text-xs text-gray-400 pt-1">
                 * Chế độ Realtime chỉ dùng Google Gemini bất kể cài đặt nguồn transcript ở trên.
               </p>
+            </div>
+          )}
+
+          {/* ─── Tab: Thu âm ─────────────────────────────────────────── */}
+          {activeTab === 'recording' && (
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Sparkles className="h-4 w-4 text-[#006b68]" />
+                  Profile thu âm
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {RECORDING_PROFILES.map((profile) => (
+                    <button
+                      key={profile.id}
+                      onClick={() => applyRecordingProfile(profile.id)}
+                      className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all ${
+                        recordingProfile === profile.id
+                          ? 'border-[#006b68] bg-[#006b68]/5'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`mt-0.5 h-4 w-4 flex-shrink-0 rounded-full border-2 transition-all ${
+                          recordingProfile === profile.id
+                            ? 'border-[#006b68] bg-[#006b68]'
+                            : 'border-gray-300'
+                        }`}
+                      />
+                      <div>
+                        <p className="font-semibold text-sm text-gray-800">{profile.name}</p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
+                          {profile.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="text-sm font-semibold text-gray-800">Tinh chỉnh nâng cao</div>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                  Cac muc duoi day duoc dua vao constraint cua microphone tren thiet bi.
+                  Trinh duyet va Android se ap dung trong pham vi phan cung ho tro.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Noise suppression
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {PROCESSING_LEVELS.map((level) => (
+                        <button
+                          key={`noise-${level.id}`}
+                          onClick={() => handleManualRecordingChange(setNoiseSuppressionLevel, level.id)}
+                          className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                            noiseSuppressionLevel === level.id
+                              ? 'bg-[#006b68] text-white'
+                              : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {level.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Echo cancellation
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {PROCESSING_LEVELS.map((level) => (
+                        <button
+                          key={`echo-${level.id}`}
+                          onClick={() => handleManualRecordingChange(setEchoCancellationLevel, level.id)}
+                          className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                            echoCancellationLevel === level.id
+                              ? 'bg-[#006b68] text-white'
+                              : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {level.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Auto gain
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {PROCESSING_LEVELS.map((level) => (
+                        <button
+                          key={`gain-${level.id}`}
+                          onClick={() => handleManualRecordingChange(setAutoGainLevel, level.id)}
+                          className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                            autoGainLevel === level.id
+                              ? 'bg-[#006b68] text-white'
+                              : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {level.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                        Sample rate
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={preferredSampleRate}
+                          onChange={(e) =>
+                            handleManualRecordingChange(
+                              setPreferredSampleRate,
+                              Number(e.target.value) as PreferredSampleRate
+                            )
+                          }
+                          className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                        >
+                          {SAMPLE_RATE_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                          <ChevronDown className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                        Channel
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={preferredChannelCount}
+                          onChange={(e) =>
+                            handleManualRecordingChange(
+                              setPreferredChannelCount,
+                              Number(e.target.value) as PreferredChannelCount
+                            )
+                          }
+                          className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                        >
+                          {CHANNEL_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                          <ChevronDown className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

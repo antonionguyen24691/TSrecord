@@ -54,7 +54,6 @@ export const StepMode: React.FC<StepModeProps> = ({
     ? ['Transcript', 'Tóm tắt', 'Decisions', 'Risks', 'Folder tree', 'Mindmap', 'Checklist']
     : ['Transcript'];
 
-  const summaryText =
   return (
     <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
       <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
@@ -66,10 +65,65 @@ export const StepMode: React.FC<StepModeProps> = ({
             <h2 className="mt-3 text-2xl font-black text-slate-900">
               Chọn định dạng transcript
             </h2>
-      </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-600 border border-slate-200 uppercase tracking-wider">
+                Nguồn: {source === 'RECORDING' ? 'Ghi âm' : 'Tải lên'}
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-100 uppercase tracking-wider">
+                Module: {module === AppModule.GEMINI_FLASH ? 'Flash' : 'Pro'}
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700 border border-blue-100 uppercase tracking-wider">
+                Ngữ cảnh: {getContextLabel(sessionContext)}
+              </div>
+            </div>
+          </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 p-4 backdrop-blur md:static md:mt-8 md:border-0 md:bg-transparent md:p-0">
-        <div className="mx-auto flex w-full max-w-6xl gap-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <button
+              onClick={() => setMode('TIMELINE')}
+              className={`relative flex flex-col items-start gap-3 rounded-3xl border-2 p-6 transition-all ${
+                mode === 'TIMELINE'
+                  ? 'border-[#0d7c66] bg-emerald-50/30'
+                  : 'border-slate-100 bg-white hover:border-slate-200'
+              }`}
+            >
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                mode === 'TIMELINE' ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                <Clock className="h-6 w-6" />
+              </div>
+              <div className="text-left font-bold text-slate-900">Timeline</div>
+              {mode === 'TIMELINE' && (
+                <div className="absolute right-4 top-4 text-[#0d7c66]">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setMode('PLAIN')}
+              className={`relative flex flex-col items-start gap-3 rounded-3xl border-2 p-6 transition-all ${
+                mode === 'PLAIN'
+                  ? 'border-[#0d7c66] bg-emerald-50/30'
+                  : 'border-slate-100 bg-white hover:border-slate-200'
+              }`}
+            >
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                mode === 'PLAIN' ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                <AlignLeft className="h-6 w-6" />
+              </div>
+              <div className="text-left font-bold text-slate-900">Plain text</div>
+              {mode === 'PLAIN' && (
+                <div className="absolute right-4 top-4 text-[#0d7c66]">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-wrap gap-3">
           <button
             onClick={onBack}
             disabled={isProcessing}

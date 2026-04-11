@@ -2,9 +2,9 @@ import { GoogleGenAI } from '@google/genai';
 import {
   ExtractionMode,
   InputSource,
+  SavedDeviceFile,
   SessionAnalysis,
   SessionContext,
-  SavedDeviceFile,
 } from '../types';
 import {
   DEFAULT_ANALYSIS_MODEL_ID,
@@ -43,6 +43,15 @@ const sessionResponseSchema = {
   ],
 } as const;
 
+const transcriptOnlyResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    transcript: { type: 'string' },
+  },
+  required: ['transcript'],
+} as const;
+
 const liveMeetingChunkSchema = {
   type: 'object',
   additionalProperties: false,
@@ -77,7 +86,7 @@ export interface LiveMeetingChunkAnalysis {
 const fileToGenerativePart = async (file: File) => {
   if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
     throw new Error(
-      `File quá lớn. Vui lòng chọn file dưới ${MAX_FILE_SIZE_MB}MB để tránh treo ứng dụng.`
+      `File qua lon. Vui long chon file duoi ${MAX_FILE_SIZE_MB}MB de tranh treo ung dung.`
     );
   }
 
@@ -115,112 +124,192 @@ const sanitizeJsonText = (value: string) =>
 
 const readText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
+const tokenizeForRelevance = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
+
+const relevanceRatio = (candidate: string, sources: string[]) => {
+  const candidateTokens = tokenizeForRelevance(candidate);
+  if (candidateTokens.length === 0) return 0;
+
+  const sourceTokens = new Set(tokenizeForRelevance(sources.join(' ')));
+  if (sourceTokens.size === 0) return 0;
+
+  const overlap = candidateTokens.filter((token) => sourceTokens.has(token)).length;
+  return overlap / candidateTokens.length;
+};
+
+const containsStructuralSignal = (value: string) =>
+  /(api|module|he thong|quy trinh|kien truc|folder|thu muc|mindmap|workflow|pipeline|service|database|schema|frontend|backend|deployment|release|feature)/i.test(
+    value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  );
+
+const sanitizeMeetingArtifacts = (artifacts: SessionAnalysis['artifacts']) => {
+  const evidenceBase = [artifacts.transcript, artifacts.summary];
+  const structuralAllowed =
+    containsStructuralSignal(artifacts.transcript) || containsStructuralSignal(artifacts.summary);
+
+  return {
+    ...artifacts,
+    decisions: relevanceRatio(artifacts.decisions, evidenceBase) >= 0.08 ? artifacts.decisions : '',
+    risks: relevanceRatio(artifacts.risks, evidenceBase) >= 0.08 ? artifacts.risks : '',
+    actionItems:
+      relevanceRatio(artifacts.actionItems, evidenceBase) >= 0.08 ? artifacts.actionItems : '',
+    folderTree:
+      structuralAllowed && relevanceRatio(artifacts.folderTree, evidenceBase) >= 0.08
+        ? artifacts.folderTree
+        : '',
+    mindmap:
+      structuralAllowed && relevanceRatio(artifacts.mindmap, evidenceBase) >= 0.08
+        ? artifacts.mindmap
+        : '',
+  };
+};
+
 const getTranscriptInstruction = (mode: ExtractionMode) => {
   if (mode === ExtractionMode.TIMELINE) {
     return `
-      Transcript phải đúng định dạng từng dòng:
-      [HH:MM:SS] Nội dung
+Transcript phai dung dang tung dong:
+[HH:MM:SS] Noi dung
 
-      Quy tắc:
-      - Giữ nguyên mốc thời gian ở mức hợp lý, đều và rõ ràng.
-      - Nếu nhận diện được người nói, thêm nhãn người nói sau timestamp.
-      - Chỉnh dấu câu tiếng Việt cho dễ đọc nhưng không làm sai nghĩa.
-      - Không tóm tắt trong trường transcript.
+Quy tac:
+- Giu moc thoi gian deu va ro rang.
+- Neu nhan dien duoc nguoi noi, them nhan speaker sau timestamp.
+- Chinh dau cau de de doc nhung khong doi nghia.
+- Khong tom tat trong truong transcript.
     `.trim();
   }
 
   return `
-    Transcript phải ở dạng văn bản liền mạch, không có timestamp.
+Transcript phai o dang van ban lien mach, khong co timestamp.
 
-    Quy tắc:
-    - Gộp các câu nói đứt đoạn thành đoạn văn rõ ràng.
-    - Loại bỏ tiếng đệm không cần thiết khi không làm thay đổi ý.
-    - Giữ nguyên nội dung phát biểu quan trọng.
-    - Không tóm tắt trong trường transcript.
+Quy tac:
+- Gom cac cau dut doan thanh doan van ro rang.
+- Loai bo tieng dem khong can thiet neu khong doi nghia.
+- Giu nguyen noi dung phat bieu quan trong.
+- Khong tom tat trong truong transcript.
   `.trim();
 };
+
+const buildMeetingAnalysisPrompt = (mode: ExtractionMode) => `
+Vai tro: thu ky AI phan tich mot transcript cuoc hop.
+
+Nhiem vu:
+1. Tao "title" ngan, sat noi dung chinh cua buoi hop.
+2. Tao "suggestedFolderName" ngan gon, dang slug business-friendly.
+3. Dat lai "transcript" bang dung transcript dau vao, khong tu sua noi dung.
+4. Tao "summary" dang markdown voi cac muc:
+   ## Boi canh
+   ## Cac diem chinh
+   ## Ket qua phien hop
+   ## Buoc tiep theo
+5. Tao "decisions" la danh sach markdown cac quyet dinh da chot ro rang.
+6. Tao "risks" la danh sach markdown cac blocker, rui ro, diem con mo.
+7. Tao "actionItems" la checklist markdown, moi dong bat dau bang "- [ ]".
+8. Tao "folderTree" dang text thuan chi khi transcript co noi dung mang tinh cau truc he thong/quy trinh/thu muc. Neu khong du can cu, tra chuoi rong.
+9. Tao "mindmap" dang Mermaid mindmap chi khi transcript co noi dung mang tinh he thong/cau truc. Neu khong du can cu, tra chuoi rong.
+
+${getTranscriptInstruction(mode)}
+
+Rang buoc:
+- Output phai la JSON hop le duy nhat.
+- Neu khong du bang chung cho mot artifact nao, tra chuoi rong cho artifact do.
+- Khong duoc suy dien them ten rieng, con so, deadline, module, folder, he thong neu transcript khong noi toi.
+- "decisions" chi ghi noi dung da duoc chot.
+- "actionItems" chi ghi viec lam co can cu tu transcript.
+- "summary" phai tom tat bao thu, khong duoc phat minh them.
+`.trim();
 
 const buildPrompt = (mode: ExtractionMode, context: SessionContext) => {
   const transcriptInstruction = getTranscriptInstruction(mode);
 
   if (context === SessionContext.MEETING) {
     return `
-      Vai trò: thư ký điều phối AI cho cuộc họp.
+Vai tro: thu ky dieu phoi AI cho cuoc hop.
 
-      Nhiệm vụ:
-      1. Nghe kỹ file audio/video và chép lại đầy đủ vào trường "transcript".
-      2. Tạo "title" ngắn, sát nội dung chính của buổi họp.
-      3. Tạo "suggestedFolderName" ngắn gọn, dùng kiểu slug business-friendly.
-      4. Tạo "summary" ở dạng markdown với các mục:
-         ## Bối cảnh
-         ## Các điểm chính
-         ## Kết quả phiên họp
-         ## Bước tiếp theo
-      5. Tạo "decisions" là danh sách markdown các quyết định hoặc kết luận đã được chốt.
-      6. Tạo "risks" là danh sách markdown các rủi ro, blocker hoặc điểm còn bỏ ngỏ.
-      7. Tạo "folderTree" là cây thư mục đề xuất ở dạng text thuần. Chỉ trả về cây thư mục, không dùng markdown fence.
-      8. Tạo "mindmap" là cú pháp Mermaid mindmap hoàn chỉnh, không dùng markdown fence.
-         Bắt buộc đúng mẫu đa tầng như sau (chỉ là ví dụ cấu trúc):
-         mindmap
-           root((Tên chủ đề chính))
-             Nhánh 1
-               Ý con 1
-               Ý con 2
-             Nhánh 2
-               Ý con 1
-               Ý con 2
-         Yêu cầu:
-         - Phải có root.
-         - Tối thiểu 4 nhánh cấp 1.
-         - Mỗi nhánh cấp 1 có ít nhất 2 nhánh con.
-         - Không trả dạng 1 dòng, không dùng ký hiệu A(B) rời rạc.
-      9. Tạo "actionItems" là checklist markdown, mỗi dòng bắt đầu bằng "- [ ]".
+Nhiem vu:
+1. Nghe ky file audio/video va chep lai day du vao truong "transcript".
+2. Tao "title" ngan, sat noi dung chinh cua buoi hop.
+3. Tao "suggestedFolderName" ngan gon, dang slug.
+4. Tao "summary" dang markdown voi 4 muc:
+   ## Boi canh
+   ## Cac diem chinh
+   ## Ket qua phien hop
+   ## Buoc tiep theo
+5. Tao "decisions" la danh sach markdown cac quyet dinh da chot ro rang.
+6. Tao "risks" la danh sach markdown cac rui ro, blocker, diem con mo.
+7. Tao "folderTree" dang text thuan chi khi noi dung thuc su mang tinh cau truc he thong/quy trinh/thu muc. Neu khong du can cu, tra chuoi rong.
+8. Tao "mindmap" la cu phap Mermaid mindmap chi khi noi dung thuc su mang tinh he thong/cau truc. Neu khong du can cu, tra chuoi rong.
+9. Tao "actionItems" la checklist markdown, moi dong bat dau bang "- [ ]".
 
-      ${transcriptInstruction}
+${transcriptInstruction}
 
-      Ràng buộc:
-      - Output phải là JSON hợp lệ duy nhất.
-      - Các trường summary, decisions, risks, folderTree, mindmap, actionItems phải có nội dung thực sự.
-      - Nếu không nghe rõ, ghi nhận một cách trung tính, không tự bịa.
-      - Phần decisions chỉ chứa nội dung đã được chốt hoặc gần như chốt trong audio.
+Rang buoc:
+- Output phai la JSON hop le duy nhat.
+- Neu khong nghe ro hoac khong du bang chung, ghi trung tinh hoac de trong, khong tu bia.
+- "decisions" chi chua noi dung da duoc chot ro rang.
+- "actionItems" chi ghi viec lam co can cu.
+- "folderTree" va "mindmap" chi tao khi transcript thuc su co tinh he thong/cau truc.
     `.trim();
   }
 
   if (context === SessionContext.TRANSCRIPTION) {
     return `
-      Vai trò: chuyên gia trích xuất transcript từ file audio/video.
+Vai tro: chuyen gia trich xuat transcript tu file audio/video.
 
-      Nhiệm vụ:
-      1. Nghe kỹ file audio/video và chép lại đầy đủ vào trường "transcript".
-      2. Tạo "title" ngắn theo nội dung chính của file.
-      3. Tạo "suggestedFolderName" ngắn gọn, dạng slug.
-      4. Các trường "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phải là chuỗi rỗng.
+Nhiem vu:
+1. Nghe ky file audio/video va chep lai day du vao truong "transcript".
+2. Tao "title" ngan theo noi dung chinh cua file.
+3. Tao "suggestedFolderName" ngan gon, dang slug.
+4. Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
 
-      ${transcriptInstruction}
+${transcriptInstruction}
 
-      Ràng buộc:
-      - Chỉ tập trung vào transcript sạch và dễ dùng lại.
-      - Không dựng mindmap, không dựng cây thư mục, không tự thêm ghi chú họp.
-      - Output phải là JSON hợp lệ duy nhất.
+Rang buoc:
+- Chi tap trung vao transcript sach va de dung lai.
+- Khong tao note hop, mindmap, folder tree.
+- Output phai la JSON hop le duy nhat.
     `.trim();
   }
 
   return `
-    Vai trò: chuyên gia chép phỏng vấn.
+Vai tro: chuyen gia chep phong van.
 
-    Nhiệm vụ:
-    1. Nghe kỹ file audio/video và chép lại đầy đủ vào trường "transcript".
-    2. Tạo "title" ngắn theo chủ đề cuộc phỏng vấn.
-    3. Tạo "suggestedFolderName" ngắn gọn, dạng slug.
-    4. Các trường "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phải là chuỗi rỗng.
+Nhiem vu:
+1. Nghe ky file audio/video va chep lai day du vao truong "transcript".
+2. Tao "title" ngan theo chu de cuoc phong van.
+3. Tao "suggestedFolderName" ngan gon, dang slug.
+4. Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
 
-    ${transcriptInstruction}
+${transcriptInstruction}
 
-    Ràng buộc:
-    - Không tóm tắt, không suy diễn hệ thống, không dựng mindmap cho phỏng vấn.
-    - Output phải là JSON hợp lệ duy nhất.
+Rang buoc:
+- Khong tom tat, khong suy dien he thong, khong dung mindmap cho phong van.
+- Output phai la JSON hop le duy nhat.
   `.trim();
 };
+
+const buildTranscriptOnlyPrompt = (mode: ExtractionMode) => `
+Vai tro: cong cu speech-to-text.
+
+Nhiem vu:
+- Chi nghe audio/video va tra ve truong "transcript".
+- Khong tom tat.
+- Khong suy dien.
+- Khong tao decisions, risks, mindmap hay artifact nao khac.
+- Neu khong nghe ro, giu dung phan nghe duoc; khong tu bia.
+
+${getTranscriptInstruction(mode)}
+
+Rang buoc:
+- Output phai la JSON hop le duy nhat.
+- Khong tra them text nao ngoai JSON.
+`.trim();
 
 const mapResponseToAnalysis = ({
   rawText,
@@ -250,7 +339,7 @@ const mapResponseToAnalysis = ({
       suggestedFolderName: fallbackTitle,
       artifacts: {
         transcript:
-          rawText || 'Không thể đọc JSON từ AI. Hệ thống giữ lại phần text thô hiện có.',
+          rawText || 'Khong the doc JSON tu AI. He thong giu lai phan text tho hien co.',
         summary: '',
         decisions: '',
         risks: '',
@@ -262,7 +351,7 @@ const mapResponseToAnalysis = ({
     };
   }
 
-  return {
+  const mapped: SessionAnalysis = {
     title: readText(parsed.title) || fallbackTitle,
     mode,
     source,
@@ -270,7 +359,7 @@ const mapResponseToAnalysis = ({
     suggestedFolderName:
       readText(parsed.suggestedFolderName) || fallbackTitle.replace(/\s+/g, '-'),
     artifacts: {
-      transcript: readText(parsed.transcript) || rawText || 'AI không trả về transcript.',
+      transcript: readText(parsed.transcript) || rawText || 'AI khong tra ve transcript.',
       summary: context === SessionContext.MEETING ? readText(parsed.summary) : '',
       decisions: context === SessionContext.MEETING ? readText(parsed.decisions) : '',
       risks: context === SessionContext.MEETING ? readText(parsed.risks) : '',
@@ -280,6 +369,15 @@ const mapResponseToAnalysis = ({
     },
     savedRecording,
   };
+
+  if (context === SessionContext.MEETING) {
+    return {
+      ...mapped,
+      artifacts: sanitizeMeetingArtifacts(mapped.artifacts),
+    };
+  }
+
+  return mapped;
 };
 
 const getAiClient = async () => {
@@ -291,7 +389,7 @@ const getAiClient = async () => {
     settings.analysisModelId || DEFAULT_ANALYSIS_MODEL_ID || DEFAULT_MODEL_ID;
 
   if (!apiKey || apiKey === 'undefined') {
-    throw new Error('Vui lòng nhập Gemini API Key trong phần Cài đặt trên thiết bị này trước khi sử dụng.');
+    throw new Error('Vui long nhap Gemini API Key trong phan Cai dat tren thiet bi nay.');
   }
 
   return {
@@ -343,61 +441,56 @@ export const processRealtimeMeetingChunk = async ({
     const { ai, realtimeModelId } = await getAiClient();
     const filePart = await fileToGenerativePart(file);
 
-    const prompt = `
-      Vai trò: AI note taker đang cập nhật biên bản cuộc họp theo từng đoạn ghi âm ngắn.
+    const fullPrompt = `
+Vai tro: AI note taker dang cap nhat bien ban cuoc hop theo tung doan ghi am ngan.
 
-      Bạn đang xử lý một đoạn audio mới của cùng một cuộc họp.
+Trang thai hien tai:
+SUMMARY:
+${previousSummary || '(chua co)'}
 
-      Trạng thái hiện tại:
-      SUMMARY:
-      ${previousSummary || '(chưa có)'}
+DECISIONS:
+${previousDecisions || '(chua co)'}
 
-      DECISIONS:
-      ${previousDecisions || '(chưa có)'}
+RISKS:
+${previousRisks || '(chua co)'}
 
-      RISKS:
-      ${previousRisks || '(chưa có)'}
+ACTION ITEMS:
+${previousActionItems || '(chua co)'}
 
-      ACTION ITEMS:
-      ${previousActionItems || '(chưa có)'}
+Nhiem vu:
+1. Tao "transcriptChunk" chi cho doan audio moi nay.
+2. Cap nhat "rollingSummary" thanh ban tom tat tich luy moi nhat.
+3. Cap nhat "decisions" thanh danh sach markdown cac quyet dinh da chot den hien tai.
+4. Cap nhat "risks" thanh danh sach markdown cac rui ro, blocker, diem con mo den hien tai.
+5. Cap nhat "actionItems" thanh checklist markdown cac viec can lam den hien tai.
 
-      Nhiệm vụ:
-      1. Tạo "transcriptChunk" chỉ cho đoạn audio mới này.
-      2. Cập nhật "rollingSummary" thành bản tóm tắt tích lũy mới nhất của cuộc họp tính đến hiện tại, dạng markdown gọn.
-      3. Cập nhật "decisions" thành danh sách markdown các quyết định đã chốt đến hiện tại.
-      4. Cập nhật "risks" thành danh sách markdown các rủi ro, blocker hoặc điểm còn mở đến hiện tại.
-      5. Cập nhật "actionItems" thành checklist markdown các việc cần làm đến hiện tại.
-
-      Ràng buộc:
-      - Chỉ dùng thông tin có căn cứ từ audio mới và trạng thái hiện tại.
-      - Nếu chưa đủ dữ kiện thì giữ bản cũ hoặc cập nhật rất ít, không bịa.
-      - Output phải là JSON hợp lệ duy nhất.
+Rang buoc:
+- Chi dung thong tin co can cu tu audio moi va trang thai hien tai.
+- Neu chua du du kien thi giu ban cu hoac tra chuoi rong cho phan moi, khong bia.
+- Output phai la JSON hop le duy nhat.
     `.trim();
-    const effectivePrompt =
-      realtimeMode === 'HYBRID'
-        ? `
-      Vai trò: AI realtime cho cuộc họp, ưu tiên tiết kiệm chi phí.
 
-      Bạn đang xử lý một đoạn audio mới của cùng một cuộc họp.
+    const hybridPrompt = `
+Vai tro: AI realtime cho cuoc hop, uu tien tiet kiem chi phi.
 
-      Trạng thái hiện tại:
-      SUMMARY:
-      ${previousSummary || '(chua co)'}
+Trang thai hien tai:
+SUMMARY:
+${previousSummary || '(chua co)'}
 
-      Nhiệm vụ:
-      1. Tạo "transcriptChunk" chỉ cho đoạn audio mới này.
-      2. Cập nhật "rollingSummary" ngắn gọn, tích lũy đến hiện tại.
+Nhiem vu:
+1. Tao "transcriptChunk" chi cho doan audio moi nay.
+2. Cap nhat "rollingSummary" ngan gon, tich luy den hien tai.
 
-      Ràng buộc:
-      - Không tạo decisions/risks/action items ở chế độ này.
-      - Output phải là JSON hợp lệ duy nhất.
-    `.trim()
-        : prompt;
+Rang buoc:
+- Khong tao decisions/risks/action items o che do nay.
+- Khong suy dien them noi dung khong co trong doan audio.
+- Output phai la JSON hop le duy nhat.
+    `.trim();
 
     const response = await ai.models.generateContent({
       model: realtimeModelId,
       contents: {
-        parts: [filePart, { text: effectivePrompt }],
+        parts: [filePart, { text: realtimeMode === 'HYBRID' ? hybridPrompt : fullPrompt }],
       },
       config: {
         responseMimeType: 'application/json',
@@ -418,59 +511,55 @@ export const processRealtimeMeetingChunk = async ({
     return normalizeMeetingChunkResponse(parsed, rawText);
   } catch (error: any) {
     console.error('Realtime Gemini chunk error:', error);
-    throw new Error(error?.message || 'Không thể cập nhật ghi chú realtime.');
+    throw new Error(error?.message || 'Khong the cap nhat ghi chu realtime.');
   }
 };
 
-/**
- * buildTextOnlyPrompt: Prompt cho Gemini khi đã có transcript text sẵn (Bước 2).
- * Không cần nghe audio nữa — Gemini chỉ đọc text và phân tích.
- */
-const buildTextOnlyPrompt = (transcriptText: string): string => `
-  Vai trò: thư ký điều phối AI cho cuộc họp.
+const buildTextOnlyPrompt = (transcriptText: string, mode: ExtractionMode) => `
+Vai tro: thu ky AI phan tich transcript cuoc hop.
 
-  Bạn đã có sẵn bản transcript sau đây của một buổi họp (đã được nhận diện giọng nói bởi hệ thống khác):
+Duoi day la transcript da co san:
+--- TRANSCRIPT BAT DAU ---
+${transcriptText}
+--- TRANSCRIPT KET THUC ---
 
-  --- TRANSCRIPT BẮT ĐẦU ---
-  ${transcriptText}
-  --- TRANSCRIPT KẾT THÚC ---
-
-  Nhiệm vụ (KHÔNG cần nghe audio, chỉ phân tích text trên):
-  1. Đặt lại trường "transcript" bằng toàn bộ nội dung transcript ở trên.
-  2. Tạo "title" ngắn, sát nội dung chính của buổi họp.
-  3. Tạo "suggestedFolderName" ngắn gọn, dùng kiểu slug business-friendly.
-  4. Tạo "summary" ở dạng markdown với các mục:
-     ## Bối cảnh
-     ## Các điểm chính
-     ## Kết quả phiên họp
-     ## Bước tiếp theo
-  5. Tạo "decisions" là danh sách markdown các quyết định hoặc kết luận đã được chốt.
-  6. Tạo "risks" là danh sách markdown các rủi ro, blocker hoặc điểm còn bỏ ngỏ.
-  7. Tạo "folderTree" là cây thư mục đề xuất ở dạng text thuần. Chỉ trả về cây thư mục, không dùng markdown fence.
-  8. Tạo "mindmap" là cú pháp Mermaid mindmap hoàn chỉnh, không dùng markdown fence.
-     Bắt buộc đúng mẫu đa tầng:
-     mindmap
-       root((Tên chủ đề chính))
-         Nhánh 1
-           Ý con 1
-           Ý con 2
-         Nhánh 2
-           Ý con 1
-           Ý con 2
-     Yêu cầu: phải có root, tối thiểu 4 nhánh cấp 1, mỗi nhánh cấp 1 có ít nhất 2 nhánh con.
-  9. Tạo "actionItems" là checklist markdown, mỗi dòng bắt đầu bằng "- [ ]".
-
-  Ràng buộc:
-  - Output phải là JSON hợp lệ duy nhất.
-  - Các trường summary, decisions, risks, folderTree, mindmap, actionItems phải có nội dung thực sự.
-  - Không bịa thêm ngoài những gì có trong transcript.
+${buildMeetingAnalysisPrompt(mode)}
 `.trim();
 
-/**
- * Bước 2 của Two-Step Pipeline:
- * Nhận transcript text thuần → Gemini phân tích → SessionAnalysis.
- * Dùng khi user chọn AssemblyAI/Groq/OpenAI làm nguồn Transcript.
- */
+export const transcribeAudioWithGemini = async ({
+  file,
+  mode,
+}: {
+  file: File;
+  mode: ExtractionMode;
+}): Promise<string> => {
+  try {
+    const { ai, analysisModelId } = await getAiClient();
+    const filePart = await fileToGenerativePart(file);
+    const response = await ai.models.generateContent({
+      model: analysisModelId,
+      contents: {
+        parts: [filePart, { text: buildTranscriptOnlyPrompt(mode) }],
+      },
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: transcriptOnlyResponseSchema,
+      },
+    });
+
+    const rawText = sanitizeJsonText(response.text || '');
+    if (!rawText) throw new Error('Ket qua transcript rong.');
+
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    const transcript = readText(parsed.transcript);
+    if (!transcript) throw new Error('Gemini khong tra transcript hop le.');
+    return transcript;
+  } catch (error: any) {
+    console.error('Gemini transcription error:', error);
+    throw new Error(error?.message || 'Khong the transcript audio bang Gemini.');
+  }
+};
+
 export const analyzeTranscriptWithGemini = async ({
   transcriptText,
   file,
@@ -488,7 +577,24 @@ export const analyzeTranscriptWithGemini = async ({
 }): Promise<SessionAnalysis> => {
   try {
     const { ai, analysisModelId } = await getAiClient();
-    const prompt = buildTextOnlyPrompt(transcriptText);
+
+    const prompt =
+      context === SessionContext.MEETING
+        ? buildTextOnlyPrompt(transcriptText, mode)
+        : `
+Vai tro: cong cu xu ly transcript.
+
+Duoi day la transcript da co san:
+--- TRANSCRIPT BAT DAU ---
+${transcriptText}
+--- TRANSCRIPT KET THUC ---
+
+Nhiem vu:
+- Dat lai "transcript" bang dung transcript o tren.
+- Tao "title" va "suggestedFolderName" ngan gon.
+- Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
+- Output phai la JSON hop le duy nhat.
+          `.trim();
 
     const response = await ai.models.generateContent({
       model: analysisModelId,
@@ -500,8 +606,7 @@ export const analyzeTranscriptWithGemini = async ({
     });
 
     const rawText = sanitizeJsonText(response.text || '');
-
-    if (!rawText) throw new Error('Kết quả AI rỗng.');
+    if (!rawText) throw new Error('Ket qua AI rong.');
 
     let parsed: Record<string, unknown> | null = null;
     try {
@@ -510,13 +615,21 @@ export const analyzeTranscriptWithGemini = async ({
       parsed = null;
     }
 
-    return mapResponseToAnalysis({ rawText, parsed, file, mode, source, context, savedRecording });
+    return mapResponseToAnalysis({
+      rawText,
+      parsed,
+      file,
+      mode,
+      source,
+      context,
+      savedRecording,
+    });
   } catch (error: any) {
-    console.error('Gemini Text Analysis Error:', error);
-    let userMsg = 'Đã xảy ra lỗi khi phân tích transcript.';
+    console.error('Gemini text analysis error:', error);
+    let userMsg = 'Da xay ra loi khi phan tich transcript.';
     const errorStr = `${error?.message || ''}`.toLowerCase();
     if (errorStr.includes('api key') || errorStr.includes('400')) {
-      userMsg = 'Gemini API Key không hợp lệ.';
+      userMsg = 'Gemini API Key khong hop le.';
     }
     throw new Error(`${userMsg} (${error.message})`);
   }
@@ -552,13 +665,9 @@ export const processMediaSession = async ({
     });
 
     const rawText = sanitizeJsonText(response.text || '');
-
-    if (!rawText) {
-      throw new Error('Kết quả AI rỗng.');
-    }
+    if (!rawText) throw new Error('Ket qua AI rong.');
 
     let parsed: Record<string, unknown> | null = null;
-
     try {
       parsed = JSON.parse(rawText);
     } catch {
@@ -575,23 +684,24 @@ export const processMediaSession = async ({
       savedRecording,
     });
   } catch (error: any) {
-    console.error('Gemini Processing Error:', error);
+    console.error('Gemini processing error:', error);
 
-    let userMsg = 'Đã xảy ra lỗi khi xử lý file.';
+    let userMsg = 'Da xay ra loi khi xu ly file.';
     const errorStr = `${error?.message || ''}`.toLowerCase();
 
-    if (errorStr.includes('413')) userMsg = 'File quá lớn so với giới hạn của AI.';
+    if (errorStr.includes('413')) userMsg = 'File qua lon so voi gioi han cua AI.';
     if (errorStr.includes('fetch') || errorStr.includes('network')) {
-      userMsg = 'Lỗi kết nối mạng. Vui lòng kiểm tra internet.';
+      userMsg = 'Loi ket noi mang. Vui long kiem tra internet.';
     }
     if (
       errorStr.includes('api key') ||
       errorStr.includes('invalid_argument') ||
       errorStr.includes('400')
     ) {
-      userMsg = 'API Key không hợp lệ hoặc model hiện tại không khả dụng.';
+      userMsg = 'API Key khong hop le hoac model hien tai khong kha dung.';
     }
 
     throw new Error(`${userMsg} (${error.message})`);
   }
 };
+

@@ -16,8 +16,8 @@
 import { ExtractionMode, InputSource, SessionAnalysis, SessionContext, SavedDeviceFile } from '../types';
 import { loadAiSettings, TranscriptionProvider } from './aiSettingsService';
 import {
-  processMediaSession,
   analyzeTranscriptWithGemini,
+  transcribeAudioWithGemini,
 } from './geminiService';
 import { transcribeWithAssemblyAI } from './assemblyaiService';
 import { transcribeWithGroq } from './groqService';
@@ -50,10 +50,45 @@ export const processWithOrchestrator = async (
   const settings = await loadAiSettings();
   const provider = settings.transcriptionProvider;
 
-  // Gemini: dùng pipeline gốc (Bước 1 + 2 trong 1 lần gọi)
+  // Gemini: transcript trước, phân tích sau để giảm hallucination
   if (provider === 'gemini') {
-    onStageChange?.(`Đang xử lý bằng ${PROVIDER_LABELS.gemini}...`);
-    return processMediaSession({ file, mode, source, context, savedRecording });
+    onStageChange?.('Gemini dang transcript audio...');
+    const transcriptText = await transcribeAudioWithGemini({ file, mode });
+
+    if (!transcriptText) {
+      throw new Error('Gemini khong tra ve transcript. Vui long thu lai.');
+    }
+
+    if (context !== SessionContext.MEETING) {
+      onStageChange?.('Hoan tat!');
+      return {
+        title: file.name.replace(/\.[^.]+$/, '') || 'Transcript',
+        mode,
+        source,
+        context,
+        suggestedFolderName: file.name.replace(/\.[^.]+$/, '').replace(/\s+/g, '-') || 'transcript',
+        artifacts: {
+          transcript: transcriptText,
+          summary: '',
+          decisions: '',
+          risks: '',
+          folderTree: '',
+          mindmap: '',
+          actionItems: '',
+        },
+        savedRecording,
+      };
+    }
+
+    onStageChange?.('Gemini dang phan tich transcript cuoc hop...');
+    return analyzeTranscriptWithGemini({
+      transcriptText,
+      file,
+      mode,
+      source,
+      context,
+      savedRecording,
+    });
   }
 
   // Providers khác: Two-Step Pipeline

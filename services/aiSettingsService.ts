@@ -12,6 +12,12 @@ const TRANSCRIPTION_PROVIDER_KEY = 'transcription_provider';
 const ASSEMBLYAI_API_KEY_KEY = 'assemblyai_api_key';
 const GROQ_API_KEY_KEY = 'groq_api_key';
 const OPENAI_API_KEY_KEY = 'openai_api_key';
+const RECORDING_PROFILE_KEY = 'recording_profile';
+const NOISE_SUPPRESSION_LEVEL_KEY = 'noise_suppression_level';
+const ECHO_CANCELLATION_LEVEL_KEY = 'echo_cancellation_level';
+const AUTO_GAIN_LEVEL_KEY = 'auto_gain_level';
+const PREFERRED_SAMPLE_RATE_KEY = 'preferred_sample_rate';
+const PREFERRED_CHANNEL_COUNT_KEY = 'preferred_channel_count';
 
 const SECURE_KEYSTORE_SUPPORTED = Capacitor.getPlatform() === 'android';
 
@@ -23,6 +29,16 @@ export type RealtimeMode = 'FULL' | 'HYBRID' | 'OFF';
 export const DEFAULT_REALTIME_MODE: RealtimeMode = 'HYBRID';
 export type TranscriptionProvider = 'gemini' | 'assemblyai' | 'groq' | 'openai';
 export const DEFAULT_TRANSCRIPTION_PROVIDER: TranscriptionProvider = 'gemini';
+export type RecordingProfile = 'BALANCED' | 'VOICE_FOCUS' | 'NOISY_ENV' | 'RAW' | 'CUSTOM';
+export type ProcessingStrength = 'OFF' | 'LOW' | 'MEDIUM' | 'HIGH';
+export type PreferredSampleRate = 16000 | 24000 | 44100 | 48000;
+export type PreferredChannelCount = 1 | 2;
+export const DEFAULT_RECORDING_PROFILE: RecordingProfile = 'BALANCED';
+export const DEFAULT_NOISE_SUPPRESSION_LEVEL: ProcessingStrength = 'MEDIUM';
+export const DEFAULT_ECHO_CANCELLATION_LEVEL: ProcessingStrength = 'MEDIUM';
+export const DEFAULT_AUTO_GAIN_LEVEL: ProcessingStrength = 'LOW';
+export const DEFAULT_PREFERRED_SAMPLE_RATE: PreferredSampleRate = 48000;
+export const DEFAULT_PREFERRED_CHANNEL_COUNT: PreferredChannelCount = 1;
 
 // --- Interfaces ---
 export interface AiSettings {
@@ -36,7 +52,24 @@ export interface AiSettings {
   assemblyaiApiKey: string;
   groqApiKey: string;
   openaiApiKey: string;
+  recordingProfile: RecordingProfile;
+  noiseSuppressionLevel: ProcessingStrength;
+  echoCancellationLevel: ProcessingStrength;
+  autoGainLevel: ProcessingStrength;
+  preferredSampleRate: PreferredSampleRate;
+  preferredChannelCount: PreferredChannelCount;
 }
+
+const VALID_PROCESSING_STRENGTHS: ProcessingStrength[] = ['OFF', 'LOW', 'MEDIUM', 'HIGH'];
+const VALID_RECORDING_PROFILES: RecordingProfile[] = [
+  'BALANCED',
+  'VOICE_FOCUS',
+  'NOISY_ENV',
+  'RAW',
+  'CUSTOM',
+];
+const VALID_SAMPLE_RATES: PreferredSampleRate[] = [16000, 24000, 44100, 48000];
+const VALID_CHANNEL_COUNTS: PreferredChannelCount[] = [1, 2];
 
 // --- Storage Helpers ---
 const getStoredValue = async (key: string) => {
@@ -76,6 +109,12 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     assemblyaiApiKeyResult,
     groqApiKeyResult,
     openaiApiKeyResult,
+    recordingProfileResult,
+    noiseSuppressionLevelResult,
+    echoCancellationLevelResult,
+    autoGainLevelResult,
+    preferredSampleRateResult,
+    preferredChannelCountResult,
   ] = await Promise.all([
     getStoredValue(API_KEY_KEY),
     getStoredValue(MODEL_ID_KEY),
@@ -86,6 +125,12 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     getStoredValue(ASSEMBLYAI_API_KEY_KEY),
     getStoredValue(GROQ_API_KEY_KEY),
     getStoredValue(OPENAI_API_KEY_KEY),
+    getStoredValue(RECORDING_PROFILE_KEY),
+    getStoredValue(NOISE_SUPPRESSION_LEVEL_KEY),
+    getStoredValue(ECHO_CANCELLATION_LEVEL_KEY),
+    getStoredValue(AUTO_GAIN_LEVEL_KEY),
+    getStoredValue(PREFERRED_SAMPLE_RATE_KEY),
+    getStoredValue(PREFERRED_CHANNEL_COUNT_KEY),
   ]);
 
   const fallbackModel = legacyModelIdResult || DEFAULT_MODEL_ID;
@@ -103,6 +148,9 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     return cleanId;
   };
 
+  const sampleRate = Number(preferredSampleRateResult);
+  const channelCount = Number(preferredChannelCountResult);
+
   return {
     apiKey: apiKeyResult,
     realtimeModelId: sanitizeModelId(realtimeModelIdResult, DEFAULT_REALTIME_MODEL_ID),
@@ -115,6 +163,28 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     assemblyaiApiKey: assemblyaiApiKeyResult,
     groqApiKey: groqApiKeyResult,
     openaiApiKey: openaiApiKeyResult,
+    recordingProfile: VALID_RECORDING_PROFILES.includes(recordingProfileResult as RecordingProfile)
+      ? (recordingProfileResult as RecordingProfile)
+      : DEFAULT_RECORDING_PROFILE,
+    noiseSuppressionLevel: VALID_PROCESSING_STRENGTHS.includes(
+      noiseSuppressionLevelResult as ProcessingStrength
+    )
+      ? (noiseSuppressionLevelResult as ProcessingStrength)
+      : DEFAULT_NOISE_SUPPRESSION_LEVEL,
+    echoCancellationLevel: VALID_PROCESSING_STRENGTHS.includes(
+      echoCancellationLevelResult as ProcessingStrength
+    )
+      ? (echoCancellationLevelResult as ProcessingStrength)
+      : DEFAULT_ECHO_CANCELLATION_LEVEL,
+    autoGainLevel: VALID_PROCESSING_STRENGTHS.includes(autoGainLevelResult as ProcessingStrength)
+      ? (autoGainLevelResult as ProcessingStrength)
+      : DEFAULT_AUTO_GAIN_LEVEL,
+    preferredSampleRate: VALID_SAMPLE_RATES.includes(sampleRate as PreferredSampleRate)
+      ? (sampleRate as PreferredSampleRate)
+      : DEFAULT_PREFERRED_SAMPLE_RATE,
+    preferredChannelCount: VALID_CHANNEL_COUNTS.includes(channelCount as PreferredChannelCount)
+      ? (channelCount as PreferredChannelCount)
+      : DEFAULT_PREFERRED_CHANNEL_COUNT,
   };
 };
 
@@ -127,6 +197,12 @@ export const saveAiSettings = async ({
   assemblyaiApiKey,
   groqApiKey,
   openaiApiKey,
+  recordingProfile,
+  noiseSuppressionLevel,
+  echoCancellationLevel,
+  autoGainLevel,
+  preferredSampleRate,
+  preferredChannelCount,
 }: AiSettings) => {
   await Promise.all([
     setStoredValue(API_KEY_KEY, apiKey.trim()),
@@ -138,6 +214,12 @@ export const saveAiSettings = async ({
     setStoredValue(ASSEMBLYAI_API_KEY_KEY, assemblyaiApiKey.trim()),
     setStoredValue(GROQ_API_KEY_KEY, groqApiKey.trim()),
     setStoredValue(OPENAI_API_KEY_KEY, openaiApiKey.trim()),
+    setStoredValue(RECORDING_PROFILE_KEY, recordingProfile),
+    setStoredValue(NOISE_SUPPRESSION_LEVEL_KEY, noiseSuppressionLevel),
+    setStoredValue(ECHO_CANCELLATION_LEVEL_KEY, echoCancellationLevel),
+    setStoredValue(AUTO_GAIN_LEVEL_KEY, autoGainLevel),
+    setStoredValue(PREFERRED_SAMPLE_RATE_KEY, String(preferredSampleRate)),
+    setStoredValue(PREFERRED_CHANNEL_COUNT_KEY, String(preferredChannelCount)),
   ]);
 };
 

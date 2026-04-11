@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -56,6 +56,10 @@ interface MindmapRenderNode {
   depth: number;
   x: number;
   y: number;
+  side: -1 | 0 | 1;
+  parentId: string | null;
+  childIds: string[];
+  collapsed: boolean;
 }
 
 interface MindmapRenderEdge {
@@ -387,6 +391,10 @@ const buildMindmapGraphLayout = (tree: MindmapTreeNode) => {
     depth: 0,
     x: centerX,
     y: centerY,
+    side: 0,
+    parentId: null,
+    childIds: [],
+    collapsed: false,
   });
 
   const distributeRootChildren = (children: MindmapTreeNode[]) => {
@@ -417,6 +425,10 @@ const buildMindmapGraphLayout = (tree: MindmapTreeNode) => {
       depth,
       x,
       y,
+      side,
+      parentId,
+      childIds: [],
+      collapsed: false,
     });
     edges.push({ from: parentId, to: id });
 
@@ -448,6 +460,12 @@ const buildMindmapGraphLayout = (tree: MindmapTreeNode) => {
 
   layoutTopSide(left, -1);
   layoutTopSide(right, 1);
+
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  edges.forEach((edge) => {
+    const parent = nodeMap.get(edge.from);
+    if (parent) parent.childIds.push(edge.to);
+  });
 
   return { nodes, edges, width: 1120, height: 760 };
 };
@@ -499,45 +517,202 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
   const tree = mindmapNodesToTree(nodes);
   if (!tree) return <EmptyArtifactState message="Khong co du lieu mindmap de render." />;
 
-  const layout = buildMindmapGraphLayout(tree);
-  const nodeById = new Map(layout.nodes.map((node) => [node.id, node]));
+  const initialLayout = useMemo(() => buildMindmapGraphLayout(tree), [tree]);
+  const [graphNodes, setGraphNodes] = useState<MindmapRenderNode[]>(initialLayout.nodes);
+  const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
+  const dragRef = useRef<
+    | {
+        type: 'node';
+        nodeId: string;
+        offsetX: number;
+        offsetY: number;
+      }
+    | {
+        type: 'canvas';
+        startX: number;
+        startY: number;
+        originX: number;
+        originY: number;
+      }
+    | null
+  >(null);
+
+  useEffect(() => {
+    setGraphNodes(initialLayout.nodes);
+    setViewport({ x: 0, y: 0, scale: 1 });
+  }, [initialLayout]);
 
   const strokeForDepth = (depth: number) => {
     const palette = ['#0f172a', '#2563eb', '#0d9488', '#f59e0b', '#ec4899', '#8b5cf6'];
     return palette[Math.min(depth, palette.length - 1)];
   };
+  const nodeById = useMemo(
+    () => new Map(graphNodes.map((node) => [node.id, node])),
+    [graphNodes]
+  );
 
-  
+  const isVisibleNode = (node: MindmapRenderNode) => {
+    let currentParentId = node.parentId;
+    while (currentParentId) {
+      const parent = nodeById.get(currentParentId);
+      if (!parent) break;
+      if (parent.collapsed) return false;
+      currentParentId = parent.parentId;
+    }
+    return true;
+  };
+
+  const visibleNodes = graphNodes.filter(isVisibleNode);
+  const visibleNodeMap = new Map(visibleNodes.map((node) => [node.id, node]));
+  const visibleEdges = initialLayout.edges.filter(
+    (edge) => visibleNodeMap.has(edge.from) && visibleNodeMap.has(edge.to)
+  );
+
+  const toggleCollapse = (nodeId: string) => {
+    setGraphNodes((current) =>
+      current.map((node) =>
+        node.id === nodeId && node.childIds.length > 0
+          ? { ...node, collapsed: !node.collapsed }
+          : node
+      )
+    );
+  };
+
+  const svgPoint = (
+    event: React.PointerEvent<SVGSVGElement> | React.WheelEvent<SVGSVGElement>
+  ) => {
+    const svg = event.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = 'clientX' in event ? event.clientX : 0;
+    const clientY = 'clientY' in event ? event.clientY : 0;
+    return {
+      x: (clientX - rect.left - viewport.x) / viewport.scale,
+      y: (clientY - rect.top - viewport.y) / viewport.scale,
+    };
+  };
+
+  const handlePointerDown =
+    (nodeId?: string) => (event: React.PointerEvent<SVGSVGElement | SVGGElement>) => {
+      if (nodeId) {
+        const node = nodeById.get(nodeId);
+        if (!node) return;
+        event.stopPropagation();
+        const svg = (event.currentTarget as Element).ownerSVGElement;
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const x = (event.clientX - rect.left - viewport.x) / viewport.scale;
+        const y = (event.clientY - rect.top - viewport.y) / viewport.scale;
+        dragRef.current = {
+          type: 'node',
+          nodeId,
+          offsetX: x - node.x,
+          offsetY: y - node.y,
+        };
+      } else {
+        dragRef.current = {
+          type: 'canvas',
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: viewport.x,
+          originY: viewport.y,
+        };
+      }
+    };
+
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragRef.current) return;
+
+    if (dragRef.current.type === 'canvas') {
+      setViewport((current) => ({
+        ...current,
+        x: dragRef.current!.originX + (event.clientX - dragRef.current!.startX),
+        y: dragRef.current!.originY + (event.clientY - dragRef.current!.startY),
+      }));
+      return;
+    }
+
+    const point = svgPoint(event);
+    setGraphNodes((current) =>
+      current.map((node) =>
+        node.id === dragRef.current!.nodeId
+          ? {
+              ...node,
+              x: point.x - dragRef.current!.offsetX,
+              y: point.y - dragRef.current!.offsetY,
+            }
+          : node
+      )
+    );
+  };
+
+  const stopDragging = () => {
+    dragRef.current = null;
+  };
+
+  const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    const point = svgPoint(event);
+    const nextScale = Math.min(1.8, Math.max(0.55, viewport.scale + (event.deltaY < 0 ? 0.08 : -0.08)));
+    setViewport((current) => ({
+      scale: nextScale,
+      x: current.x - point.x * (nextScale - current.scale),
+      y: current.y - point.y * (nextScale - current.scale),
+    }));
+  };
 
   return (
-    <div className="overflow-auto rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_#ecfeff,_#ffffff_55%)] p-4">
+    <div className="rounded-[20px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_#ecfeff,_#ffffff_55%)] p-[4px]">
+      <div className="mb-[4px] flex flex-wrap items-center justify-between gap-[4px] px-[4px] py-[4px] text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <span>Mindmap canvas</span>
+        <div className="flex items-center gap-[4px]">
+          <button
+            type="button"
+            onClick={() => setViewport({ x: 0, y: 0, scale: 1 })}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700"
+          >
+            Reset view
+          </button>
+        </div>
+      </div>
       <svg
-        viewBox={`0 0 ${layout.width} ${layout.height}`}
-        className="h-[560px] w-full min-w-[900px]"
+        viewBox={`0 0 ${initialLayout.width} ${initialLayout.height}`}
+        className="h-[620px] w-full touch-none rounded-[16px] bg-white"
         role="img"
         aria-label="Mindmap visualization"
+        onPointerDown={handlePointerDown()}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDragging}
+        onPointerLeave={stopDragging}
+        onWheel={handleWheel}
       >
-        {layout.edges.map((edge, index) => {
-          const from = nodeById.get(edge.from);
-          const to = nodeById.get(edge.to);
+        <g
+          transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
+          style={{ transition: dragRef.current?.type === 'node' ? 'none' : 'transform 180ms ease-out' }}
+        >
+        {visibleEdges.map((edge, index) => {
+          const from = visibleNodeMap.get(edge.from);
+          const to = visibleNodeMap.get(edge.to);
           if (!from || !to) return null;
-          const curve = `M ${from.x} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x} ${to.y}`;
+          const midpoint = (from.x + to.x) / 2;
+          const curve = `M ${from.x} ${from.y} C ${midpoint} ${from.y}, ${midpoint} ${to.y}, ${to.x} ${to.y}`;
           return (
             <path
               key={`edge-${index}`}
               d={curve}
               fill="none"
               stroke={strokeForDepth(to.depth)}
-              strokeWidth={2.2}
-              opacity={0.8}
+              strokeWidth={2.6}
+              opacity={0.82}
+              strokeLinecap="round"
             />
           );
         })}
 
-        {layout.nodes.map((node) => {
+        {visibleNodes.map((node) => {
           const isRoot = node.depth === 0;
-          const width = isRoot ? 210 : 180;
-          const height = isRoot ? 58 : 52;
+          const hasChildren = node.childIds.length > 0;
+          const width = isRoot ? 240 : 210;
+          const height = isRoot ? 72 : 60;
           const x = node.x - width / 2;
           const y = node.y - height / 2;
           const fill = isRoot ? '#0f172a' : '#ffffff';
@@ -545,19 +720,52 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
           const border = isRoot ? '#0f172a' : strokeForDepth(node.depth);
 
           return (
-            <g key={node.id}>
+            <g
+              key={node.id}
+              onPointerDown={handlePointerDown(node.id)}
+              style={{ cursor: 'grab', transition: 'transform 180ms ease-out' }}
+            >
               <rect
                 x={x}
                 y={y}
                 width={width}
                 height={height}
-                rx={16}
-                ry={16}
+                rx={18}
+                ry={18}
                 fill={fill}
                 stroke={border}
-                strokeWidth={2}
+                strokeWidth={isRoot ? 0 : 2.2}
+                filter={isRoot ? 'drop-shadow(0px 14px 18px rgba(15,23,42,0.22))' : 'drop-shadow(0px 10px 12px rgba(15,23,42,0.08))'}
               />
-              <foreignObject x={x + 10} y={y + 8} width={width - 20} height={height - 12}>
+              {hasChildren && (
+                <>
+                  <circle
+                    cx={node.side <= 0 ? x + width - 18 : x + 18}
+                    cy={y + 18}
+                    r={10}
+                    fill={isRoot ? '#7af2d1' : '#f8fafc'}
+                    stroke={border}
+                    strokeWidth={1.5}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleCollapse(node.id);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <text
+                    x={node.side <= 0 ? x + width - 18 : x + 18}
+                    y={y + 22}
+                    textAnchor="middle"
+                    fontSize="14"
+                    fontWeight="700"
+                    fill={isRoot ? '#0f172a' : border}
+                    pointerEvents="none"
+                  >
+                    {node.collapsed ? '+' : '−'}
+                  </text>
+                </>
+              )}
+              <foreignObject x={x + 14} y={y + 10} width={width - 28} height={height - 18}>
                 <div
                   xmlns="http://www.w3.org/1999/xhtml"
                   style={{
@@ -567,11 +775,11 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
                     justifyContent: 'center',
                     textAlign: 'center',
                     fontFamily: 'Be Vietnam Pro, sans-serif',
-                    fontWeight: isRoot ? 700 : 600,
-                    fontSize: isRoot ? '14px' : '13px',
+                    fontWeight: isRoot ? 800 : 700,
+                    fontSize: isRoot ? '16px' : '13px',
                     color: textColor,
-                    lineHeight: '1.25',
-                    padding: '0 6px',
+                    lineHeight: '1.18',
+                    padding: '0 3px',
                   }}
                 >
                   {node.label}
@@ -580,19 +788,20 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
             </g>
           );
         })}
+        </g>
       </svg>
     </div>
   );
 };
 
 const FolderTreeNodeView: React.FC<{ node: TreeNode; depth?: number }> = ({ node, depth = 0 }) => (
-  <div className={depth === 0 ? '' : 'ml-6 mt-3 border-l border-slate-200 pl-4'}>
-    <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm">
+  <div className={depth === 0 ? '' : 'ml-4 mt-[4px] border-l border-slate-200 pl-[6px]'}>
+    <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-[6px] py-[4px] text-sm font-semibold text-slate-800 shadow-sm">
       <div className="h-2.5 w-2.5 rounded-full bg-[#0d7c66]" />
       {node.label}
     </div>
     {node.children.length > 0 && (
-      <div className="mt-3 space-y-3">
+      <div className="mt-[4px] space-y-[4px]">
         {node.children.map((child, index) => (
           <FolderTreeNodeView key={`${child.label}-${index}`} node={child} depth={depth + 1} />
         ))}
@@ -606,15 +815,15 @@ const PreviewCard: React.FC<{
   subtitle?: string;
   children: React.ReactNode;
 }> = ({ title, subtitle, children }) => (
-  <div className="rounded-[24px] border border-slate-200 bg-white p-1.5 md:p-4 shadow-sm">
-    <div className="text-sm font-bold text-slate-900 px-2 md:px-0">{title}</div>
-    {subtitle && <div className="mt-1 text-xs text-slate-500 px-2 md:px-0">{subtitle}</div>}
-    <div className="mt-4">{children}</div>
+  <div className="rounded-[20px] border border-slate-200 bg-white p-[4px] shadow-sm">
+    <div className="px-[4px] text-sm font-bold text-slate-900">{title}</div>
+    {subtitle && <div className="mt-[3px] px-[4px] text-xs text-slate-500">{subtitle}</div>}
+    <div className="mt-[6px]">{children}</div>
   </div>
 );
 
 const EmptyArtifactState: React.FC<{ message: string }> = ({ message }) => (
-  <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+  <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-[6px] py-6 text-center text-sm text-slate-500">
     {message}
   </div>
 );
@@ -636,21 +845,21 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
     return (
       <PreviewCard title="Transcript đã chuẩn hóa" subtitle="Giữ nguyên nội dung chép lời, dễ rà soát và đối chiếu.">
         {hasTimeline ? (
-          <div className="max-h-[60vh] space-y-3 overflow-auto rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-1.5 md:p-4">
+          <div className="max-h-[68vh] space-y-[4px] overflow-auto rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-[4px]">
             {timelineSegments.map((segment, index) => (
               <div
                 key={`segment-${index}`}
-                className="grid grid-cols-1 gap-2 rounded-[22px] border border-slate-200 bg-white p-2 md:p-4 shadow-sm md:grid-cols-[120px_1fr]"
+                className="grid grid-cols-1 gap-[4px] rounded-[18px] border border-slate-200 bg-white p-[4px] shadow-sm md:grid-cols-[110px_1fr]"
               >
-                <div className="inline-flex h-fit items-center justify-center rounded-2xl bg-slate-950 px-3 py-2 md:px-4 md:py-3 font-mono text-sm font-bold text-[#7af2d1]">
+                <div className="inline-flex h-fit items-center justify-center rounded-2xl bg-slate-950 px-[6px] py-[4px] font-mono text-sm font-bold text-[#7af2d1]">
                   {segment.timestamp || '--:--:--'}
                 </div>
-                <div className="text-sm leading-7 text-slate-800 text-justify">{segment.text}</div>
+                <div className="text-[15px] leading-7 text-slate-800 text-justify">{segment.text}</div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="max-h-[60vh] overflow-auto rounded-2xl bg-slate-50 px-2 py-3 md:px-4 md:py-4 font-mono text-sm leading-7 text-slate-700 whitespace-pre-wrap text-justify">
+          <div className="max-h-[68vh] overflow-auto rounded-2xl bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-700 whitespace-pre-wrap text-justify">
             {content}
           </div>
         )}
@@ -665,8 +874,8 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
         title="Meeting summary"
         subtitle="Markdown được render thành layout đọc được thay vì text thô."
       >
-        <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-3 md:p-6 shadow-sm">
-          <div className="space-y-4">
+        <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-[6px] shadow-sm">
+          <div className="space-y-[6px]">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -674,20 +883,20 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
                   <h1 className="text-3xl font-black tracking-tight text-slate-950">{children}</h1>
                 ),
                 h2: ({ children }) => (
-                  <h2 className="mt-8 border-b border-slate-200 pb-3 text-2xl font-black text-slate-950">
+                  <h2 className="mt-4 border-b border-slate-200 pb-[4px] text-2xl font-black text-slate-950">
                     {children}
                   </h2>
                 ),
                 h3: ({ children }) => (
-                  <h3 className="mt-6 text-xl font-bold text-slate-900">{children}</h3>
+                  <h3 className="mt-3 text-xl font-bold text-slate-900">{children}</h3>
                 ),
                 p: ({ children }) => (
-                  <p className="text-sm leading-7 text-slate-700 text-justify">{children}</p>
+                  <p className="text-[15px] leading-7 text-slate-700 text-justify">{children}</p>
                 ),
                 ul: ({ children }) => <ul className="space-y-3 pl-0">{children}</ul>,
                 ol: ({ children }) => <ol className="space-y-3 pl-0">{children}</ol>,
                 li: ({ children }) => (
-                  <li className="flex items-start gap-2.5 rounded-2xl bg-slate-50 px-3 py-2.5 md:px-4 md:py-3 text-sm leading-7 text-slate-800 text-justify">
+                  <li className="flex items-start gap-2 rounded-2xl bg-slate-50 px-[6px] py-[4px] text-[15px] leading-7 text-slate-800 text-justify">
                     <span className="mt-2 h-2 w-2 rounded-full bg-[#0d7c66] flex-shrink-0" />
                     <span className="flex-1">{children}</span>
                   </li>
@@ -719,7 +928,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
         {items.map((item, index) => (
           <div
             key={`${artifact.key}-${index}`}
-            className={`rounded-[22px] border px-3 py-3 md:px-4 md:py-4 text-sm leading-7 text-justify ${
+            className={`rounded-[18px] border px-[6px] py-[4px] text-[15px] leading-7 text-justify ${
               artifact.key === 'decisions'
                 ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
                 : 'border-amber-200 bg-amber-50/80 text-amber-950'
@@ -755,7 +964,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
         {items.map((item, index) => (
           <div
             key={`action-${index}`}
-            className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-3 py-3 md:px-4 md:py-4 text-sm leading-7 text-slate-800 text-justify"
+            className="flex items-start gap-2 rounded-[18px] border border-slate-200 bg-slate-50 px-[6px] py-[4px] text-[15px] leading-7 text-slate-800 text-justify"
           >
             <div
               className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg border flex-shrink-0 ${
@@ -782,8 +991,8 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
         title="Cây thư mục đề xuất"
         subtitle="Hiển thị như một tree view thay vì raw text."
       >
-        <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#f8fffc,#ffffff)] p-5">
-          <div className="space-y-3">
+        <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,#f8fffc,#ffffff)] p-[6px]">
+          <div className="space-y-[4px]">
             {tree.map((node, index) => (
               <FolderTreeNodeView key={`${node.label}-${index}`} node={node} />
             ))}
@@ -802,17 +1011,17 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
         title="Mindmap"
         subtitle="Render trực tiếp từ Mermaid thành sơ đồ."
       >
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-[6px]">
           <MindmapGraphPreview nodes={nodes} />
-          <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4">
+          <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-[6px] py-[4px]">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
               Node Outline
             </div>
-            <div className="mt-3 space-y-2">
+            <div className="mt-[4px] space-y-[4px]">
               {nodes.map((node, index) => (
                 <div
                   key={`mindmap-${index}`}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-sm"
+                  className="rounded-2xl bg-white px-[6px] py-[4px] text-sm font-medium text-slate-800 shadow-sm"
                   style={{ marginLeft: `${node.depth * 18}px` }}
                 >
                   {node.label}
@@ -827,7 +1036,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
 
   return (
     <PreviewCard title={artifact.label}>
-      <div className="rounded-2xl bg-slate-50 px-2 py-3 md:px-4 md:py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap text-justify">
+      <div className="rounded-2xl bg-slate-50 px-[6px] py-[4px] text-[15px] leading-7 text-slate-700 whitespace-pre-wrap text-justify">
         {content}
       </div>
     </PreviewCard>
@@ -940,11 +1149,11 @@ export const StepResult: React.FC<StepResultProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
-      <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-1.5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-col items-center w-full max-w-[1600px] animate-fade-in">
+      <div className="w-full rounded-[28px] border border-white/60 bg-white/90 p-[6px] md:p-[8px] shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+        <div className="flex flex-col gap-[6px] xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-4xl">
+            <div className="flex flex-wrap items-center gap-[6px]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
                 Kết quả AI
               </p>
@@ -966,44 +1175,44 @@ export const StepResult: React.FC<StepResultProps> = ({
                     : current
                 )
               }
-              className="mt-3 w-full rounded-2xl border border-transparent bg-slate-50 px-4 py-3 text-3xl font-black text-slate-900 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
+              className="mt-[4px] w-full rounded-2xl border border-transparent bg-slate-50 px-[6px] py-[4px] text-3xl font-black text-slate-900 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
             />
-            <p className="mt-3 text-sm leading-6 text-slate-500">
+            <p className="mt-[4px] text-sm leading-6 text-slate-500">
               Mặc định app sẽ render artifact theo đúng dạng hiển thị. Khi cần chỉnh tay, bạn có
               thể chuyển sang chế độ sửa text gốc.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-            <div className="rounded-[20px] bg-slate-50 px-4 py-4">
+          <div className="grid grid-cols-2 gap-[4px] text-sm md:grid-cols-3">
+            <div className="rounded-[16px] bg-slate-50 px-[6px] py-[4px]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                 Context
               </div>
-              <div className="mt-2 font-bold text-slate-900">{contextLabel}</div>
+              <div className="mt-[3px] font-bold text-slate-900">{contextLabel}</div>
             </div>
-            <div className="rounded-[20px] bg-slate-50 px-4 py-4">
+            <div className="rounded-[16px] bg-slate-50 px-[6px] py-[4px]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                 Source
               </div>
-              <div className="mt-2 font-bold text-slate-900">
+              <div className="mt-[3px] font-bold text-slate-900">
                 {analysis.source === 'RECORDING' ? 'Recording' : 'Upload'}
               </div>
             </div>
-            <div className="rounded-[20px] bg-slate-50 px-4 py-4">
+            <div className="rounded-[16px] bg-slate-50 px-[6px] py-[4px]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                 Artifacts
               </div>
-              <div className="mt-2 font-bold text-slate-900">{artifactItems.length}</div>
+              <div className="mt-[3px] font-bold text-slate-900">{artifactItems.length}</div>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-5">
-          <div className="rounded-[28px] border border-slate-200 bg-slate-950 p-4 text-white">
+        <div className="mt-[6px] grid grid-cols-1 xl:grid-cols-[248px_1fr] gap-[6px]">
+          <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-[6px] text-white">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7af2d1]">
               Artifact browser
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-[6px] space-y-[4px]">
               {artifactItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.key === selectedArtifact;
@@ -1016,15 +1225,15 @@ export const StepResult: React.FC<StepResultProps> = ({
                       setSelectedArtifact(item.key);
                       setViewMode('preview');
                     }}
-                    className={`w-full rounded-[22px] border p-4 text-left transition-all ${
+                    className={`w-full rounded-[18px] border p-[6px] text-left transition-all ${
                       active
                         ? 'border-[#7af2d1] bg-white/10'
                         : 'border-white/10 bg-white/[0.03] hover:border-white/20'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-[6px]">
                       <div
-                        className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
+                        className={`flex h-10 w-10 items-center justify-center rounded-2xl ${
                           active ? 'bg-[#7af2d1] text-slate-950' : 'bg-white/10 text-white'
                         }`}
                       >
@@ -1048,12 +1257,12 @@ export const StepResult: React.FC<StepResultProps> = ({
                 <div className="text-xs text-slate-500">{activeArtifact.description}</div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+              <div className="flex flex-wrap items-center gap-[4px]">
+                <div className="inline-flex rounded-xl border border-slate-200 bg-white p-[3px]">
                   <button
                     type="button"
                     onClick={() => setViewMode('preview')}
-                    className={`rounded-lg px-3 py-2 text-xs font-bold ${
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
                       viewMode === 'preview'
                         ? 'bg-slate-950 text-white'
                         : 'text-slate-600 hover:bg-slate-50'
@@ -1064,7 +1273,7 @@ export const StepResult: React.FC<StepResultProps> = ({
                   <button
                     type="button"
                     onClick={() => setViewMode('edit')}
-                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold ${
                       viewMode === 'edit'
                         ? 'bg-slate-950 text-white'
                         : 'text-slate-600 hover:bg-slate-50'
@@ -1078,7 +1287,7 @@ export const StepResult: React.FC<StepResultProps> = ({
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                  className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                     copied
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
@@ -1090,14 +1299,14 @@ export const StepResult: React.FC<StepResultProps> = ({
               </div>
             </div>
 
-            <div className="min-h-[60vh] bg-white px-1.5 py-1.5 md:px-5 md:py-5">
+            <div className="min-h-[72vh] bg-white px-[4px] py-[4px] md:px-[6px] md:py-[6px]">
               {viewMode === 'preview' ? (
                 <ArtifactPreview artifact={activeArtifact} analysis={analysis} />
               ) : (
                 <textarea
                   value={activeArtifact.content}
                   onChange={(event) => updateArtifact(activeArtifact.key, event.target.value)}
-                  className="min-h-[56vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 md:px-4 md:py-4 font-mono text-sm leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white text-justify"
+                  className="min-h-[68vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white text-justify"
                   placeholder="Nội dung sẽ hiển thị tại đây..."
                 />
               )}
