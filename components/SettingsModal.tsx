@@ -324,7 +324,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   );
 
   const tabBtnCls = (tab: typeof activeTab) =>
-    `flex-shrink-0 whitespace-nowrap px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+    `flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
       activeTab === tab
         ? 'bg-[#006b68] text-white shadow-sm'
         : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
@@ -347,14 +347,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-lg overflow-hidden rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh] sm:max-h-[92vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/60 px-6 py-4 flex-shrink-0">
-          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#006b68] text-white">
-              <Bot className="h-5 w-5" />
+        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/60 px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
+          <h2 className="flex items-center gap-2 text-lg sm:text-xl font-bold text-gray-800">
+            <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-[#006b68] text-white">
+              <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
             Cài đặt AI
           </h2>
@@ -364,28 +364,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Tabs */}
-        <div className="overflow-x-auto px-6 pt-4 pb-2 flex-shrink-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex min-w-max gap-1">
-            <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
-              Nguồn Transcript
-            </button>
-            <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
-              Mô hình Gemini
-            </button>
-            <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
-              Realtime
-            </button>
-            <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
-              Thu âm
-            </button>
-            <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
-              Bộ nhớ
-            </button>
+        <div className="scroll-fade-right flex-shrink-0">
+          <div className="thin-scrollbar px-4 sm:px-6 pt-3 sm:pt-4 pb-2">
+            <div className="flex min-w-max gap-1">
+              <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
+                Nguồn STT
+              </button>
+              <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
+                Model AI
+              </button>
+              <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
+                Realtime
+              </button>
+              <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
+                Thu âm
+              </button>
+              <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
+                Bộ nhớ
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-6 pb-6 pt-2 space-y-5">
+        <div className="overflow-y-auto flex-1 px-4 sm:px-6 pb-6 pt-2 space-y-4 sm:space-y-5">
 
           {/* ─── Tab: Provider ──────────────────────────────────────── */}
           {activeTab === 'provider' && (
@@ -835,7 +837,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-100 bg-white px-6 py-4 flex justify-end gap-3 flex-shrink-0">
+        <div className="border-t border-gray-100 bg-white px-4 sm:px-6 py-3 sm:py-4 flex justify-end gap-2 sm:gap-3 flex-shrink-0">
           {transcriptionProvider === 'gemini' && (
             <button
               onClick={handleClearKey}

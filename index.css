@@ -22,6 +22,61 @@ body {
     radial-gradient(circle at top left, rgba(122, 242, 209, 0.22), transparent 34%),
     radial-gradient(circle at top right, rgba(13, 124, 102, 0.12), transparent 26%),
     linear-gradient(180deg, #f5fbf8 0%, #eef4ff 48%, #f8fafc 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Mobile-first responsive typography ────────────────────── */
+@media (max-width: 640px) {
+  html {
+    font-size: 15px;
+  }
+
+  /* Justify long paragraphs for cleaner text blocks on mobile */
+  p,
+  .text-justify-mobile {
+    text-align: justify;
+    -webkit-hyphens: auto;
+    hyphens: auto;
+    word-break: break-word;
+  }
+
+  /* Tighter line-height on mobile */
+  h1, h2, h3 {
+    line-height: 1.2;
+  }
+}
+
+/* ── Thin visible scrollbar for tab bars / horizontal scroll ─ */
+.thin-scrollbar {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* ── Children snap-align to start ────────────────────────── */
+.thin-scrollbar > * {
+  scroll-snap-align: start;
 }
 
 code,
@@ -59,4 +114,39 @@ pre,
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
+}
+
+/* ── Toast slide-in from bottom ────────────────────────── */
+.animate-toast-in {
+  animation: toast-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ── Scroll fade hint on right edge ─────────────────────── */
+.scroll-fade-right {
+  position: relative;
+}
+
+.scroll-fade-right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, rgba(249, 250, 251, 0.95));
+  border-radius: 0 8px 8px 0;
+  z-index: 1;
+  transition: opacity 0.3s;
 }

@@ -159,14 +159,14 @@ const App: React.FC = () => {
       <div className="app-shell__mesh" />
 
       <header className="sticky top-0 z-50 border-b border-white/60 bg-white/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-4 md:px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0d7c66] text-white shadow-lg shadow-[#0d7c66]/20">
-              <Sparkles className="h-6 w-6" />
+        <div className="mx-auto flex h-14 sm:h-20 w-full max-w-6xl items-center justify-between px-3 sm:px-4 md:px-6">
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl bg-[#0d7c66] text-white shadow-lg shadow-[#0d7c66]/20">
+              <Sparkles className="h-4 w-4 sm:h-6 sm:w-6" />
             </div>
             <div>
-              <h1 className="text-base font-black tracking-tight text-slate-900 md:text-xl">{moduleTitle}</h1>
-              <p className="hidden text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66] md:block">
+              <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 md:text-xl">{moduleTitle}</h1>
+              <p className="hidden text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66] sm:block">
                 {moduleSubtitle}
               </p>
             </div>
@@ -176,7 +176,7 @@ const App: React.FC = () => {
             {activeModule && (
               <button
                 onClick={handleLeaveModule}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition-all hover:border-slate-300 hover:text-slate-900"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-slate-600 transition-all hover:border-slate-300 hover:text-slate-900"
                 title="Đổi phân hệ"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -194,7 +194,7 @@ const App: React.FC = () => {
         </div>
 
         {activeModule && (
-          <div className="mx-auto flex h-1 w-full max-w-6xl gap-2 px-4 md:px-6">
+          <div className="mx-auto flex h-1 w-full max-w-6xl gap-1.5 sm:gap-2 px-3 sm:px-4 md:px-6">
             {[1, 2, 3, 4].map((value) => (
               <div
                 key={value}
@@ -207,7 +207,7 @@ const App: React.FC = () => {
         )}
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-20 pt-8 md:px-6 md:pt-10">
+      <main className="mx-auto flex w-full max-w-6xl flex-col px-3 sm:px-4 pb-14 sm:pb-20 pt-5 sm:pt-8 md:px-6 md:pt-10">
         {!activeModule && <ModuleHome onSelect={activateModule} />}
 
         {activeModule === AppModule.TRANSCRIBE && step === 1 && (
