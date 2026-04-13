@@ -1,9 +1,12 @@
 import React from 'react';
-import { ArrowRight, FileAudio, Mic, Sparkles } from 'lucide-react';
+import { ArrowRight, FileAudio, FolderSearch, Mic, Sparkles } from 'lucide-react';
 import { AppModule } from '../types';
 
 interface ModuleHomeProps {
   onSelect: (module: AppModule) => void;
+  onOpenWorkspace: () => void;
+  sessionCount: number;
+  recentSessionTitle?: string;
 }
 
 const modules = [
@@ -21,7 +24,12 @@ const modules = [
   },
 ];
 
-export const ModuleHome: React.FC<ModuleHomeProps> = ({ onSelect }) => {
+export const ModuleHome: React.FC<ModuleHomeProps> = ({
+  onSelect,
+  onOpenWorkspace,
+  sessionCount,
+  recentSessionTitle,
+}) => {
   return (
     <div className="animate-fade-in">
       <section className="rounded-[24px] sm:rounded-[30px] border border-white/60 bg-white/85 p-3 sm:p-4 md:rounded-[40px] md:p-8 shadow-[0_18px_48px_rgba(15,23,42,0.09)] backdrop-blur-xl">
@@ -31,8 +39,18 @@ export const ModuleHome: React.FC<ModuleHomeProps> = ({ onSelect }) => {
             TSrecord
           </div>
           <h2 className="mt-3 sm:mt-4 text-xl sm:text-2xl font-black tracking-tight text-slate-950 md:text-4xl">
-            Chọn module
+            Ghi âm trực tiếp hoặc upload file để tạo biên bản họp hoàn chỉnh
           </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+            TSrecord tập trung vào 4 việc chính: ghi âm trên thiết bị, nhận file audio/video có sẵn,
+            dựng biên bản họp kèm mindmap và xuất ngay sang Word hoặc PPT khi bạn cần chia sẻ.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Ghi âm trực tiếp</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Upload file</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Biên bản + mindmap</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Xuất Word/PPT</span>
+          </div>
         </div>
 
         <div className="mt-4 sm:mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 md:mt-8 md:gap-5">
@@ -80,6 +98,34 @@ export const ModuleHome: React.FC<ModuleHomeProps> = ({ onSelect }) => {
             );
           })}
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenWorkspace}
+          className="mt-4 sm:mt-5 w-full rounded-[20px] border border-slate-200 bg-[linear-gradient(145deg,#ffffff,#f9fffc_55%,#eef6ff)] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-[#0d7c66]/30 md:mt-6 md:rounded-[28px] md:p-6"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0d7c66]/10 text-[#0d7c66]">
+                <FolderSearch className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
+                  Workspace
+                </div>
+                <h3 className="mt-2 text-lg font-black text-slate-950 md:text-2xl">
+                  Tìm lại session đã xử lý
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  {sessionCount > 0
+                    ? `${sessionCount} session đã được lưu. ${recentSessionTitle ? `Mới nhất: ${recentSessionTitle}.` : ''}`
+                    : 'Mọi phiên xử lý xong sẽ tự động xuất hiện trong thư viện để bạn mở lại và tìm kiếm.'}
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="mt-1 h-5 w-5 text-[#0d7c66]" />
+          </div>
+        </button>
       </section>
     </div>
   );

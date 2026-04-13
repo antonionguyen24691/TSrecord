@@ -240,14 +240,14 @@ export const StepExport: React.FC<StepExportProps> = ({
               Xuất dữ liệu
             </p>
             <h2 className="mt-2 sm:mt-3 text-xl sm:text-2xl md:text-3xl font-black text-slate-900">
-              Lưu transcript hoặc đóng gói cả phiên làm việc
+              Xuất trọn bộ biên bản, mindmap và file Word/PPT
             </h2>
             <p className="mt-2 sm:mt-3 max-w-2xl text-xs sm:text-sm leading-5 sm:leading-6 text-slate-500 text-justify">
               {isMeeting
-                ? 'Package lưu ra sẽ gồm transcript, summary, decisions, risks, folder tree, mindmap, metadata và bản report tổng hợp.'
+                ? 'Package lưu ra sẽ gồm transcript, summary, decisions, risks, action items, folder tree, mindmap, metadata và bản report tổng hợp.'
                 : isTranscriptionOnly
-                  ? 'Package lưu ra sẽ tập trung vào transcript, metadata và report tổng hợp của file đã nhập.'
-                  : 'Package lưu ra sẽ gọn hơn và tập trung vào transcript phỏng vấn cùng metadata phiên ghi.'}
+                  ? 'Package lưu ra sẽ tập trung vào transcript, metadata và report tổng hợp của file đã nhập để bạn tiếp tục dùng trong Word hoặc chia sẻ nhanh.'
+                  : 'Package lưu ra sẽ gọn hơn và tập trung vào transcript phỏng vấn cùng metadata phiên ghi để bạn dễ tra cứu và mở lại sau này.'}
             </p>
 
             <div className="mt-5 sm:mt-8 rounded-[20px] sm:rounded-[28px] border border-slate-200 bg-slate-50 p-4 sm:p-6">

@@ -104,7 +104,13 @@ export const StepUpload: React.FC<StepUploadProps> = ({
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
               Phân hệ trích xuất
             </p>
-            <h2 className="mt-2 text-2xl font-black text-slate-900 md:text-3xl">Chọn file để bắt đầu</h2>
+            <h2 className="mt-2 text-2xl font-black text-slate-900 md:text-3xl">
+              Upload file để lấy transcript hoặc biên bản họp
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              Chọn audio hoặc video có sẵn, sau đó app sẽ dựng transcript, biên bản họp hoàn chỉnh,
+              mindmap và sẵn sàng xuất ra Word hoặc PPT.
+            </p>
           </div>
           <button
             type="button"
@@ -169,7 +175,9 @@ export const StepUpload: React.FC<StepUploadProps> = ({
                 <CloudUpload className="h-8 w-8" />
               </div>
               <div className="mt-3 text-lg font-black text-slate-900">Kéo thả hoặc bấm để chọn file</div>
-              <p className="mt-2 text-sm leading-6 text-slate-500">Hỗ trợ MP3, WAV, M4A, MP4.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Hỗ trợ MP3, WAV, M4A, MP4 và các định dạng ghi âm/video phổ biến.
+              </p>
             </button>
           </div>
         ) : (

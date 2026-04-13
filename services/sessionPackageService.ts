@@ -11,6 +11,7 @@ import {
   createSessionWorkspaceName,
   sanitizeFileSegment,
 } from './recordingService';
+import { cacheWorkspaceSession } from './workspaceService';
 
 const STORAGE_ROOT = 'TSrecord';
 
@@ -974,8 +975,14 @@ export const saveSessionPackage = async ({
     ) || 'session';
 
   const workspacePath =
+    analysis.workspacePath ||
     analysis.savedRecording?.workspacePath ||
     `${STORAGE_ROOT}/${createSessionWorkspaceName(baseName)}`;
+  const normalizedAnalysis: SessionAnalysis = {
+    ...analysis,
+    workspacePath,
+    createdAt: analysis.createdAt || new Date().toISOString(),
+  };
 
   const analysisPath = `${workspacePath}/analysis`;
   const mapsPath = `${workspacePath}/maps`;
@@ -988,36 +995,40 @@ export const saveSessionPackage = async ({
     await ensureDirectory(mapsPath);
   }
 
-  await writeTextFile(`${analysisPath}/transcript.txt`, analysis.artifacts.transcript);
+  await writeTextFile(`${analysisPath}/transcript.txt`, normalizedAnalysis.artifacts.transcript);
   await writeTextFile(
     `${analysisPath}/metadata.json`,
     JSON.stringify(
       {
-        title: analysis.title,
-        source: analysis.source,
-        context: analysis.context,
-        mode: analysis.mode,
-        recordingPath: analysis.savedRecording?.path || null,
+        title: normalizedAnalysis.title,
+        source: normalizedAnalysis.source,
+        context: normalizedAnalysis.context,
+        mode: normalizedAnalysis.mode,
+        createdAt: normalizedAnalysis.createdAt,
+        originalFileName: normalizedAnalysis.originalFileName || null,
+        recordingPath: normalizedAnalysis.savedRecording?.path || null,
       },
       null,
       2
     )
   );
+  await writeTextFile(`${analysisPath}/session.json`, JSON.stringify(normalizedAnalysis, null, 2));
 
-  if (analysis.context === SessionContext.MEETING) {
-    await writeTextFile(`${analysisPath}/summary.md`, analysis.artifacts.summary);
-    await writeTextFile(`${analysisPath}/decisions.md`, analysis.artifacts.decisions);
-    await writeTextFile(`${analysisPath}/risks.md`, analysis.artifacts.risks);
-    await writeTextFile(`${analysisPath}/action-items.md`, analysis.artifacts.actionItems);
-    await writeTextFile(`${mapsPath}/folder-tree.txt`, analysis.artifacts.folderTree);
-    await writeTextFile(`${mapsPath}/mindmap.md`, analysis.artifacts.mindmap);
+  if (normalizedAnalysis.context === SessionContext.MEETING) {
+    await writeTextFile(`${analysisPath}/summary.md`, normalizedAnalysis.artifacts.summary);
+    await writeTextFile(`${analysisPath}/decisions.md`, normalizedAnalysis.artifacts.decisions);
+    await writeTextFile(`${analysisPath}/risks.md`, normalizedAnalysis.artifacts.risks);
+    await writeTextFile(`${analysisPath}/action-items.md`, normalizedAnalysis.artifacts.actionItems);
+    await writeTextFile(`${mapsPath}/folder-tree.txt`, normalizedAnalysis.artifacts.folderTree);
+    await writeTextFile(`${mapsPath}/mindmap.md`, normalizedAnalysis.artifacts.mindmap);
   }
 
-  const reportText = buildPresentationHtml(analysis);
+  const reportText = buildPresentationHtml(normalizedAnalysis);
   const reportFileName = `${baseName}-report.html`;
   const reportPath = `${exportsPath}/${reportFileName}`;
 
   await writeTextFile(reportPath, reportText);
+  cacheWorkspaceSession(normalizedAnalysis, workspacePath);
 
   const uriResult = await Filesystem.getUri({
     path: reportPath,

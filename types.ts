@@ -61,4 +61,33 @@ export interface SessionAnalysis {
   suggestedFolderName: string;
   artifacts: SessionArtifacts;
   savedRecording?: SavedDeviceFile | null;
+  workspacePath?: string;
+  createdAt?: string;
+  originalFileName?: string;
+}
+
+export interface WorkspaceSessionSummary {
+  id: string;
+  title: string;
+  context: SessionContext;
+  source: InputSource;
+  mode: ExtractionMode;
+  createdAt: string;
+  workspacePath: string;
+  transcriptPreview: string;
+  summaryPreview: string;
+  actionItemsPreview: string;
+  note: string;
+  savedRecordingPath?: string | null;
+  isNative: boolean;
+}
+
+export interface WorkspaceProject {
+  id: string;
+  name: string;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+  pinned: boolean;
+  sessionIds: string[];
 }

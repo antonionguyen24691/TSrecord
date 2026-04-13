@@ -150,3 +150,26 @@ pre,
   z-index: 1;
   transition: opacity 0.3s;
 }
+
+.app-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #e8edf5 0%, #f6f9fc 50%, #e8edf5 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+.app-skeleton--dark {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.17) 50%, rgba(255, 255, 255, 0.09) 100%);
+  background-size: 200% 100%;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
