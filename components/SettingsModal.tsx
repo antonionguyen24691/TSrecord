@@ -30,6 +30,8 @@ interface SettingsModalProps {
 }
 
 const AVAILABLE_GEMINI_MODELS = [
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Trả phí, nhanh hơn 2.5 Flash)' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview (Trả phí, suy luận sâu nhất)' },
   { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite Preview' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Khuyên dùng — Cân bằng)' },
   { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (Tiết kiệm chi phí nhất)' },
@@ -545,7 +547,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Khuyến nghị: <b>Gemini 2.5 Flash-Lite</b> — thấp chi phí, độ trễ thấp.
+                  Khuyến nghị: <b>Gemini 3 Flash Preview</b> nếu cần tốc độ và chất lượng cao hơn.
+                  Muốn tiết kiệm nhất thì dùng <b>Gemini 2.5 Flash-Lite</b>.
                 </p>
               </div>
 
@@ -569,8 +572,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Khuyến nghị: <b>Gemini 2.5 Flash</b> — cân bằng tốc độ và chất lượng.
-                  Cần độ sâu cao hơn thì chọn <b>2.5 Pro</b>.
+                  Khuyến nghị: <b>Gemini 3 Pro Preview</b> cho các buổi họp dài hoặc phân tích sâu.
+                  Muốn cân bằng thì chọn <b>Gemini 2.5 Flash</b>.
                 </p>
               </div>
             </>

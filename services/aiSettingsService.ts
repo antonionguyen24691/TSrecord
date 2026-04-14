@@ -25,6 +25,14 @@ const SECURE_KEYSTORE_SUPPORTED = Capacitor.getPlatform() === 'android';
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
 export const DEFAULT_REALTIME_MODEL_ID = 'gemini-2.5-flash-lite';
 export const DEFAULT_ANALYSIS_MODEL_ID = 'gemini-2.5-flash';
+export const AVAILABLE_GEMINI_MODEL_IDS = [
+  'gemini-3-flash-preview',
+  'gemini-3-pro-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+] as const;
 export type RealtimeMode = 'FULL' | 'HYBRID' | 'OFF';
 export const DEFAULT_REALTIME_MODE: RealtimeMode = 'HYBRID';
 export type TranscriptionProvider = 'gemini' | 'assemblyai' | 'groq' | 'openai';
@@ -144,6 +152,15 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     // Map previous or user-tampered versions to the correct API ID
     if (cleanId === 'gemini-3.1-flash-lite' || cleanId === 'gemini 3.1 flash lite') {
       return 'gemini-3.1-flash-lite-preview';
+    }
+    if (cleanId === 'gemini-3-flash' || cleanId === 'gemini 3 flash') {
+      return 'gemini-3-flash-preview';
+    }
+    if (cleanId === 'gemini-3-pro' || cleanId === 'gemini 3 pro') {
+      return 'gemini-3-pro-preview';
+    }
+    if (!AVAILABLE_GEMINI_MODEL_IDS.includes(cleanId as (typeof AVAILABLE_GEMINI_MODEL_IDS)[number])) {
+      return defaultId;
     }
     return cleanId;
   };

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight,
   BriefcaseBusiness,
+  ChevronDown,
+  ChevronUp,
   FileSearch,
   FileText,
   FolderOpen,
@@ -91,6 +93,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
   const [projectNameDraft, setProjectNameDraft] = useState('');
   const [projectNoteDraft, setProjectNoteDraft] = useState('');
   const [sessionNoteDrafts, setSessionNoteDrafts] = useState<Record<string, string>>({});
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
 
   const activeProject = projects.find((project) => project.id === activeProjectId) || null;
   const sessionProjectMap = useMemo(() => {
@@ -134,6 +137,13 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
     });
   }, [sessions]);
 
+  useEffect(() => {
+    if (!expandedSessionId) return;
+    if (!sessions.some((session) => session.id === expandedSessionId)) {
+      setExpandedSessionId(null);
+    }
+  }, [expandedSessionId, sessions]);
+
   const meetingCount = sessions.filter((session) => session.context === SessionContext.MEETING).length;
   const recordingCount = sessions.filter((session) => session.source === InputSource.RECORDING).length;
 
@@ -158,7 +168,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 Dự án & session
               </h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Tạo dự án để gom nhiều session liên quan, lưu note tay và mở lại các biên bản cũ.
+                Danh sách session được thu gọn. Bấm vào từng dòng để xem chi tiết hoặc mở lại phiên đã xử lý.
               </p>
 
               <div className="mt-5 grid grid-cols-3 gap-3">
@@ -379,17 +389,10 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                     placeholder="Viết note tay cho dự án này: bối cảnh, việc cần nhớ, quyết định ngoài cuộc họp, prompt riêng cho lần xử lý sau..."
                   />
                 </div>
-
-                {activeProject.sessionIds.length === 0 && (
-                  <div className="mt-4 rounded-2xl border border-dashed border-[#0d7c66]/25 bg-[#0d7c66]/5 px-4 py-3 text-sm leading-6 text-slate-700">
-                    Dự án này chưa có session nào. Kéo xuống danh sách bên dưới rồi bấm
-                    <b> Thêm vào dự án</b> trên các session phù hợp.
-                  </div>
-                )}
               </section>
             )}
 
-            <section className="space-y-4">
+            <section className="space-y-3">
               {isLoading && sessions.length === 0 && (
                 <div className="rounded-[28px] border border-slate-200 bg-slate-50 px-5 py-12 text-center text-sm text-slate-500">
                   Đang tải dữ liệu workspace...
@@ -420,13 +423,20 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 const memberships = sessionProjectMap.get(session.id) || [];
                 const isInActiveProject =
                   activeProject ? activeProject.sessionIds.includes(session.id) : false;
+                const isExpanded = expandedSessionId === session.id;
 
                 return (
                   <article
                     key={session.id}
-                    className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.05)]"
+                    className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)]"
                   >
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedSessionId((current) => (current === session.id ? null : session.id))
+                      }
+                      className="flex w-full items-center justify-between gap-4 rounded-2xl text-left transition-colors hover:bg-slate-50/80"
+                    >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="inline-flex items-center gap-2 rounded-full bg-[#0d7c66]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#0d7c66]">
@@ -444,10 +454,43 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
                             {formatDateTime(session.createdAt)}
                           </span>
+                          {session.note.trim() && (
+                            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
+                              Có session note
+                            </span>
+                          )}
                         </div>
 
-                        <h3 className="mt-3 text-xl font-black text-slate-950">{session.title}</h3>
-                        <p className="mt-1 break-all text-xs text-slate-400">{session.workspacePath}</p>
+                        <h3 className="mt-3 truncate text-base font-black text-slate-950 md:text-lg">
+                          {session.title}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenSession(session);
+                          }}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-bold uppercase tracking-[0.18em] text-white transition-all hover:-translate-y-0.5"
+                        >
+                          Mở
+                          <ArrowUpRight className="h-4 w-4" />
+                        </button>
+                        <div className="text-slate-400">
+                          {isExpanded ? (
+                            <ChevronUp className="h-5 w-5" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5" />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
+                        <p className="break-all text-xs text-slate-400">{session.workspacePath}</p>
 
                         {memberships.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -465,7 +508,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                         )}
 
                         <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="rounded-2xl bg-white px-4 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                               Summary
                             </div>
@@ -473,7 +516,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                               {session.summaryPreview || 'Chưa có summary hoặc đây là session transcript thuần.'}
                             </div>
                           </div>
-                          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="rounded-2xl bg-white px-4 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                               Transcript
                             </div>
@@ -481,7 +524,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                               {session.transcriptPreview || 'Chưa có transcript preview.'}
                             </div>
                           </div>
-                          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="rounded-2xl bg-white px-4 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                               Action Items
                             </div>
@@ -514,37 +557,28 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                             placeholder="Ghi chú tay riêng cho session này: đoạn AI nghe sai, việc cần follow-up, lưu ý khi mở lại, hay ý định dùng Word/PPT cho ai..."
                           />
                         </div>
-                      </div>
-
-                      <div className="flex min-w-[220px] flex-col gap-3">
-                        <button
-                          type="button"
-                          onClick={() => onOpenSession(session)}
-                          className="inline-flex h-12 items-center justify-center gap-3 rounded-2xl bg-slate-950 px-5 text-sm font-bold uppercase tracking-[0.18em] text-white transition-all hover:-translate-y-0.5"
-                        >
-                          Mở lại session
-                          <ArrowUpRight className="h-4 w-4" />
-                        </button>
 
                         {activeProject && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              isInActiveProject
-                                ? onRemoveSessionFromProject(activeProject.id, session.id)
-                                : onAssignSessionToProject(activeProject.id, session.id)
-                            }
-                            className={`inline-flex h-12 items-center justify-center gap-3 rounded-2xl px-5 text-sm font-bold uppercase tracking-[0.16em] transition-all ${
-                              isInActiveProject
-                                ? 'border border-amber-200 bg-amber-50 text-amber-800 hover:-translate-y-0.5'
-                                : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:-translate-y-0.5'
-                            }`}
-                          >
-                            {isInActiveProject ? 'Bỏ khỏi dự án' : 'Thêm vào dự án'}
-                          </button>
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                isInActiveProject
+                                  ? onRemoveSessionFromProject(activeProject.id, session.id)
+                                  : onAssignSessionToProject(activeProject.id, session.id)
+                              }
+                              className={`inline-flex h-12 items-center justify-center gap-3 rounded-2xl px-5 text-sm font-bold uppercase tracking-[0.16em] transition-all ${
+                                isInActiveProject
+                                  ? 'border border-amber-200 bg-amber-50 text-amber-800 hover:-translate-y-0.5'
+                                  : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:-translate-y-0.5'
+                              }`}
+                            >
+                              {isInActiveProject ? 'Bỏ khỏi dự án' : 'Thêm vào dự án'}
+                            </button>
+                          </div>
                         )}
                       </div>
-                    </div>
+                    )}
                   </article>
                 );
               })}

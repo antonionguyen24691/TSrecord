@@ -9,12 +9,7 @@ import {
   Play,
   Upload,
 } from 'lucide-react';
-import {
-  AppModule,
-  ExtractionMode,
-  InputSource,
-  SessionContext,
-} from '../types';
+import { AppModule, ExtractionMode, InputSource, SessionContext } from '../types';
 
 interface StepModeProps {
   module: AppModule;
@@ -47,13 +42,6 @@ export const StepMode: React.FC<StepModeProps> = ({
   onBack,
   isProcessing,
 }) => {
-  const isMeeting = sessionContext === SessionContext.MEETING;
-  const isInterview = sessionContext === SessionContext.INTERVIEW;
-
-  const deliverables = isMeeting
-    ? ['Transcript', 'Tóm tắt', 'Decisions', 'Risks', 'Folder tree', 'Mindmap', 'Checklist']
-    : ['Transcript'];
-
   return (
     <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
       <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
@@ -70,7 +58,7 @@ export const StepMode: React.FC<StepModeProps> = ({
                 Nguồn: {source === 'RECORDING' ? 'Ghi âm' : 'Tải lên'}
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-100 uppercase tracking-wider">
-                Module: {module === AppModule.GEMINI_FLASH ? 'Flash' : 'Pro'}
+                Module: {module === AppModule.RECORD_NOTES ? 'Ghi âm' : 'Upload'}
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700 border border-blue-100 uppercase tracking-wider">
                 Ngữ cảnh: {getContextLabel(sessionContext)}
