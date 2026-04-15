@@ -3,6 +3,8 @@ import { X, Save, Key, Bot, Sparkles, Zap, ChevronDown } from 'lucide-react';
 import {
   DEFAULT_AUTO_GAIN_LEVEL,
   DEFAULT_ANALYSIS_MODEL_ID,
+  DEFAULT_CHUNK_DURATION_MINUTES,
+  DEFAULT_CHUNK_STAGGER_SECONDS,
   DEFAULT_ECHO_CANCELLATION_LEVEL,
   DEFAULT_NOISE_SUPPRESSION_LEVEL,
   DEFAULT_PREFERRED_CHANNEL_COUNT,
@@ -252,13 +254,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [preferredChannelCount, setPreferredChannelCount] = useState<PreferredChannelCount>(
     DEFAULT_PREFERRED_CHANNEL_COUNT
   );
+  const [chunkDurationMinutes, setChunkDurationMinutes] = useState(DEFAULT_CHUNK_DURATION_MINUTES);
+  const [chunkStaggerSeconds, setChunkStaggerSeconds] = useState(DEFAULT_CHUNK_STAGGER_SECONDS);
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>(
     DEFAULT_TRANSCRIPTION_PROVIDER
   );
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    'provider' | 'gemini' | 'realtime' | 'recording' | 'storage'
+    'provider' | 'gemini' | 'chunking' | 'realtime' | 'recording' | 'storage'
   >('provider');
 
   useEffect(() => {
@@ -279,6 +283,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setAutoGainLevel(settings.autoGainLevel);
         setPreferredSampleRate(settings.preferredSampleRate);
         setPreferredChannelCount(settings.preferredChannelCount);
+        setChunkDurationMinutes(settings.chunkDurationMinutes);
+        setChunkStaggerSeconds(settings.chunkStaggerSeconds);
         setTranscriptionProvider(settings.transcriptionProvider);
       });
     }
@@ -302,6 +308,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       autoGainLevel,
       preferredSampleRate,
       preferredChannelCount,
+      chunkDurationMinutes,
+      chunkStaggerSeconds,
     });
     setIsSaving(false);
     onClose();
@@ -374,6 +382,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </button>
               <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
                 Model AI
+              </button>
+              <button className={tabBtnCls('chunking')} onClick={() => setActiveTab('chunking')}>
+                File dài
               </button>
               <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
                 Realtime
@@ -577,6 +588,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </p>
               </div>
             </>
+          )}
+
+          {activeTab === 'chunking' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="text-sm font-semibold text-gray-800">Xử lý file dài</div>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                  Khi audio dài hơn mốc này, app sẽ tự chia thành nhiều phần, cắt gần điểm im lặng
+                  để tránh đứt câu, rồi transcript các phần song song trước khi ghép transcript cuối.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Phút / phần
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={chunkDurationMinutes}
+                      onChange={(event) =>
+                        setChunkDurationMinutes(
+                          Math.min(30, Math.max(1, Number(event.target.value) || DEFAULT_CHUNK_DURATION_MINUTES))
+                        )
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Mặc định 10 phút. Giá trị nhỏ hơn giúp giảm timeout nhưng tăng số request.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Delay khởi động / phần
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={chunkStaggerSeconds}
+                      onChange={(event) =>
+                        setChunkStaggerSeconds(
+                          Math.min(60, Math.max(0, Number(event.target.value) || 0))
+                        )
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Mặc định 10 giây. Dùng để stagger các request song song, giảm khả năng đụng rate limit.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ─── Tab: Realtime ───────────────────────────────────────── */}

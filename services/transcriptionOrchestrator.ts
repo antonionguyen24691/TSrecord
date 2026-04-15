@@ -44,7 +44,7 @@ const PROVIDER_LABELS: Record<TranscriptionProvider, string> = {
   openai: 'OpenAI Whisper',
 };
 
-const MAX_TRANSCRIPTION_CHUNK_SECONDS = 10 * 60;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const formatTimecode = (totalSeconds: number) => {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
@@ -137,45 +137,65 @@ const transcribeLongAudioIfNeeded = async ({
     return null;
   }
 
-  if (!Number.isFinite(durationSeconds) || durationSeconds <= MAX_TRANSCRIPTION_CHUNK_SECONDS) {
+  const chunkDurationSeconds = settings.chunkDurationMinutes * 60;
+
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= chunkDurationSeconds) {
     return null;
   }
 
   onStageChange?.(
-    `File dài ${Math.ceil(durationSeconds / 60)} phút. Hệ thống đang chia thành các phần ~10 phút để transcript ổn định hơn...`
+    `File dài ${Math.ceil(durationSeconds / 60)} phút. Hệ thống đang chia thành các phần ~${settings.chunkDurationMinutes} phút để transcript ổn định hơn...`
   );
 
   try {
     const chunks = await splitAudioFileIntoChunks({
       file,
-      chunkDurationSeconds: MAX_TRANSCRIPTION_CHUNK_SECONDS,
+      chunkDurationSeconds,
     });
+    onStageChange?.(
+      `Đã cắt thành ${chunks.length} phần. Bắt đầu transcript song song, giãn ${settings.chunkStaggerSeconds}s giữa mỗi phần...`
+    );
 
-    const transcripts: Array<{ text: string; startSeconds: number }> = [];
-    for (const chunk of chunks) {
-      onStageChange?.(
-        `Đang transcript phần ${chunk.index + 1}/${chunk.total} (${formatTimecode(
-          chunk.startSeconds
-        )} - ${formatTimecode(chunk.endSeconds)})...`
-      );
+    let completedCount = 0;
+    const transcripts = await Promise.all(
+      chunks.map(async (chunk) => {
+        const staggerDelayMs = chunk.index * settings.chunkStaggerSeconds * 1000;
+        if (staggerDelayMs > 0) {
+          await sleep(staggerDelayMs);
+        }
 
-      const text = await transcribeChunkWithProvider({
-        provider,
-        file: chunk.file,
-        mode,
-        assemblyaiApiKey: settings.assemblyaiApiKey,
-        groqApiKey: settings.groqApiKey,
-        openaiApiKey: settings.openaiApiKey,
-        onStageChange,
-      });
+        onStageChange?.(
+          `Khởi động phần ${chunk.index + 1}/${chunk.total} (${formatTimecode(
+            chunk.startSeconds
+          )} - ${formatTimecode(chunk.endSeconds)})...`
+        );
 
-      transcripts.push({
-        text,
-        startSeconds: chunk.startSeconds,
-      });
-    }
+        const text = await transcribeChunkWithProvider({
+          provider,
+          file: chunk.file,
+          mode,
+          assemblyaiApiKey: settings.assemblyaiApiKey,
+          groqApiKey: settings.groqApiKey,
+          openaiApiKey: settings.openaiApiKey,
+          onStageChange: (status) =>
+            onStageChange?.(`Phần ${chunk.index + 1}/${chunk.total}: ${status}`),
+        });
 
-    return mergeChunkTranscripts(transcripts, mode);
+        completedCount += 1;
+        onStageChange?.(`Đã xong ${completedCount}/${chunks.length} phần transcript.`);
+
+        return {
+          index: chunk.index,
+          text,
+          startSeconds: chunk.startSeconds,
+        };
+      })
+    );
+
+    return mergeChunkTranscripts(
+      transcripts.sort((left, right) => left.index - right.index),
+      mode
+    );
   } catch (error) {
     console.warn('Chunked transcription fallback to original file:', error);
     return null;

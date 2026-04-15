@@ -18,6 +18,8 @@ const ECHO_CANCELLATION_LEVEL_KEY = 'echo_cancellation_level';
 const AUTO_GAIN_LEVEL_KEY = 'auto_gain_level';
 const PREFERRED_SAMPLE_RATE_KEY = 'preferred_sample_rate';
 const PREFERRED_CHANNEL_COUNT_KEY = 'preferred_channel_count';
+const CHUNK_DURATION_MINUTES_KEY = 'chunk_duration_minutes';
+const CHUNK_STAGGER_SECONDS_KEY = 'chunk_stagger_seconds';
 
 const SECURE_KEYSTORE_SUPPORTED = Capacitor.getPlatform() === 'android';
 
@@ -47,6 +49,8 @@ export const DEFAULT_ECHO_CANCELLATION_LEVEL: ProcessingStrength = 'MEDIUM';
 export const DEFAULT_AUTO_GAIN_LEVEL: ProcessingStrength = 'LOW';
 export const DEFAULT_PREFERRED_SAMPLE_RATE: PreferredSampleRate = 48000;
 export const DEFAULT_PREFERRED_CHANNEL_COUNT: PreferredChannelCount = 1;
+export const DEFAULT_CHUNK_DURATION_MINUTES = 10;
+export const DEFAULT_CHUNK_STAGGER_SECONDS = 10;
 
 // --- Interfaces ---
 export interface AiSettings {
@@ -66,6 +70,8 @@ export interface AiSettings {
   autoGainLevel: ProcessingStrength;
   preferredSampleRate: PreferredSampleRate;
   preferredChannelCount: PreferredChannelCount;
+  chunkDurationMinutes: number;
+  chunkStaggerSeconds: number;
 }
 
 const VALID_PROCESSING_STRENGTHS: ProcessingStrength[] = ['OFF', 'LOW', 'MEDIUM', 'HIGH'];
@@ -123,6 +129,8 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     autoGainLevelResult,
     preferredSampleRateResult,
     preferredChannelCountResult,
+    chunkDurationMinutesResult,
+    chunkStaggerSecondsResult,
   ] = await Promise.all([
     getStoredValue(API_KEY_KEY),
     getStoredValue(MODEL_ID_KEY),
@@ -139,6 +147,8 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     getStoredValue(AUTO_GAIN_LEVEL_KEY),
     getStoredValue(PREFERRED_SAMPLE_RATE_KEY),
     getStoredValue(PREFERRED_CHANNEL_COUNT_KEY),
+    getStoredValue(CHUNK_DURATION_MINUTES_KEY),
+    getStoredValue(CHUNK_STAGGER_SECONDS_KEY),
   ]);
 
   const fallbackModel = legacyModelIdResult || DEFAULT_MODEL_ID;
@@ -167,6 +177,8 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
 
   const sampleRate = Number(preferredSampleRateResult);
   const channelCount = Number(preferredChannelCountResult);
+  const chunkDurationMinutes = Number(chunkDurationMinutesResult);
+  const chunkStaggerSeconds = Number(chunkStaggerSecondsResult);
 
   return {
     apiKey: apiKeyResult,
@@ -202,6 +214,14 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     preferredChannelCount: VALID_CHANNEL_COUNTS.includes(channelCount as PreferredChannelCount)
       ? (channelCount as PreferredChannelCount)
       : DEFAULT_PREFERRED_CHANNEL_COUNT,
+    chunkDurationMinutes:
+      Number.isFinite(chunkDurationMinutes) && chunkDurationMinutes >= 1 && chunkDurationMinutes <= 30
+        ? Math.round(chunkDurationMinutes)
+        : DEFAULT_CHUNK_DURATION_MINUTES,
+    chunkStaggerSeconds:
+      Number.isFinite(chunkStaggerSeconds) && chunkStaggerSeconds >= 0 && chunkStaggerSeconds <= 60
+        ? Math.round(chunkStaggerSeconds)
+        : DEFAULT_CHUNK_STAGGER_SECONDS,
   };
 };
 
@@ -220,6 +240,8 @@ export const saveAiSettings = async ({
   autoGainLevel,
   preferredSampleRate,
   preferredChannelCount,
+  chunkDurationMinutes,
+  chunkStaggerSeconds,
 }: AiSettings) => {
   await Promise.all([
     setStoredValue(API_KEY_KEY, apiKey.trim()),
@@ -237,6 +259,22 @@ export const saveAiSettings = async ({
     setStoredValue(AUTO_GAIN_LEVEL_KEY, autoGainLevel),
     setStoredValue(PREFERRED_SAMPLE_RATE_KEY, String(preferredSampleRate)),
     setStoredValue(PREFERRED_CHANNEL_COUNT_KEY, String(preferredChannelCount)),
+    setStoredValue(
+      CHUNK_DURATION_MINUTES_KEY,
+      String(
+        Number.isFinite(chunkDurationMinutes) && chunkDurationMinutes >= 1 && chunkDurationMinutes <= 30
+          ? Math.round(chunkDurationMinutes)
+          : DEFAULT_CHUNK_DURATION_MINUTES
+      )
+    ),
+    setStoredValue(
+      CHUNK_STAGGER_SECONDS_KEY,
+      String(
+        Number.isFinite(chunkStaggerSeconds) && chunkStaggerSeconds >= 0 && chunkStaggerSeconds <= 60
+          ? Math.round(chunkStaggerSeconds)
+          : DEFAULT_CHUNK_STAGGER_SECONDS
+      )
+    ),
   ]);
 };
 
