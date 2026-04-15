@@ -87,7 +87,7 @@ pre,
 
 .app-shell {
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .app-shell__mesh {

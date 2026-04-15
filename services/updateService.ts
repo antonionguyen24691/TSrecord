@@ -1,55 +1,77 @@
 /**
  * updateService.ts
- * Kiểm tra phiên bản mới qua GitHub Releases API.
- * Luồng: Check API → So sánh version → Trả về thông tin release nếu có bản mới.
- *
- * Cách dùng:
- * 1. Tạo GitHub repo public
- * 2. Tạo Release với tag "v1.0.0", đính kèm file APK
- * 3. Cập nhật GITHUB_OWNER + GITHUB_REPO bên dưới
- * 4. Mỗi khi release mới, app sẽ tự phát hiện khi khởi động
+ * Kiểm tra phiên bản mới qua GitHub Releases API và dùng native updater trên Android.
  */
 
 import { Capacitor } from '@capacitor/core';
+import { AppUpdate } from '../plugins/appUpdate';
 
-// ─── CẤU HÌNH — chỉnh theo GitHub repo của bạn ─────────────────────────────
-const GITHUB_OWNER = 'antonionguyen24691'; // Username GitHub của bạn
-const GITHUB_REPO = 'TSrecord';           // Tên repo GitHub của bạn
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const CURRENT_VERSION = '1.1.0';
+const GITHUB_OWNER = 'antonionguyen24691';
+const GITHUB_REPO = 'TSrecord';
 
 export interface ReleaseInfo {
-  version: string;          // e.g. "1.1.0"
-  tagName: string;          // e.g. "v1.1.0"
-  releaseNotes: string;     // Mô tả bản cập nhật
-  downloadUrl: string;      // Link tải APK trực tiếp
-  publishedAt: string;      // ISO date string
-  isAndroid: boolean;       // APK asset có tồn tại không
+  version: string;
+  tagName: string;
+  releaseNotes: string;
+  downloadUrl: string;
+  publishedAt: string;
+  isAndroid: boolean;
+  currentVersion: string;
+  currentVersionCode: number;
+  apkFileName: string;
 }
 
-/** So sánh version semantic (major.minor.patch). Trả true nếu a > b */
-const isNewerVersion = (a: string, b: string): boolean => {
-  const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number);
-  const [aM, am, ap] = parse(a);
-  const [bM, bm, bp] = parse(b);
-  if (aM !== bM) return aM > bM;
-  if (am !== bm) return am > bm;
-  return ap > bp;
+export interface UpdateProgressState {
+  downloadId: number;
+  status: 'pending' | 'running' | 'paused' | 'successful' | 'failed' | 'missing';
+  downloadedBytes: number;
+  totalBytes: number;
+  localUri: string;
+  reason: string;
+  canInstall: boolean;
+  canRequestPackageInstalls: boolean;
+}
+
+const parseVersion = (value: string) =>
+  value
+    .replace(/^v/i, '')
+    .split('.')
+    .map((part) => Number(part) || 0);
+
+const isNewerVersion = (candidate: string, current: string): boolean => {
+  const candidateParts = parseVersion(candidate);
+  const currentParts = parseVersion(current);
+  const maxLength = Math.max(candidateParts.length, currentParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const candidateValue = candidateParts[index] || 0;
+    const currentValue = currentParts[index] || 0;
+    if (candidateValue !== currentValue) return candidateValue > currentValue;
+  }
+
+  return false;
 };
 
-/**
- * Lấy thông tin release mới nhất từ GitHub.
- * Trả về null nếu không có bản mới hoặc lỗi mạng (fail-safe).
- */
-export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
-  // Chỉ check update trên Android (không check trên web browser dev)
-  if (Capacitor.getPlatform() !== 'android') return null;
+const buildApkFileName = (version: string) => `TSrecord-v${version}.apk`;
 
-  // Nếu chưa cấu hình repo thì skip
+export const getInstalledVersion = async () => {
+  if (Capacitor.getPlatform() !== 'android') {
+    return {
+      versionName: 'dev',
+      versionCode: 0,
+      canRequestPackageInstalls: false,
+    };
+  }
+
+  return AppUpdate.getCurrentVersion();
+};
+
+export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
+  if (Capacitor.getPlatform() !== 'android') return null;
   if (GITHUB_OWNER === 'YOUR_GITHUB_USERNAME') return null;
 
   try {
+    const installed = await getInstalledVersion();
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
       {
@@ -63,15 +85,14 @@ export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
     if (!response.ok) return null;
 
     const release = await response.json();
-    const latestVersion = (release.tag_name as string).replace(/^v/, '');
+    const latestVersion = String(release.tag_name || '').replace(/^v/, '');
 
-    // Không có bản mới
-    if (!isNewerVersion(latestVersion, CURRENT_VERSION)) return null;
+    if (!latestVersion || !isNewerVersion(latestVersion, installed.versionName)) {
+      return null;
+    }
 
-    // Tìm APK asset trong release
-    const assets: Array<{ name: string; browser_download_url: string }> =
-      release.assets || [];
-    const apkAsset = assets.find((a) => a.name.endsWith('.apk'));
+    const assets: Array<{ name: string; browser_download_url: string }> = release.assets || [];
+    const apkAsset = assets.find((asset) => asset.name.toLowerCase().endsWith('.apk'));
 
     return {
       version: latestVersion,
@@ -80,14 +101,31 @@ export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
       downloadUrl: apkAsset?.browser_download_url || release.html_url,
       publishedAt: release.published_at,
       isAndroid: !!apkAsset,
+      currentVersion: installed.versionName,
+      currentVersionCode: Number(installed.versionCode || 0),
+      apkFileName: apkAsset?.name || buildApkFileName(latestVersion),
     };
   } catch {
-    // Lỗi mạng hoặc API — không làm ảnh hưởng app
     return null;
   }
 };
 
-/** Mở link tải APK hoặc trang release trên trình duyệt */
-export const openDownloadLink = (url: string): void => {
-  window.open(url, '_system');
+export const startUpdateDownload = async (release: ReleaseInfo) => {
+  return AppUpdate.startUpdate({
+    downloadUrl: release.downloadUrl,
+    fileName: release.apkFileName,
+    title: `TSrecord ${release.version}`,
+  });
+};
+
+export const getUpdateDownloadStatus = async (downloadId: number): Promise<UpdateProgressState> => {
+  const status = await AppUpdate.getDownloadStatus({ downloadId });
+  return {
+    downloadId,
+    ...status,
+  };
+};
+
+export const openInstaller = async () => {
+  await AppUpdate.openInstaller();
 };

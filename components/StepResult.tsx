@@ -845,7 +845,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
     return (
       <PreviewCard title="Transcript đã chuẩn hóa" subtitle="Giữ nguyên nội dung chép lời, dễ rà soát và đối chiếu.">
         {hasTimeline ? (
-          <div className="max-h-[68vh] space-y-[4px] overflow-auto rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-[4px]">
+          <div className="space-y-[4px] overflow-visible rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-[4px] md:max-h-[68vh] md:overflow-auto">
             {timelineSegments.map((segment, index) => (
               <div
                 key={`segment-${index}`}
@@ -859,7 +859,7 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
             ))}
           </div>
         ) : (
-          <div className="max-h-[68vh] overflow-auto rounded-2xl bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-700 whitespace-pre-wrap text-justify">
+          <div className="overflow-visible rounded-2xl bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-700 whitespace-pre-wrap text-justify md:max-h-[68vh] md:overflow-auto">
             {content}
           </div>
         )}
@@ -1149,7 +1149,7 @@ export const StepResult: React.FC<StepResultProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center w-full max-w-[1600px] animate-fade-in">
+    <div className="flex w-full max-w-[1600px] flex-col items-center pb-6 animate-fade-in md:pb-0">
       <div className="w-full rounded-[28px] border border-white/60 bg-white/90 p-[6px] md:p-[8px] shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
         <div className="flex flex-col gap-[6px] xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-4xl">
@@ -1207,12 +1207,12 @@ export const StepResult: React.FC<StepResultProps> = ({
           </div>
         </div>
 
-        <div className="mt-[6px] grid grid-cols-1 xl:grid-cols-[248px_1fr] gap-[6px]">
+        <div className="mt-[6px] grid grid-cols-1 gap-[6px] xl:grid-cols-[248px_1fr]">
           <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-[6px] text-white">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7af2d1]">
               Artifact browser
             </div>
-            <div className="mt-[6px] space-y-[4px]">
+            <div className="thin-scrollbar mt-[6px] flex gap-[4px] overflow-x-auto pb-2 xl:block xl:space-y-[4px] xl:overflow-visible xl:pb-0">
               {artifactItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.key === selectedArtifact;
@@ -1225,7 +1225,7 @@ export const StepResult: React.FC<StepResultProps> = ({
                       setSelectedArtifact(item.key);
                       setViewMode('preview');
                     }}
-                    className={`w-full rounded-[18px] border p-[6px] text-left transition-all ${
+                    className={`min-w-[220px] flex-shrink-0 rounded-[18px] border p-[6px] text-left transition-all xl:w-full xl:min-w-0 ${
                       active
                         ? 'border-[#7af2d1] bg-white/10'
                         : 'border-white/10 bg-white/[0.03] hover:border-white/20'
@@ -1299,14 +1299,14 @@ export const StepResult: React.FC<StepResultProps> = ({
               </div>
             </div>
 
-            <div className="min-h-[72vh] bg-white px-[4px] py-[4px] md:px-[6px] md:py-[6px]">
+            <div className="min-h-0 bg-white px-[4px] py-[4px] md:min-h-[72vh] md:px-[6px] md:py-[6px]">
               {viewMode === 'preview' ? (
                 <ArtifactPreview artifact={activeArtifact} analysis={analysis} />
               ) : (
                 <textarea
                   value={activeArtifact.content}
                   onChange={(event) => updateArtifact(activeArtifact.key, event.target.value)}
-                  className="min-h-[68vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white text-justify"
+                  className="min-h-[50vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white text-justify md:min-h-[68vh]"
                   placeholder="Nội dung sẽ hiển thị tại đây..."
                 />
               )}
@@ -1315,7 +1315,7 @@ export const StepResult: React.FC<StepResultProps> = ({
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 p-4 backdrop-blur md:static md:mt-8 md:border-0 md:bg-transparent md:p-0">
+      <div className="mt-4 w-full md:mt-8">
         <div className="mx-auto flex w-full max-w-6xl justify-center">
           <button
             onClick={onNext}
@@ -1327,7 +1327,6 @@ export const StepResult: React.FC<StepResultProps> = ({
         </div>
       </div>
 
-      <div className="h-24 md:hidden" />
     </div>
   );
 };
