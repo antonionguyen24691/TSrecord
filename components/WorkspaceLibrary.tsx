@@ -210,7 +210,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 <FolderOpen className="h-5 w-5 text-[#0d7c66]" />
               </div>
 
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <input
                   value={newProjectName}
                   onChange={(event) => setNewProjectName(event.target.value)}
@@ -226,7 +226,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 <button
                   type="button"
                   onClick={handleCreateProject}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0d7c66] px-4 text-sm font-bold text-white shadow-lg shadow-[#0d7c66]/20 transition-all hover:-translate-y-0.5"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0d7c66] px-4 text-sm font-bold text-white shadow-lg shadow-[#0d7c66]/20 transition-all hover:-translate-y-0.5 sm:flex-shrink-0"
                 >
                   <Plus className="h-4 w-4" />
                   Tạo
@@ -428,14 +428,21 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 return (
                   <article
                     key={session.id}
-                    className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)]"
+                    className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)] md:p-4"
                   >
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() =>
                         setExpandedSessionId((current) => (current === session.id ? null : session.id))
                       }
-                      className="flex w-full items-center justify-between gap-4 rounded-2xl text-left transition-colors hover:bg-slate-50/80"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setExpandedSessionId((current) => (current === session.id ? null : session.id));
+                        }
+                      }}
+                      className="flex w-full items-center justify-between gap-4 rounded-2xl p-2 text-left transition-colors hover:bg-slate-50/80"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -486,7 +493,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                           )}
                         </div>
                       </div>
-                    </button>
+                    </div>
 
                     {isExpanded && (
                       <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
