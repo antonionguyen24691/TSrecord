@@ -1,18 +1,3 @@
-/**
- * transcriptionOrchestrator.ts
- * Bộ điều phối Two-Step Hybrid Pipeline:
- *
- * BƯỚC 1 (STT): Chọn provider dựa trên cài đặt user:
- *   - gemini:     Gửi file audio thẳng lên Gemini Multimodal (mặc định)
- *   - assemblyai: Upload → Poll → Transcript (333h free)
- *   - groq:       Whisper siêu tốc, giới hạn 25MB
- *   - openai:     Whisper chuẩn, giới hạn 25MB, pay-as-you-go
- *
- * BƯỚC 2 (Phân tích): Luôn dùng Gemini để sinh Summary/Mindmap/etc.
- *   - Input: Transcript text từ Bước 1
- *   - Output: SessionAnalysis đầy đủ
- */
-
 import { ExtractionMode, InputSource, SessionAnalysis, SessionContext, SavedDeviceFile } from '../types';
 import { loadAiSettings, TranscriptionProvider } from './aiSettingsService';
 import {
@@ -20,13 +5,24 @@ import {
   getMediaDurationSeconds,
   splitAudioFileIntoChunks,
 } from './audioChunkService';
-import {
-  analyzeTranscriptWithGemini,
-  transcribeAudioWithGemini,
-} from './geminiService';
+import { analyzeTranscriptWithGemini, transcribeAudioWithGemini } from './geminiService';
 import { transcribeWithAssemblyAI } from './assemblyaiService';
 import { transcribeWithGroq } from './groqService';
 import { transcribeWithOpenAI } from './openaiService';
+
+export interface OrchestratorProgress {
+  stageLabel?: string;
+  phase?: 'preparing' | 'transcribing' | 'analyzing' | 'saving' | 'complete';
+  progressCurrent?: number;
+  progressTotal?: number;
+  progressLabel?: string;
+  chunkStatuses?: Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'waiting' | 'processing' | 'done' | 'error';
+    detail?: string;
+  }>;
+}
 
 export interface OrchestratorOptions {
   file: File;
@@ -35,6 +31,7 @@ export interface OrchestratorOptions {
   context: SessionContext;
   savedRecording?: SavedDeviceFile | null;
   onStageChange?: (stage: string) => void;
+  onProgress?: (progress: OrchestratorProgress) => void;
 }
 
 const PROVIDER_LABELS: Record<TranscriptionProvider, string> = {
@@ -115,18 +112,45 @@ const transcribeChunkWithProvider = async ({
   return transcribeWithOpenAI(file, openaiApiKey, onStageChange);
 };
 
+const transcribeDirectly = async ({
+  provider,
+  file,
+  mode,
+  settings,
+  onStageChange,
+}: {
+  provider: TranscriptionProvider;
+  file: File;
+  mode: ExtractionMode;
+  settings: Awaited<ReturnType<typeof loadAiSettings>>;
+  onStageChange?: (stage: string) => void;
+}) => {
+  if (provider === 'gemini') {
+    return transcribeAudioWithGemini({ file, mode });
+  }
+  if (provider === 'assemblyai') {
+    return transcribeWithAssemblyAI(file, settings.assemblyaiApiKey, onStageChange);
+  }
+  if (provider === 'groq') {
+    return transcribeWithGroq(file, settings.groqApiKey, onStageChange);
+  }
+  return transcribeWithOpenAI(file, settings.openaiApiKey, onStageChange);
+};
+
 const transcribeLongAudioIfNeeded = async ({
   file,
   mode,
   provider,
   settings,
   onStageChange,
+  onProgress,
 }: {
   file: File;
   mode: ExtractionMode;
   provider: TranscriptionProvider;
   settings: Awaited<ReturnType<typeof loadAiSettings>>;
   onStageChange?: (stage: string) => void;
+  onProgress?: (progress: OrchestratorProgress) => void;
 }) => {
   if (!canSplitFileIntoAudioChunks(file)) return null;
 
@@ -138,13 +162,18 @@ const transcribeLongAudioIfNeeded = async ({
   }
 
   const chunkDurationSeconds = settings.chunkDurationMinutes * 60;
-
   if (!Number.isFinite(durationSeconds) || durationSeconds <= chunkDurationSeconds) {
     return null;
   }
 
+  onProgress?.({
+    phase: 'preparing',
+    stageLabel: `Chuẩn bị chia file dài cho ${PROVIDER_LABELS[provider]}...`,
+    progressLabel: 'Đọc metadata và cắt audio gần điểm im lặng',
+    chunkStatuses: [],
+  });
   onStageChange?.(
-    `File dài ${Math.ceil(durationSeconds / 60)} phút. Hệ thống đang chia thành các phần ~${settings.chunkDurationMinutes} phút để transcript ổn định hơn...`
+    `File dài ${Math.ceil(durationSeconds / 60)} phút. Đang chia thành các phần ~${settings.chunkDurationMinutes} phút để tránh lỗi 503...`
   );
 
   try {
@@ -152,161 +181,183 @@ const transcribeLongAudioIfNeeded = async ({
       file,
       chunkDurationSeconds,
     });
-    onStageChange?.(
-      `Đã cắt thành ${chunks.length} phần. Bắt đầu transcript song song, giãn ${settings.chunkStaggerSeconds}s giữa mỗi phần...`
-    );
+
+    const chunkStatuses = chunks.map((chunk) => ({
+      id: `chunk-${chunk.index + 1}`,
+      label: `Phần ${chunk.index + 1}/${chunk.total}`,
+      status: 'pending' as const,
+      detail: `${formatTimecode(chunk.startSeconds)} - ${formatTimecode(chunk.endSeconds)}`,
+    }));
 
     let completedCount = 0;
+    const syncProgress = (stageLabel?: string) => {
+      onProgress?.({
+        phase: 'transcribing',
+        stageLabel,
+        progressCurrent: completedCount,
+        progressTotal: chunks.length,
+        progressLabel: `${completedCount}/${chunks.length} phần hoàn tất`,
+        chunkStatuses: [...chunkStatuses],
+      });
+    };
+
+    syncProgress(`Đã cắt thành ${chunks.length} phần, bắt đầu transcript song song...`);
+
     const transcripts = await Promise.all(
       chunks.map(async (chunk) => {
         const staggerDelayMs = chunk.index * settings.chunkStaggerSeconds * 1000;
         if (staggerDelayMs > 0) {
+          chunkStatuses[chunk.index] = {
+            ...chunkStatuses[chunk.index],
+            status: 'waiting',
+            detail: `Chờ ${Math.round(staggerDelayMs / 1000)}s trước khi gửi`,
+          };
+          syncProgress();
           await sleep(staggerDelayMs);
         }
 
+        chunkStatuses[chunk.index] = {
+          ...chunkStatuses[chunk.index],
+          status: 'processing',
+          detail: `${formatTimecode(chunk.startSeconds)} - ${formatTimecode(chunk.endSeconds)}`,
+        };
+        syncProgress(`Đang xử lý ${chunk.index + 1}/${chunk.total}...`);
         onStageChange?.(
           `Khởi động phần ${chunk.index + 1}/${chunk.total} (${formatTimecode(
             chunk.startSeconds
           )} - ${formatTimecode(chunk.endSeconds)})...`
         );
 
-        const text = await transcribeChunkWithProvider({
-          provider,
-          file: chunk.file,
-          mode,
-          assemblyaiApiKey: settings.assemblyaiApiKey,
-          groqApiKey: settings.groqApiKey,
-          openaiApiKey: settings.openaiApiKey,
-          onStageChange: (status) =>
-            onStageChange?.(`Phần ${chunk.index + 1}/${chunk.total}: ${status}`),
-        });
+        try {
+          const text = await transcribeChunkWithProvider({
+            provider,
+            file: chunk.file,
+            mode,
+            assemblyaiApiKey: settings.assemblyaiApiKey,
+            groqApiKey: settings.groqApiKey,
+            openaiApiKey: settings.openaiApiKey,
+            onStageChange: (status) =>
+              onStageChange?.(`Phần ${chunk.index + 1}/${chunk.total}: ${status}`),
+          });
 
-        completedCount += 1;
-        onStageChange?.(`Đã xong ${completedCount}/${chunks.length} phần transcript.`);
+          completedCount += 1;
+          chunkStatuses[chunk.index] = {
+            ...chunkStatuses[chunk.index],
+            status: 'done',
+            detail: `Xong đoạn ${formatTimecode(chunk.startSeconds)} - ${formatTimecode(chunk.endSeconds)}`,
+          };
+          syncProgress();
 
-        return {
-          index: chunk.index,
-          text,
-          startSeconds: chunk.startSeconds,
-        };
+          return {
+            index: chunk.index,
+            text,
+            startSeconds: chunk.startSeconds,
+          };
+        } catch (error) {
+          chunkStatuses[chunk.index] = {
+            ...chunkStatuses[chunk.index],
+            status: 'error',
+            detail: 'Chunk transcript lỗi',
+          };
+          syncProgress();
+          throw error;
+        }
       })
     );
+
+    onProgress?.({
+      phase: 'transcribing',
+      stageLabel: 'Đã transcript xong tất cả các phần, đang ghép transcript cuối...',
+      progressCurrent: chunks.length,
+      progressTotal: chunks.length,
+      progressLabel: '100%',
+      chunkStatuses: [...chunkStatuses],
+    });
 
     return mergeChunkTranscripts(
       transcripts.sort((left, right) => left.index - right.index),
       mode
     );
   } catch (error) {
-    console.warn('Chunked transcription fallback to original file:', error);
+    console.warn('Chunked transcription fallback to direct transcription:', error);
+    onProgress?.({
+      phase: 'transcribing',
+      stageLabel: 'Chunking gặp lỗi, hệ thống sẽ fallback về transcript trực tiếp...',
+      chunkStatuses: [],
+    });
     return null;
   }
 };
 
-/**
- * Entry point chính thay thế cho processMediaSession trực tiếp.
- * Tự chọn pipeline dựa trên cài đặt transcriptionProvider.
- */
 export const processWithOrchestrator = async (
   options: OrchestratorOptions
 ): Promise<SessionAnalysis> => {
-  const { file, mode, source, context, savedRecording, onStageChange } = options;
+  const { file, mode, source, context, savedRecording, onStageChange, onProgress } = options;
   const settings = await loadAiSettings();
   const provider = settings.transcriptionProvider;
-
-  // Gemini: transcript trước, phân tích sau để giảm hallucination
-  if (provider === 'gemini') {
-    const chunkedTranscript = await transcribeLongAudioIfNeeded({
-      file,
-      mode,
-      provider,
-      settings,
-      onStageChange,
-    });
-    onStageChange?.('Gemini đang transcript audio...');
-    const transcriptText = chunkedTranscript || (await transcribeAudioWithGemini({ file, mode }));
-
-    if (!transcriptText) {
-      throw new Error('Gemini khong tra ve transcript. Vui long thu lai.');
-    }
-
-    if (context !== SessionContext.MEETING) {
-      onStageChange?.('Hoan tat!');
-      return {
-        title: file.name.replace(/\.[^.]+$/, '') || 'Transcript',
-        mode,
-        source,
-        context,
-        suggestedFolderName: file.name.replace(/\.[^.]+$/, '').replace(/\s+/g, '-') || 'transcript',
-        artifacts: {
-          transcript: transcriptText,
-          summary: '',
-          decisions: '',
-          risks: '',
-          folderTree: '',
-          mindmap: '',
-          actionItems: '',
-        },
-        savedRecording,
-      };
-    }
-
-    onStageChange?.('Gemini dang phan tich transcript cuoc hop...');
-    return analyzeTranscriptWithGemini({
-      transcriptText,
-      file,
-      mode,
-      source,
-      context,
-      savedRecording,
-    });
-  }
-
-  // Providers khác: Two-Step Pipeline
-  let transcriptText = '';
-
-  // ── BƯỚC 1: Lấy Transcript ──────────────────────────────────────────────
   const providerLabel = PROVIDER_LABELS[provider];
 
-  const handleProgress = (status: string) => {
+  onProgress?.({
+    phase: 'preparing',
+    stageLabel: 'Đang chuẩn bị pipeline xử lý audio...',
+    progressLabel: `Provider hiện tại: ${providerLabel}`,
+    chunkStatuses: [],
+  });
+
+  const handleProviderProgress = (status: string) => {
     const statusMap: Record<string, string> = {
       uploading: `Đang upload lên ${providerLabel}...`,
       queued: `File đang trong hàng đợi ${providerLabel}...`,
       processing: `${providerLabel} đang nhận diện giọng nói...`,
       completed: `Đã hoàn tất nhận diện giọng nói.`,
     };
-    onStageChange?.(statusMap[status] || `${providerLabel}: ${status}`);
+    const nextLabel = statusMap[status] || `${providerLabel}: ${status}`;
+    onStageChange?.(nextLabel);
+    onProgress?.({
+      phase: 'transcribing',
+      stageLabel: nextLabel,
+      progressLabel: `Provider: ${providerLabel}`,
+    });
   };
 
-  transcriptText =
+  let transcriptText =
     (await transcribeLongAudioIfNeeded({
       file,
       mode,
       provider,
       settings,
       onStageChange,
+      onProgress,
     })) || '';
 
   if (!transcriptText) {
-    if (provider === 'assemblyai') {
-      transcriptText = await transcribeWithAssemblyAI(
-        file,
-        settings.assemblyaiApiKey,
-        handleProgress
-      );
-    } else if (provider === 'groq') {
-      transcriptText = await transcribeWithGroq(file, settings.groqApiKey, handleProgress);
-    } else if (provider === 'openai') {
-      transcriptText = await transcribeWithOpenAI(file, settings.openaiApiKey, handleProgress);
-    }
+    onProgress?.({
+      phase: 'transcribing',
+      stageLabel: `${providerLabel} đang transcript trực tiếp từ file upload...`,
+      progressLabel: 'File ngắn nên đi theo luồng trực tiếp',
+      chunkStatuses: [],
+    });
+
+    transcriptText = await transcribeDirectly({
+      provider,
+      file,
+      mode,
+      settings,
+      onStageChange: handleProviderProgress,
+    });
   }
 
   if (!transcriptText) {
     throw new Error(`${providerLabel} không trả về transcript. Vui lòng thử lại.`);
   }
 
-  // ── BƯỚC 2: Phân tích bằng Gemini ───────────────────────────────────────
-  // Chỉ ở mode MEETING mới cần phân tích sâu. TRANSCRIPTION/INTERVIEW dừng ở đây.
   if (context !== SessionContext.MEETING) {
+    onProgress?.({
+      phase: 'complete',
+      stageLabel: 'Hoàn tất transcript.',
+      progressLabel: '100%',
+      chunkStatuses: [],
+    });
     onStageChange?.('Hoàn tất!');
     return {
       title: file.name.replace(/\.[^.]+$/, '') || 'Transcript',
@@ -327,7 +378,14 @@ export const processWithOrchestrator = async (
     };
   }
 
+  onProgress?.({
+    phase: 'analyzing',
+    stageLabel: 'Gemini đang phân tích nội dung họp...',
+    progressLabel: 'Tạo summary, decisions, risks, folder tree, mindmap',
+    chunkStatuses: [],
+  });
   onStageChange?.('Gemini đang phân tích nội dung họp...');
+
   return analyzeTranscriptWithGemini({
     transcriptText,
     file,

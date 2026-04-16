@@ -638,7 +638,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
                     />
                     <p className="text-xs text-gray-500">
-                      Mặc định 10 giây. Dùng để stagger các request song song, giảm khả năng đụng rate limit.
+                      Mặc định 2 giây. Dùng để stagger nhẹ các request song song, giảm khả năng đụng rate limit mà không làm chậm quá nhiều.
                     </p>
                   </div>
                 </div>

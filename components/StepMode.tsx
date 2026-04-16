@@ -2,6 +2,7 @@ import React from 'react';
 import {
   AlignLeft,
   ArrowLeft,
+  Check,
   CheckCircle2,
   Clock,
   Loader2,
@@ -9,7 +10,7 @@ import {
   Play,
   Upload,
 } from 'lucide-react';
-import { AppModule, ExtractionMode, InputSource, SessionContext } from '../types';
+import { AppModule, ExtractionMode, InputSource, ProcessingState, SessionContext } from '../types';
 
 interface StepModeProps {
   module: AppModule;
@@ -22,6 +23,7 @@ interface StepModeProps {
   onNext: () => void;
   onBack: () => void;
   isProcessing: boolean;
+  processingState: ProcessingState;
 }
 
 const getContextLabel = (context: SessionContext) => {
@@ -41,7 +43,15 @@ export const StepMode: React.FC<StepModeProps> = ({
   onNext,
   onBack,
   isProcessing,
+  processingState,
 }) => {
+  const progressPercent =
+    processingState.progressCurrent !== undefined &&
+    processingState.progressTotal &&
+    processingState.progressTotal > 0
+      ? Math.min(100, Math.round((processingState.progressCurrent / processingState.progressTotal) * 100))
+      : null;
+
   return (
     <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
       <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
@@ -110,6 +120,79 @@ export const StepMode: React.FC<StepModeProps> = ({
             </button>
           </div>
         </div>
+
+        {isProcessing && (
+          <div className="mt-6 rounded-[28px] border border-emerald-200 bg-[linear-gradient(145deg,#f4fffb,#ffffff)] p-4 md:p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
+                  Tiến trình xử lý
+                </div>
+                <div className="mt-2 text-lg font-black text-slate-900">
+                  {processingState.stageLabel || 'Đang khởi tạo pipeline...'}
+                </div>
+                {processingState.progressLabel && (
+                  <div className="mt-2 text-sm text-slate-600">{processingState.progressLabel}</div>
+                )}
+              </div>
+
+              {processingState.phase && (
+                <div className="inline-flex h-fit items-center rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600">
+                  {processingState.phase}
+                </div>
+              )}
+            </div>
+
+            {progressPercent !== null && (
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  <span>Tiến độ</span>
+                  <span>{progressPercent}%</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-[#0d7c66] transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {processingState.chunkStatuses && processingState.chunkStatuses.length > 0 && (
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                {processingState.chunkStatuses.map((chunk) => (
+                  <div
+                    key={chunk.id}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-bold text-slate-900">{chunk.label}</div>
+                      <div
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                          chunk.status === 'done'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : chunk.status === 'processing'
+                              ? 'bg-blue-100 text-blue-700'
+                              : chunk.status === 'waiting'
+                                ? 'bg-amber-100 text-amber-700'
+                                : chunk.status === 'error'
+                                  ? 'bg-rose-100 text-rose-700'
+                                  : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {chunk.status === 'done' ? <Check className="h-3 w-3" /> : null}
+                        {chunk.status}
+                      </div>
+                    </div>
+                    {chunk.detail && (
+                      <div className="mt-2 text-xs leading-5 text-slate-500">{chunk.detail}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-8 flex flex-wrap gap-3">
           <button

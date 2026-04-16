@@ -50,7 +50,7 @@ export const DEFAULT_AUTO_GAIN_LEVEL: ProcessingStrength = 'LOW';
 export const DEFAULT_PREFERRED_SAMPLE_RATE: PreferredSampleRate = 48000;
 export const DEFAULT_PREFERRED_CHANNEL_COUNT: PreferredChannelCount = 1;
 export const DEFAULT_CHUNK_DURATION_MINUTES = 10;
-export const DEFAULT_CHUNK_STAGGER_SECONDS = 10;
+export const DEFAULT_CHUNK_STAGGER_SECONDS = 2;
 
 // --- Interfaces ---
 export interface AiSettings {

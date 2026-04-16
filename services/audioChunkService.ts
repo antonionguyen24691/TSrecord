@@ -1,3 +1,7 @@
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { AudioVad } from '../plugins/audioVad';
+
 export interface AudioChunkPart {
   file: File;
   index: number;
@@ -10,6 +14,7 @@ const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.webm', '.fla
 const ANALYSIS_WINDOW_SECONDS = 0.25;
 const SILENCE_SEARCH_RADIUS_SECONDS = 45;
 const MIN_CHUNK_DURATION_SECONDS = 60;
+const TARGET_CHUNK_SAMPLE_RATE = 16000;
 
 const getAudioContext = () => {
   const ContextClass =
@@ -30,6 +35,21 @@ const isAudioFile = (file: File) => {
   if (file.type.startsWith('audio/')) return true;
   const lowerName = file.name.toLowerCase();
   return AUDIO_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
+};
+
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const slice = bytes.subarray(index, Math.min(bytes.length, index + chunkSize));
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+};
+
+const createTempVadPath = (file: File) => {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-');
+  return `audio-vad/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
 };
 
 const readDurationFromMediaElement = (file: File) =>
@@ -96,6 +116,53 @@ const encodeWav = (channelData: Float32Array[], sampleRate: number) => {
   }
 
   return new Blob([buffer], { type: 'audio/wav' });
+};
+
+const downmixToMono = (channelData: Float32Array[]) => {
+  if (channelData.length <= 1) return channelData[0] || new Float32Array();
+
+  const length = channelData[0].length;
+  const mono = new Float32Array(length);
+
+  for (let sampleIndex = 0; sampleIndex < length; sampleIndex += 1) {
+    let sum = 0;
+    for (let channelIndex = 0; channelIndex < channelData.length; channelIndex += 1) {
+      sum += channelData[channelIndex][sampleIndex] || 0;
+    }
+    mono[sampleIndex] = sum / channelData.length;
+  }
+
+  return mono;
+};
+
+const resampleMonoChannel = (
+  source: Float32Array,
+  sourceSampleRate: number,
+  targetSampleRate: number
+) => {
+  if (sourceSampleRate === targetSampleRate) return source;
+
+  const ratio = sourceSampleRate / targetSampleRate;
+  const targetLength = Math.max(1, Math.round(source.length / ratio));
+  const resampled = new Float32Array(targetLength);
+
+  for (let targetIndex = 0; targetIndex < targetLength; targetIndex += 1) {
+    const start = Math.floor(targetIndex * ratio);
+    const end = Math.min(source.length, Math.floor((targetIndex + 1) * ratio));
+
+    if (end <= start) {
+      resampled[targetIndex] = source[Math.min(source.length - 1, start)] || 0;
+      continue;
+    }
+
+    let sum = 0;
+    for (let sourceIndex = start; sourceIndex < end; sourceIndex += 1) {
+      sum += source[sourceIndex] || 0;
+    }
+    resampled[targetIndex] = sum / (end - start);
+  }
+
+  return resampled;
 };
 
 const computeRmsWindows = (audioBuffer: AudioBuffer) => {
@@ -216,6 +283,68 @@ const buildChunkBoundaries = (audioBuffer: AudioBuffer, chunkDurationSeconds: nu
   return boundaries;
 };
 
+const buildChunkBoundariesFromSeconds = (audioBuffer: AudioBuffer, boundariesSeconds: number[]) => {
+  const normalized = boundariesSeconds
+    .map((value) => Math.max(0, Math.min(audioBuffer.duration, value)))
+    .sort((left, right) => left - right);
+
+  const frames = normalized.map((seconds) =>
+    Math.min(audioBuffer.length, Math.round(seconds * audioBuffer.sampleRate))
+  );
+
+  const deduped: number[] = [];
+  frames.forEach((frame) => {
+    if (deduped.length === 0 || deduped[deduped.length - 1] !== frame) {
+      deduped.push(frame);
+    }
+  });
+
+  if (deduped[0] !== 0) deduped.unshift(0);
+  if (deduped[deduped.length - 1] !== audioBuffer.length) deduped.push(audioBuffer.length);
+  return deduped;
+};
+
+const detectAndroidVadBoundaries = async (file: File, chunkDurationSeconds: number) => {
+  if (Capacitor.getPlatform() !== 'android') return null;
+
+  const tempPath = createTempVadPath(file);
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = bytesToBase64(new Uint8Array(arrayBuffer));
+    await Filesystem.writeFile({
+      path: tempPath,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+
+    const fileUri = await Filesystem.getUri({
+      path: tempPath,
+      directory: Directory.Cache,
+    });
+
+    const result = await AudioVad.detectSpeechBoundaries({
+      fileUri: fileUri.uri,
+      chunkDurationSeconds,
+    });
+
+    return result.boundariesSeconds;
+  } catch (error) {
+    console.warn('Native Android VAD unavailable, fallback to local silence scan:', error);
+    return null;
+  } finally {
+    try {
+      await Filesystem.deleteFile({
+        path: tempPath,
+        directory: Directory.Cache,
+      });
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+};
+
 export const getMediaDurationSeconds = async (file: File) => readDurationFromMediaElement(file);
 
 export const canSplitFileIntoAudioChunks = (file: File) => isAudioFile(file);
@@ -236,7 +365,10 @@ export const splitAudioFileIntoChunks = async ({
   try {
     const arrayBuffer = await file.arrayBuffer();
     const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-    const boundaries = buildChunkBoundaries(decoded, chunkDurationSeconds);
+    const nativeBoundariesSeconds = await detectAndroidVadBoundaries(file, chunkDurationSeconds);
+    const boundaries = nativeBoundariesSeconds && nativeBoundariesSeconds.length >= 2
+      ? buildChunkBoundariesFromSeconds(decoded, nativeBoundariesSeconds)
+      : buildChunkBoundaries(decoded, chunkDurationSeconds);
     const totalChunks = boundaries.length - 1;
     const baseName = getBaseName(file.name);
     const parts: AudioChunkPart[] = [];
@@ -244,11 +376,17 @@ export const splitAudioFileIntoChunks = async ({
     for (let index = 0; index < totalChunks; index += 1) {
       const startFrame = boundaries[index];
       const endFrame = boundaries[index + 1];
-      const channelData = Array.from({ length: decoded.numberOfChannels }, (_, channelIndex) =>
+      const originalChannels = Array.from({ length: decoded.numberOfChannels }, (_, channelIndex) =>
         decoded.getChannelData(channelIndex).slice(startFrame, endFrame)
       );
+      const monoChannel = downmixToMono(originalChannels);
+      const resampledChannel = resampleMonoChannel(
+        monoChannel,
+        decoded.sampleRate,
+        TARGET_CHUNK_SAMPLE_RATE
+      );
 
-      const blob = encodeWav(channelData, decoded.sampleRate);
+      const blob = encodeWav([resampledChannel], TARGET_CHUNK_SAMPLE_RATE);
       const chunkFile = new File(
         [blob],
         `${baseName}-part-${String(index + 1).padStart(2, '0')}.wav`,

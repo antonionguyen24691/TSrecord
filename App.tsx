@@ -275,6 +275,11 @@ const App: React.FC = () => {
         savedRecording,
         onStageChange: (stage) =>
           setProcessingState((prev) => ({ ...prev, stageLabel: stage })),
+        onProgress: (progress) =>
+          setProcessingState((prev) => ({
+            ...prev,
+            ...progress,
+          })),
       });
 
       const finalizedAnalysis: SessionAnalysis = {
@@ -284,7 +289,12 @@ const App: React.FC = () => {
       };
 
       setAnalysis(finalizedAnalysis);
-      setProcessingState({ status: 'success' });
+      setProcessingState({
+        status: 'success',
+        phase: 'saving',
+        stageLabel: 'Transcript và phân tích đã xong, đang mở kết quả...',
+        progressLabel: '100%',
+      });
       setStep(3);
 
       // Auto-save session package to device
@@ -553,6 +563,7 @@ const App: React.FC = () => {
               onNext={handleAnalyze}
               onBack={handleModeBack}
               isProcessing={processingState.status === 'processing'}
+              processingState={processingState}
             />
           </Suspense>
         )}

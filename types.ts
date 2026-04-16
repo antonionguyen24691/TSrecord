@@ -32,6 +32,16 @@ export interface ProcessingState {
   status: 'idle' | 'processing' | 'success' | 'error';
   errorMessage?: string;
   stageLabel?: string;
+  phase?: 'preparing' | 'transcribing' | 'analyzing' | 'saving' | 'complete';
+  progressCurrent?: number;
+  progressTotal?: number;
+  progressLabel?: string;
+  chunkStatuses?: Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'waiting' | 'processing' | 'done' | 'error';
+    detail?: string;
+  }>;
 }
 
 export interface SavedDeviceFile {
