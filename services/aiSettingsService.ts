@@ -20,6 +20,7 @@ const PREFERRED_SAMPLE_RATE_KEY = 'preferred_sample_rate';
 const PREFERRED_CHANNEL_COUNT_KEY = 'preferred_channel_count';
 const CHUNK_DURATION_MINUTES_KEY = 'chunk_duration_minutes';
 const CHUNK_STAGGER_SECONDS_KEY = 'chunk_stagger_seconds';
+const CHUNK_CONCURRENCY_KEY = 'chunk_concurrency';
 
 const SECURE_KEYSTORE_SUPPORTED = Capacitor.getPlatform() === 'android';
 
@@ -51,6 +52,7 @@ export const DEFAULT_PREFERRED_SAMPLE_RATE: PreferredSampleRate = 48000;
 export const DEFAULT_PREFERRED_CHANNEL_COUNT: PreferredChannelCount = 1;
 export const DEFAULT_CHUNK_DURATION_MINUTES = 10;
 export const DEFAULT_CHUNK_STAGGER_SECONDS = 2;
+export const DEFAULT_CHUNK_CONCURRENCY = 2;
 
 // --- Interfaces ---
 export interface AiSettings {
@@ -72,6 +74,7 @@ export interface AiSettings {
   preferredChannelCount: PreferredChannelCount;
   chunkDurationMinutes: number;
   chunkStaggerSeconds: number;
+  chunkConcurrency: number;
 }
 
 const VALID_PROCESSING_STRENGTHS: ProcessingStrength[] = ['OFF', 'LOW', 'MEDIUM', 'HIGH'];
@@ -131,6 +134,7 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     preferredChannelCountResult,
     chunkDurationMinutesResult,
     chunkStaggerSecondsResult,
+    chunkConcurrencyResult,
   ] = await Promise.all([
     getStoredValue(API_KEY_KEY),
     getStoredValue(MODEL_ID_KEY),
@@ -149,6 +153,7 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     getStoredValue(PREFERRED_CHANNEL_COUNT_KEY),
     getStoredValue(CHUNK_DURATION_MINUTES_KEY),
     getStoredValue(CHUNK_STAGGER_SECONDS_KEY),
+    getStoredValue(CHUNK_CONCURRENCY_KEY),
   ]);
 
   const fallbackModel = legacyModelIdResult || DEFAULT_MODEL_ID;
@@ -179,6 +184,7 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
   const channelCount = Number(preferredChannelCountResult);
   const chunkDurationMinutes = Number(chunkDurationMinutesResult);
   const chunkStaggerSeconds = Number(chunkStaggerSecondsResult);
+  const chunkConcurrency = Number(chunkConcurrencyResult);
 
   return {
     apiKey: apiKeyResult,
@@ -222,6 +228,10 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
       Number.isFinite(chunkStaggerSeconds) && chunkStaggerSeconds >= 0 && chunkStaggerSeconds <= 60
         ? Math.round(chunkStaggerSeconds)
         : DEFAULT_CHUNK_STAGGER_SECONDS,
+    chunkConcurrency:
+      Number.isFinite(chunkConcurrency) && chunkConcurrency >= 1 && chunkConcurrency <= 4
+        ? Math.round(chunkConcurrency)
+        : DEFAULT_CHUNK_CONCURRENCY,
   };
 };
 
@@ -242,6 +252,7 @@ export const saveAiSettings = async ({
   preferredChannelCount,
   chunkDurationMinutes,
   chunkStaggerSeconds,
+  chunkConcurrency,
 }: AiSettings) => {
   await Promise.all([
     setStoredValue(API_KEY_KEY, apiKey.trim()),
@@ -273,6 +284,14 @@ export const saveAiSettings = async ({
         Number.isFinite(chunkStaggerSeconds) && chunkStaggerSeconds >= 0 && chunkStaggerSeconds <= 60
           ? Math.round(chunkStaggerSeconds)
           : DEFAULT_CHUNK_STAGGER_SECONDS
+      )
+    ),
+    setStoredValue(
+      CHUNK_CONCURRENCY_KEY,
+      String(
+        Number.isFinite(chunkConcurrency) && chunkConcurrency >= 1 && chunkConcurrency <= 4
+          ? Math.round(chunkConcurrency)
+          : DEFAULT_CHUNK_CONCURRENCY
       )
     ),
   ]);

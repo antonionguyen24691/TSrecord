@@ -43,6 +43,27 @@ const PROVIDER_LABELS: Record<TranscriptionProvider, string> = {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const runWithConcurrency = async <T>(
+  taskFactories: Array<() => Promise<T>>,
+  concurrency: number
+) => {
+  const safeConcurrency = Math.max(1, Math.min(concurrency, taskFactories.length || 1));
+  const results: T[] = new Array(taskFactories.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (true) {
+      const taskIndex = cursor;
+      cursor += 1;
+      if (taskIndex >= taskFactories.length) return;
+      results[taskIndex] = await taskFactories[taskIndex]();
+    }
+  };
+
+  await Promise.all(Array.from({ length: safeConcurrency }, () => worker()));
+  return results;
+};
+
 const formatTimecode = (totalSeconds: number) => {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
   const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
@@ -190,6 +211,7 @@ const transcribeLongAudioIfNeeded = async ({
     }));
 
     let completedCount = 0;
+    const safeConcurrency = Math.max(1, Math.min(settings.chunkConcurrency, chunks.length));
     const syncProgress = (stageLabel?: string) => {
       onProgress?.({
         phase: 'transcribing',
@@ -201,10 +223,12 @@ const transcribeLongAudioIfNeeded = async ({
       });
     };
 
-    syncProgress(`Đã cắt thành ${chunks.length} phần, bắt đầu transcript song song...`);
+    syncProgress(
+      `Đã cắt thành ${chunks.length} phần, transcript tối đa ${safeConcurrency} luồng song song...`
+    );
 
-    const transcripts = await Promise.all(
-      chunks.map(async (chunk) => {
+    const transcripts = await runWithConcurrency(
+      chunks.map((chunk) => async () => {
         const staggerDelayMs = chunk.index * settings.chunkStaggerSeconds * 1000;
         if (staggerDelayMs > 0) {
           chunkStatuses[chunk.index] = {
@@ -221,7 +245,9 @@ const transcribeLongAudioIfNeeded = async ({
           status: 'processing',
           detail: `${formatTimecode(chunk.startSeconds)} - ${formatTimecode(chunk.endSeconds)}`,
         };
-        syncProgress(`Đang xử lý ${chunk.index + 1}/${chunk.total}...`);
+        syncProgress(
+          `Đang xử lý ${chunk.index + 1}/${chunk.total} với tối đa ${safeConcurrency} luồng...`
+        );
         onStageChange?.(
           `Khởi động phần ${chunk.index + 1}/${chunk.total} (${formatTimecode(
             chunk.startSeconds
@@ -262,7 +288,8 @@ const transcribeLongAudioIfNeeded = async ({
           syncProgress();
           throw error;
         }
-      })
+      }),
+      safeConcurrency
     );
 
     onProgress?.({

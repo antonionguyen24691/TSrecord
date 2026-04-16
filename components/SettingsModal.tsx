@@ -4,6 +4,7 @@ import {
   DEFAULT_AUTO_GAIN_LEVEL,
   DEFAULT_ANALYSIS_MODEL_ID,
   DEFAULT_CHUNK_DURATION_MINUTES,
+  DEFAULT_CHUNK_CONCURRENCY,
   DEFAULT_CHUNK_STAGGER_SECONDS,
   DEFAULT_ECHO_CANCELLATION_LEVEL,
   DEFAULT_NOISE_SUPPRESSION_LEVEL,
@@ -256,6 +257,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   );
   const [chunkDurationMinutes, setChunkDurationMinutes] = useState(DEFAULT_CHUNK_DURATION_MINUTES);
   const [chunkStaggerSeconds, setChunkStaggerSeconds] = useState(DEFAULT_CHUNK_STAGGER_SECONDS);
+  const [chunkConcurrency, setChunkConcurrency] = useState(DEFAULT_CHUNK_CONCURRENCY);
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>(
     DEFAULT_TRANSCRIPTION_PROVIDER
   );
@@ -285,6 +287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setPreferredChannelCount(settings.preferredChannelCount);
         setChunkDurationMinutes(settings.chunkDurationMinutes);
         setChunkStaggerSeconds(settings.chunkStaggerSeconds);
+        setChunkConcurrency(settings.chunkConcurrency);
         setTranscriptionProvider(settings.transcriptionProvider);
       });
     }
@@ -310,6 +313,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       preferredChannelCount,
       chunkDurationMinutes,
       chunkStaggerSeconds,
+      chunkConcurrency,
     });
     setIsSaving(false);
     onClose();
@@ -599,7 +603,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   để tránh đứt câu, rồi transcript các phần song song trước khi ghép transcript cuối.
                 </p>
 
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
                       Phút / phần
@@ -639,6 +643,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     />
                     <p className="text-xs text-gray-500">
                       Mặc định 2 giây. Dùng để stagger nhẹ các request song song, giảm khả năng đụng rate limit mà không làm chậm quá nhiều.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Luồng song song
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={chunkConcurrency}
+                      onChange={(event) =>
+                        setChunkConcurrency(
+                          Math.min(4, Math.max(1, Number(event.target.value) || DEFAULT_CHUNK_CONCURRENCY))
+                        )
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Mặc định 2 luồng. Khuyên dùng 2-3 để tránh bắn quá nhiều request cùng lúc.
                     </p>
                   </div>
                 </div>
