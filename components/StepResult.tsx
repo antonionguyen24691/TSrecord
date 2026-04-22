@@ -515,9 +515,10 @@ const buildFolderTree = (rows: Array<{ depth: number; label: string }>) => {
 
 const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
   const tree = mindmapNodesToTree(nodes);
-  if (!tree) return <EmptyArtifactState message="Khong co du lieu mindmap de render." />;
-
-  const initialLayout = useMemo(() => buildMindmapGraphLayout(tree), [tree]);
+  const initialLayout = useMemo(
+    () => (tree ? buildMindmapGraphLayout(tree) : { nodes: [], edges: [], width: 1120, height: 760 }),
+    [tree]
+  );
   const [graphNodes, setGraphNodes] = useState<MindmapRenderNode[]>(initialLayout.nodes);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
   const dragRef = useRef<
@@ -550,6 +551,8 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
     () => new Map(graphNodes.map((node) => [node.id, node])),
     [graphNodes]
   );
+
+  if (!tree) return <EmptyArtifactState message="Khong co du lieu mindmap de render." />;
 
   const isVisibleNode = (node: MindmapRenderNode) => {
     let currentParentId = node.parentId;
@@ -597,7 +600,8 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
         const node = nodeById.get(nodeId);
         if (!node) return;
         event.stopPropagation();
-        const svg = (event.currentTarget as Element).ownerSVGElement;
+        const target = event.currentTarget;
+        const svg = target instanceof SVGSVGElement ? target : target.ownerSVGElement;
         if (!svg) return;
         const rect = svg.getBoundingClientRect();
         const x = (event.clientX - rect.left - viewport.x) / viewport.scale;
@@ -620,13 +624,14 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
     };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (!dragRef.current) return;
+    const dragState = dragRef.current;
+    if (!dragState) return;
 
-    if (dragRef.current.type === 'canvas') {
+    if (dragState.type === 'canvas') {
       setViewport((current) => ({
         ...current,
-        x: dragRef.current!.originX + (event.clientX - dragRef.current!.startX),
-        y: dragRef.current!.originY + (event.clientY - dragRef.current!.startY),
+        x: dragState.originX + (event.clientX - dragState.startX),
+        y: dragState.originY + (event.clientY - dragState.startY),
       }));
       return;
     }
@@ -634,11 +639,11 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
     const point = svgPoint(event);
     setGraphNodes((current) =>
       current.map((node) =>
-        node.id === dragRef.current!.nodeId
+        node.id === dragState.nodeId
           ? {
               ...node,
-              x: point.x - dragRef.current!.offsetX,
-              y: point.y - dragRef.current!.offsetY,
+              x: point.x - dragState.offsetX,
+              y: point.y - dragState.offsetY,
             }
           : node
       )
@@ -767,7 +772,6 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
               )}
               <foreignObject x={x + 14} y={y + 10} width={width - 28} height={height - 18}>
                 <div
-                  xmlns="http://www.w3.org/1999/xhtml"
                   style={{
                     height: '100%',
                     display: 'flex',

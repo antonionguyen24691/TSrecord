@@ -6,9 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
-  Mic,
   Play,
-  Upload,
 } from 'lucide-react';
 import { AppModule, ExtractionMode, InputSource, ProcessingState, SessionContext } from '../types';
 
@@ -38,8 +36,8 @@ export const StepMode: React.FC<StepModeProps> = ({
   setMode,
   source,
   sessionContext,
-  fileName,
-  savedRecordingPath,
+  fileName: _fileName,
+  savedRecordingPath: _savedRecordingPath,
   onNext,
   onBack,
   isProcessing,
@@ -54,7 +52,7 @@ export const StepMode: React.FC<StepModeProps> = ({
 
   return (
     <div className="flex flex-col items-center w-full max-w-6xl animate-fade-in">
-      <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+      <div className="w-full rounded-[32px] border border-white/60 bg-white/90 p-5 md:p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] overflow-hidden">
         <div className="flex flex-col gap-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
@@ -78,20 +76,20 @@ export const StepMode: React.FC<StepModeProps> = ({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <button
-              onClick={() => setMode('TIMELINE')}
+              onClick={() => setMode(ExtractionMode.TIMELINE)}
               className={`relative flex flex-col items-start gap-3 rounded-3xl border-2 p-6 transition-all ${
-                mode === 'TIMELINE'
+                mode === ExtractionMode.TIMELINE
                   ? 'border-[#0d7c66] bg-emerald-50/30'
                   : 'border-slate-100 bg-white hover:border-slate-200'
               }`}
             >
               <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                mode === 'TIMELINE' ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-500'
+                mode === ExtractionMode.TIMELINE ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-500'
               }`}>
                 <Clock className="h-6 w-6" />
               </div>
               <div className="text-left font-bold text-slate-900">Timeline</div>
-              {mode === 'TIMELINE' && (
+              {mode === ExtractionMode.TIMELINE && (
                 <div className="absolute right-4 top-4 text-[#0d7c66]">
                   <CheckCircle2 className="h-6 w-6" />
                 </div>
@@ -99,20 +97,20 @@ export const StepMode: React.FC<StepModeProps> = ({
             </button>
 
             <button
-              onClick={() => setMode('PLAIN')}
+              onClick={() => setMode(ExtractionMode.PLAIN)}
               className={`relative flex flex-col items-start gap-3 rounded-3xl border-2 p-6 transition-all ${
-                mode === 'PLAIN'
+                mode === ExtractionMode.PLAIN
                   ? 'border-[#0d7c66] bg-emerald-50/30'
                   : 'border-slate-100 bg-white hover:border-slate-200'
               }`}
             >
               <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                mode === 'PLAIN' ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-500'
+                mode === ExtractionMode.PLAIN ? 'bg-[#0d7c66] text-white' : 'bg-slate-100 text-slate-500'
               }`}>
                 <AlignLeft className="h-6 w-6" />
               </div>
               <div className="text-left font-bold text-slate-900">Plain text</div>
-              {mode === 'PLAIN' && (
+              {mode === ExtractionMode.PLAIN && (
                 <div className="absolute right-4 top-4 text-[#0d7c66]">
                   <CheckCircle2 className="h-6 w-6" />
                 </div>
@@ -128,7 +126,7 @@ export const StepMode: React.FC<StepModeProps> = ({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
                   Tiến trình xử lý
                 </div>
-                <div className="mt-2 text-lg font-black text-slate-900">
+                <div className="mt-2 text-base sm:text-lg font-black text-slate-900 break-words">
                   {processingState.stageLabel || 'Đang khởi tạo pipeline...'}
                 </div>
                 {processingState.progressLabel && (
@@ -159,14 +157,14 @@ export const StepMode: React.FC<StepModeProps> = ({
             )}
 
             {processingState.chunkStatuses && processingState.chunkStatuses.length > 0 && (
-              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 max-h-[40vh] overflow-y-auto thin-scrollbar">
                 {processingState.chunkStatuses.map((chunk) => (
                   <div
                     key={chunk.id}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-bold text-slate-900">{chunk.label}</div>
+                      <div className="text-sm font-bold text-slate-900 truncate min-w-0">{chunk.label}</div>
                       <div
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
                           chunk.status === 'done'
@@ -209,7 +207,7 @@ export const StepMode: React.FC<StepModeProps> = ({
           <button
             onClick={onNext}
             disabled={isProcessing}
-            className={`h-14 flex-[2] rounded-2xl px-5 font-bold uppercase tracking-[0.2em] transition-all md:flex-none md:min-w-[320px] ${
+            className={`h-14 flex-[2] rounded-2xl px-5 font-bold uppercase tracking-[0.2em] transition-all md:flex-none md:min-w-[280px] ${
               isProcessing
                 ? 'cursor-wait border border-slate-200 bg-slate-100 text-slate-500'
                 : 'bg-[#0d7c66] text-white shadow-lg shadow-[#0d7c66]/25 hover:-translate-y-0.5'

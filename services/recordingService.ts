@@ -10,8 +10,6 @@ import {
   DEFAULT_PREFERRED_CHANNEL_COUNT,
   DEFAULT_PREFERRED_SAMPLE_RATE,
   DEFAULT_RECORDING_PROFILE,
-  PreferredChannelCount,
-  PreferredSampleRate,
   ProcessingStrength,
   RecordingProfile,
   loadAiSettings,
@@ -68,17 +66,16 @@ const blobToBase64 = async (blob: Blob) =>
     reader.readAsDataURL(blob);
   });
 
-const profilePresets: Record<
-  Exclude<RecordingProfile, 'CUSTOM'>,
-  Pick<
-    AiSettings,
-    | 'noiseSuppressionLevel'
-    | 'echoCancellationLevel'
-    | 'autoGainLevel'
-    | 'preferredSampleRate'
-    | 'preferredChannelCount'
-  >
-> = {
+type RecordingConstraintSettings = Pick<
+  AiSettings,
+  | 'noiseSuppressionLevel'
+  | 'echoCancellationLevel'
+  | 'autoGainLevel'
+  | 'preferredSampleRate'
+  | 'preferredChannelCount'
+>;
+
+const profilePresets: Record<Exclude<RecordingProfile, 'CUSTOM'>, RecordingConstraintSettings> = {
   BALANCED: {
     noiseSuppressionLevel: 'MEDIUM',
     echoCancellationLevel: 'MEDIUM',
@@ -111,14 +108,14 @@ const profilePresets: Record<
 
 const isProcessingEnabled = (value: ProcessingStrength) => value !== 'OFF';
 
-const resolveRecordingSettings = (settings: AiSettings) => {
+const resolveRecordingSettings = (settings: AiSettings): RecordingConstraintSettings => {
   const profile =
     settings.recordingProfile && settings.recordingProfile !== 'CUSTOM'
       ? settings.recordingProfile
       : DEFAULT_RECORDING_PROFILE;
   const preset = profilePresets[profile as Exclude<RecordingProfile, 'CUSTOM'>];
 
-  return {
+  const constraints = {
     noiseSuppressionLevel:
       settings.recordingProfile === 'CUSTOM'
         ? settings.noiseSuppressionLevel || DEFAULT_NOISE_SUPPRESSION_LEVEL
@@ -140,6 +137,8 @@ const resolveRecordingSettings = (settings: AiSettings) => {
         ? settings.preferredChannelCount || DEFAULT_PREFERRED_CHANNEL_COUNT
         : preset.preferredChannelCount,
   };
+
+  return constraints;
 };
 
 const buildAudioConstraints = (
@@ -149,7 +148,7 @@ const buildAudioConstraints = (
   const voiceFocused =
     settings.recordingProfile === 'VOICE_FOCUS' || settings.recordingProfile === 'NOISY_ENV';
 
-  return {
+  const constraints = {
     echoCancellation: isProcessingEnabled(resolved.echoCancellationLevel),
     noiseSuppression: isProcessingEnabled(resolved.noiseSuppressionLevel),
     autoGainControl: isProcessingEnabled(resolved.autoGainLevel),
@@ -179,9 +178,11 @@ const buildAudioConstraints = (
             : resolved.autoGainLevel === 'MEDIUM'
               ? 0.92
               : 0.84,
-      },
+      } as MediaTrackConstraintSet,
     ],
   };
+
+  return constraints as unknown as MediaTrackConstraints;
 };
 
 const applyTrackEnhancements = async (

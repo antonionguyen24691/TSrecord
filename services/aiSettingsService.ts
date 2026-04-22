@@ -163,7 +163,7 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     : DEFAULT_TRANSCRIPTION_PROVIDER;
 
   const sanitizeModelId = (id: string, defaultId: string) => {
-    let cleanId = id || fallbackModel || defaultId;
+    const cleanId = id || fallbackModel || defaultId;
     // Map previous or user-tampered versions to the correct API ID
     if (cleanId === 'gemini-3.1-flash-lite' || cleanId === 'gemini 3.1 flash lite') {
       return 'gemini-3.1-flash-lite-preview';

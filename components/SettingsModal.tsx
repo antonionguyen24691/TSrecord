@@ -30,6 +30,7 @@ import { HardDrive, Trash2 } from 'lucide-react';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onStorageCleared?: () => void | Promise<void>;
 }
 
 const AVAILABLE_GEMINI_MODELS = [
@@ -233,7 +234,11 @@ const setProviderKey = (
   else setOpenaiKey(value);
 };
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  onStorageCleared,
+}) => {
   const [apiKey, setApiKey] = useState('');
   const [assemblyaiApiKey, setAssemblyaiApiKey] = useState('');
   const [groqApiKey, setGroqApiKey] = useState('');
@@ -912,6 +917,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       setIsSaving(true);
                       try {
                         await clearAppStorage();
+                        await onStorageCleared?.();
                         alert('Đã xóa toàn bộ dữ liệu thành công.');
                       } catch (err: any) {
                         alert('Lỗi khi xóa dữ liệu: ' + err.message);

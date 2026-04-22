@@ -175,6 +175,17 @@ const writeCachedRecord = (record: CachedSessionRecord) => {
   storage.setItem(`${SESSION_CACHE_ITEM_PREFIX}${record.id}`, JSON.stringify(record));
 };
 
+const clearCachedWorkspaceSessions = () => {
+  const storage = getStorage();
+  if (!storage) return;
+
+  const ids = readCachedIndex();
+  ids.forEach((id) => {
+    storage.removeItem(`${SESSION_CACHE_ITEM_PREFIX}${id}`);
+  });
+  storage.removeItem(SESSION_CACHE_INDEX_KEY);
+};
+
 const readTextFile = async (path: string) => {
   try {
     const result = await Filesystem.readFile({
@@ -467,4 +478,10 @@ export const updateWorkspaceSessionNote = async (sessionId: string, note: string
   }
 
   return writeSessionNotes(nextNotes);
+};
+
+export const clearWorkspaceStorage = async () => {
+  clearCachedWorkspaceSessions();
+  await Preferences.remove({ key: PROJECTS_STORAGE_KEY });
+  await Preferences.remove({ key: SESSION_NOTES_STORAGE_KEY });
 };

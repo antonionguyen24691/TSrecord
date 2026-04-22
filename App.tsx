@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, us
 import { ArrowLeft, Settings, Sparkles } from 'lucide-react';
 import { ModuleHome } from './components/ModuleHome';
 import { ScreenSkeleton } from './components/ScreenSkeleton';
+import { Toast, ToastMessage, ToastType } from './components/Toast';
 import {
   AppModule,
   ExtractionMode,
@@ -40,6 +41,9 @@ const loadTranscriptionOrchestrator = () => import('./services/transcriptionOrch
 const loadSessionPackageService = () => import('./services/sessionPackageService');
 const loadUpdateService = () => import('./services/updateService');
 
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
 const StepUpload = lazy(() => loadStepUpload().then((module) => ({ default: module.StepUpload })));
 const StepRecord = lazy(() => loadStepRecord().then((module) => ({ default: module.StepRecord })));
 const StepMode = lazy(() => loadStepMode().then((module) => ({ default: module.StepMode })));
@@ -74,6 +78,7 @@ const App: React.FC = () => {
   const [email, setEmail] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
   const [updateRelease, setUpdateRelease] = useState<ReleaseInfo | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [workspaceSessions, setWorkspaceSessions] = useState<WorkspaceSessionSummary[]>([]);
   const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>([]);
@@ -167,12 +172,14 @@ const App: React.FC = () => {
         void import('pptxgenjs');
       };
 
-      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      if (typeof window === 'undefined') return;
+
+      if ('requestIdleCallback' in window) {
         (window as Window & {
           requestIdleCallback: (callback: () => void) => number;
         }).requestIdleCallback(prefetch);
       } else {
-        window.setTimeout(prefetch, 250);
+        globalThis.setTimeout(prefetch, 250);
       }
     }
   }, [activeModule, step]);
@@ -230,7 +237,7 @@ const App: React.FC = () => {
     const restored = await loadWorkspaceSession(session);
 
     if (!restored) {
-      alert('Không thể mở lại session này. Vui lòng thử lưu package lại ở phiên mới hơn.');
+      showToast('Không thể mở lại session này. Vui lòng thử lưu package lại ở phiên mới hơn.');
       return;
     }
 
@@ -313,12 +320,13 @@ const App: React.FC = () => {
       } catch (saveError) {
         console.error('Auto-save session failed:', saveError);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Đã xảy ra lỗi khi xử lý file.');
       setProcessingState({
         status: 'error',
-        errorMessage: error.message,
+        errorMessage: message,
       });
-      alert(error.message);
+      showToast(message);
       setProcessingState({ status: 'idle' });
     }
   };
@@ -356,13 +364,17 @@ const App: React.FC = () => {
   );
   const latestWorkspaceSession = workspaceSessions[0];
 
+  const showToast = (message: string, type: ToastType = 'error') => {
+    setToast({ id: Date.now(), message, type });
+  };
+
   const handleCreateProject = async (name: string) => {
     try {
       const projects = await createWorkspaceProject(name);
       setWorkspaceProjects(projects);
       setActiveProjectId(projects[0]?.id || null);
-    } catch (error: any) {
-      alert(error?.message || 'Không thể tạo dự án mới.');
+    } catch (error: unknown) {
+      showToast(getErrorMessage(error, 'Không thể tạo dự án mới.'));
     }
   };
 
@@ -590,10 +602,24 @@ const App: React.FC = () => {
 
         {showSettings && (
           <Suspense fallback={null}>
-            <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+            <SettingsModal
+              isOpen={showSettings}
+              onClose={() => setShowSettings(false)}
+              onStorageCleared={async () => {
+                setAnalysis(null);
+                setSavedRecording(null);
+                setFile(null);
+                setFileName('');
+                setEmail('');
+                setProcessingState({ status: 'idle' });
+                await refreshWorkspaceData();
+              }}
+            />
           </Suspense>
         )}
       </main>
+
+      {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
 
       {updateRelease && (
         <Suspense fallback={null}>

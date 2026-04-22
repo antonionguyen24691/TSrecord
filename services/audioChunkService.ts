@@ -11,6 +11,7 @@ export interface AudioChunkPart {
 }
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.webm', '.flac'];
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.avi', '.mkv'];
 const ANALYSIS_WINDOW_SECONDS = 0.25;
 const SILENCE_SEARCH_RADIUS_SECONDS = 45;
 const MIN_CHUNK_DURATION_SECONDS = 60;
@@ -33,8 +34,15 @@ const getBaseName = (fileName: string) => fileName.replace(/\.[^.]+$/, '') || 'a
 
 const isAudioFile = (file: File) => {
   if (file.type.startsWith('audio/')) return true;
+  if (Capacitor.getPlatform() === 'android' && isVideoFile(file)) return true;
   const lowerName = file.name.toLowerCase();
   return AUDIO_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
+};
+
+const isVideoFile = (file: File) => {
+  if (file.type.startsWith('video/')) return true;
+  const lowerName = file.name.toLowerCase();
+  return VIDEO_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
 };
 
 const bytesToBase64 = (bytes: Uint8Array) => {
@@ -50,6 +58,48 @@ const bytesToBase64 = (bytes: Uint8Array) => {
 const createTempVadPath = (file: File) => {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-');
   return `audio-vad/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+};
+
+const nativeUriToBrowserUrl = (uri: string) => Capacitor.convertFileSrc(uri);
+
+const writeAudioFileToNativeCacheStreamingly = async (file: File, tempPath: string) => {
+  const CHUNK_SIZE = 1047552; // Chia hết cho 3 để không hỏng padding Base64 (~1MB)
+  let isFirst = true;
+
+  for (let offset = 0; offset < file.size; offset += CHUNK_SIZE) {
+    const slice = file.slice(offset, offset + CHUNK_SIZE);
+    const buffer = await slice.arrayBuffer();
+    const base64Chunk = bytesToBase64(new Uint8Array(buffer));
+
+    if (isFirst) {
+      await Filesystem.writeFile({
+        path: tempPath,
+        data: base64Chunk,
+        directory: Directory.Cache,
+        recursive: true,
+      });
+      isFirst = false;
+    } else {
+      await Filesystem.appendFile({
+        path: tempPath,
+        data: base64Chunk,
+        directory: Directory.Cache,
+      });
+    }
+  }
+};
+
+const nativeChunkUriToFile = async (fileUri: string, fileName: string) => {
+  const response = await fetch(nativeUriToBrowserUrl(fileUri));
+  if (!response.ok) {
+    throw new Error(`Khong the doc chunk native: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  return new File([blob], fileName, {
+    type: blob.type || 'audio/wav',
+    lastModified: Date.now(),
+  });
 };
 
 const readDurationFromMediaElement = (file: File) =>
@@ -310,14 +360,7 @@ const detectAndroidVadBoundaries = async (file: File, chunkDurationSeconds: numb
   const tempPath = createTempVadPath(file);
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = bytesToBase64(new Uint8Array(arrayBuffer));
-    await Filesystem.writeFile({
-      path: tempPath,
-      data: base64,
-      directory: Directory.Cache,
-      recursive: true,
-    });
+    await writeAudioFileToNativeCacheStreamingly(file, tempPath);
 
     const fileUri = await Filesystem.getUri({
       path: tempPath,
@@ -345,9 +388,56 @@ const detectAndroidVadBoundaries = async (file: File, chunkDurationSeconds: numb
   }
 };
 
+const splitAudioFileIntoNativeAndroidChunks = async (
+  file: File,
+  chunkDurationSeconds: number
+): Promise<AudioChunkPart[] | null> => {
+  if (Capacitor.getPlatform() !== 'android') return null;
+
+  const tempPath = createTempVadPath(file);
+
+  try {
+    await writeAudioFileToNativeCacheStreamingly(file, tempPath);
+
+    const fileUri = await Filesystem.getUri({
+      path: tempPath,
+      directory: Directory.Cache,
+    });
+
+    const result = await AudioVad.splitIntoSpeechChunks({
+      fileUri: fileUri.uri,
+      fileName: file.name,
+      chunkDurationSeconds,
+    });
+
+    return Promise.all(
+      result.chunks.map(async (chunk) => ({
+        file: await nativeChunkUriToFile(chunk.fileUri, chunk.fileName),
+        index: chunk.index,
+        total: chunk.total,
+        startSeconds: chunk.startSeconds,
+        endSeconds: chunk.endSeconds,
+      }))
+    );
+  } catch (error) {
+    console.warn('Native Android chunk split unavailable, fallback to web audio split:', error);
+    return null;
+  } finally {
+    try {
+      await Filesystem.deleteFile({
+        path: tempPath,
+        directory: Directory.Cache,
+      });
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+};
+
 export const getMediaDurationSeconds = async (file: File) => readDurationFromMediaElement(file);
 
-export const canSplitFileIntoAudioChunks = (file: File) => isAudioFile(file);
+export const canSplitFileIntoAudioChunks = (file: File) =>
+  isAudioFile(file) || (Capacitor.getPlatform() === 'android' && isVideoFile(file));
 
 export const splitAudioFileIntoChunks = async ({
   file,
@@ -358,6 +448,30 @@ export const splitAudioFileIntoChunks = async ({
 }): Promise<AudioChunkPart[]> => {
   if (!isAudioFile(file)) {
     throw new Error('Chỉ hỗ trợ chia chunk tự động cho file audio.');
+  }
+
+  const isAndroidExtractableMedia =
+    Capacitor.getPlatform() === 'android' && (isAudioFile(file) || isVideoFile(file));
+  const nativeAndroidParts = isAndroidExtractableMedia
+    ? await splitAudioFileIntoNativeAndroidChunks(file, chunkDurationSeconds)
+    : null;
+  if (nativeAndroidParts && nativeAndroidParts.length > 0) {
+    return nativeAndroidParts;
+  }
+
+  if (Capacitor.getPlatform() === 'android' && isVideoFile(file)) {
+    throw new Error('Không thể tách audio track từ video này trên Android.');
+  }
+
+  // Guard: prevent WebView OOM for large files on mobile platforms.
+  // The native streaming path (above) should handle these; this is the
+  // last-resort web fallback which loads the entire file into RAM.
+  const MAX_WEB_DECODE_BYTES = 25 * 1024 * 1024;
+  if (Capacitor.getPlatform() !== 'web' && file.size > MAX_WEB_DECODE_BYTES) {
+    throw new Error(
+      `File quá lớn (${Math.round(file.size / 1024 / 1024)}MB) để xử lý qua WebView. ` +
+        'Vui lòng cập nhật app hoặc thử file nhỏ hơn 25MB.'
+    );
   }
 
   const audioContext = getAudioContext();

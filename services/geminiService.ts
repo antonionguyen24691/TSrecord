@@ -13,6 +13,8 @@ import {
   loadAiSettings,
 } from './aiSettingsService';
 import type { RealtimeMode } from './aiSettingsService';
+import { createGeminiUserError } from './utils/geminiError';
+import { logError } from './utils/logging';
 
 const MAX_FILE_SIZE_MB = 300;
 
@@ -509,9 +511,9 @@ Rang buoc:
     }
 
     return normalizeMeetingChunkResponse(parsed, rawText);
-  } catch (error: any) {
-    console.error('Realtime Gemini chunk error:', error);
-    throw new Error(error?.message || 'Khong the cap nhat ghi chu realtime.');
+  } catch (error: unknown) {
+    logError('Realtime Gemini chunk error:', error);
+    throw createGeminiUserError(error, 'Khong the cap nhat ghi chu realtime.');
   }
 };
 
@@ -554,9 +556,9 @@ export const transcribeAudioWithGemini = async ({
     const transcript = readText(parsed.transcript);
     if (!transcript) throw new Error('Gemini khong tra transcript hop le.');
     return transcript;
-  } catch (error: any) {
-    console.error('Gemini transcription error:', error);
-    throw new Error(error?.message || 'Khong the transcript audio bang Gemini.');
+  } catch (error: unknown) {
+    logError('Gemini transcription error:', error);
+    throw createGeminiUserError(error, 'Khong the transcript audio bang Gemini.');
   }
 };
 
@@ -624,14 +626,9 @@ Nhiem vu:
       context,
       savedRecording,
     });
-  } catch (error: any) {
-    console.error('Gemini text analysis error:', error);
-    let userMsg = 'Da xay ra loi khi phan tich transcript.';
-    const errorStr = `${error?.message || ''}`.toLowerCase();
-    if (errorStr.includes('api key') || errorStr.includes('400')) {
-      userMsg = 'Gemini API Key khong hop le.';
-    }
-    throw new Error(`${userMsg} (${error.message})`);
+  } catch (error: unknown) {
+    logError('Gemini text analysis error:', error);
+    throw createGeminiUserError(error, 'Da xay ra loi khi phan tich transcript.');
   }
 };
 
@@ -683,25 +680,8 @@ export const processMediaSession = async ({
       context,
       savedRecording,
     });
-  } catch (error: any) {
-    console.error('Gemini processing error:', error);
-
-    let userMsg = 'Da xay ra loi khi xu ly file.';
-    const errorStr = `${error?.message || ''}`.toLowerCase();
-
-    if (errorStr.includes('413')) userMsg = 'File qua lon so voi gioi han cua AI.';
-    if (errorStr.includes('fetch') || errorStr.includes('network')) {
-      userMsg = 'Loi ket noi mang. Vui long kiem tra internet.';
-    }
-    if (
-      errorStr.includes('api key') ||
-      errorStr.includes('invalid_argument') ||
-      errorStr.includes('400')
-    ) {
-      userMsg = 'API Key khong hop le hoac model hien tai khong kha dung.';
-    }
-
-    throw new Error(`${userMsg} (${error.message})`);
+  } catch (error: unknown) {
+    logError('Gemini processing error:', error);
+    throw createGeminiUserError(error, 'Da xay ra loi khi xu ly file.');
   }
 };
-

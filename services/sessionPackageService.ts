@@ -11,7 +11,7 @@ import {
   createSessionWorkspaceName,
   sanitizeFileSegment,
 } from './recordingService';
-import { cacheWorkspaceSession } from './workspaceService';
+import { cacheWorkspaceSession, clearWorkspaceStorage } from './workspaceService';
 
 const STORAGE_ROOT = 'TSrecord';
 
@@ -822,7 +822,6 @@ export const downloadPresentationDeck = async ({
       y: rootY,
       w: rootW,
       h: rootH,
-      radius: 0.12,
       fill: { color: '0F172A' },
       line: { color: '0F172A', pt: 1 },
     });
@@ -892,7 +891,6 @@ export const downloadPresentationDeck = async ({
           y,
           w: branchW,
           h: branchH,
-          radius: 0.08,
           fill: { color: 'FFFFFF' },
           line: { color, pt: 1.4 },
         });
@@ -926,7 +924,6 @@ export const downloadPresentationDeck = async ({
             y: childY,
             w: childW,
             h: childH,
-            radius: 0.07,
             fill: { color: 'FFFFFF' },
             line: { color: 'CBD5E1', pt: 1 },
           });
@@ -939,7 +936,7 @@ export const downloadPresentationDeck = async ({
             fontSize: 8.5,
             color: '334155',
             align: 'center',
-            valign: 'mid',
+            valign: 'middle',
           });
         });
       });
@@ -954,6 +951,9 @@ export const downloadPresentationDeck = async ({
 
   if (Capacitor.isNativePlatform()) {
     const blob = await pptx.write({ outputType: 'blob' });
+    if (!(blob instanceof Blob)) {
+      throw new Error('Khong the tao file PPTX.');
+    }
     return downloadBlobFile({ blob, fileName: outputFileName });
   }
 
@@ -1046,25 +1046,29 @@ export const saveSessionPackage = async ({
 };
 
 export const clearAppStorage = async () => {
-  if (!Capacitor.isNativePlatform()) {
-    console.warn('Storage clearing is only supported on native platforms.');
-    return;
-  }
+  if (Capacitor.isNativePlatform()) {
+    await ensureFilesystemPermission();
 
-  await ensureFilesystemPermission();
-
-  try {
-    await Filesystem.rmdir({
-      path: 'TSrecord',
-      directory: Directory.Documents,
-      recursive: true,
-    });
-  } catch (error: any) {
-    const message = `${error?.message || ''}`.toLowerCase();
-    if (!message.includes('not found') && !message.includes('exist')) {
-      throw error;
+    try {
+      await Filesystem.rmdir({
+        path: STORAGE_ROOT,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+    } catch (error: any) {
+      const message = `${error?.message || ''}`.toLowerCase();
+      if (
+        !message.includes('not found') &&
+        !message.includes('exist') &&
+        !message.includes('no such file')
+      ) {
+        throw error;
+      }
     }
   }
+
+  await clearWorkspaceStorage();
+  await initAppStorage();
 };
 
 export const initAppStorage = async () => {
@@ -1084,7 +1088,7 @@ export const initAppStorage = async () => {
         recursive: true,
       });
     }
-  } catch (error) {
+  } catch {
     try {
       await Filesystem.mkdir({
         path: STORAGE_ROOT,

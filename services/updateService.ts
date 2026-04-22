@@ -6,8 +6,8 @@
 import { Capacitor } from '@capacitor/core';
 import { AppUpdate } from '../plugins/appUpdate';
 
-const GITHUB_OWNER = 'antonionguyen24691';
-const GITHUB_REPO = 'TSrecord';
+const GITHUB_OWNER: string = 'antonionguyen24691';
+const GITHUB_REPO: string = 'TSrecord';
 
 export interface ReleaseInfo {
   version: string;

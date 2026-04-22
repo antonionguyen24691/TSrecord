@@ -156,9 +156,9 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
 
   return (
     <div className="animate-fade-in">
-      <section className="rounded-[24px] border border-white/60 bg-white/88 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl md:rounded-[36px] md:p-8">
-        <div className="grid gap-6 xl:grid-cols-[330px_1fr]">
-          <aside className="space-y-5">
+      <section className="overflow-hidden rounded-[24px] border border-white/60 bg-white/88 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl md:rounded-[36px] md:p-8">
+        <div className="grid gap-6 xl:grid-cols-[330px_minmax(0,1fr)]">
+          <aside className="min-w-0 space-y-5">
             <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(145deg,#f8fffc,#ffffff_52%,#eef7ff)] p-5">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#0d7c66]/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.28em] text-[#0d7c66]">
                 <FolderSearch className="h-4 w-4" />
@@ -171,8 +171,8 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 Danh sách session được thu gọn. Bấm vào từng dòng để xem chi tiết hoặc mở lại phiên đã xử lý.
               </p>
 
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="col-span-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 sm:col-span-1">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                     Session
                   </div>
@@ -268,7 +268,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate text-sm font-bold">{project.name}</span>
                             {project.pinned && <Pin className="h-3.5 w-3.5 text-amber-500" />}
                           </div>
@@ -288,9 +288,9 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
             </div>
           </aside>
 
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+              <label className="block break-words text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 sm:tracking-[0.28em]">
                 Tìm theo tiêu đề, summary, action items hoặc đường dẫn
               </label>
               <div className="mt-3 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
@@ -442,15 +442,15 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                           setExpandedSessionId((current) => (current === session.id ? null : session.id));
                         }
                       }}
-                      className="flex w-full items-center justify-between gap-4 rounded-2xl p-2 text-left transition-colors hover:bg-slate-50/80"
+                      className="flex w-full flex-col gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-slate-50/80 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-[#0d7c66]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#0d7c66]">
+                          <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#0d7c66]/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#0d7c66] sm:text-[11px] sm:tracking-[0.2em]">
                             <ContextIcon className="h-3.5 w-3.5" />
                             {meta.label}
                           </span>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600">
+                          <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 sm:text-[11px] sm:tracking-[0.2em]">
                             {session.source === InputSource.RECORDING ? (
                               <Mic className="h-3.5 w-3.5" />
                             ) : (
@@ -458,29 +458,29 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                             )}
                             {sourceMeta[session.source]}
                           </span>
-                          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-[11px] sm:tracking-[0.2em]">
                             {formatDateTime(session.createdAt)}
                           </span>
                           {session.note.trim() && (
-                            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
+                            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700 sm:text-[11px] sm:tracking-[0.2em]">
                               Có session note
                             </span>
                           )}
                         </div>
 
-                        <h3 className="mt-3 truncate text-base font-black text-slate-950 md:text-lg">
+                        <h3 className="mt-3 break-words text-base font-black text-slate-950 md:text-lg">
                           {session.title}
                         </h3>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
                         <button
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             onOpenSession(session);
                           }}
-                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-bold uppercase tracking-[0.18em] text-white transition-all hover:-translate-y-0.5"
+                          className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-bold uppercase tracking-[0.16em] text-white transition-all hover:-translate-y-0.5"
                         >
                           Mở
                           <ArrowUpRight className="h-4 w-4" />

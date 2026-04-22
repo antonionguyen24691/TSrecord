@@ -14,18 +14,14 @@ export interface AssemblyAITranscriptResult {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Upload raw audio bytes lên AssemblyAI, trả về upload_url */
 const uploadAudio = async (file: File, apiKey: string): Promise<string> => {
-  const arrayBuffer = await file.arrayBuffer();
-
   const response = await fetch(`${ASSEMBLYAI_BASE}/upload`, {
     method: 'POST',
     headers: {
       authorization: apiKey,
       'content-type': 'application/octet-stream',
-      'transfer-encoding': 'chunked',
     },
-    body: arrayBuffer,
+    body: file,
   });
 
   if (!response.ok) {
@@ -80,7 +76,7 @@ const pollTranscription = async (
   apiKey: string,
   onProgress?: (status: string) => void
 ): Promise<AssemblyAITranscriptResult> => {
-  const maxAttempts = 120; // 120 × 5s = 10 phút
+  const maxAttempts = 360; // 360 × 5s = 30 phút
   const pollInterval = 5000;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
