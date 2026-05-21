@@ -114,8 +114,16 @@ const removeStoredValue = async (key: string) => {
   await Preferences.remove({ key });
 };
 
+// --- In-memory cache ---
+let _cachedSettings: AiSettings | null = null;
+
+export const invalidateSettingsCache = () => {
+  _cachedSettings = null;
+};
+
 // --- Public API ---
 export const loadAiSettings = async (): Promise<AiSettings> => {
+  if (_cachedSettings) return _cachedSettings;
   const [
     apiKeyResult,
     legacyModelIdResult,
@@ -186,7 +194,7 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
   const chunkStaggerSeconds = Number(chunkStaggerSecondsResult);
   const chunkConcurrency = Number(chunkConcurrencyResult);
 
-  return {
+  const settings: AiSettings = {
     apiKey: apiKeyResult,
     realtimeModelId: sanitizeModelId(realtimeModelIdResult, DEFAULT_REALTIME_MODEL_ID),
     analysisModelId: sanitizeModelId(analysisModelIdResult, DEFAULT_ANALYSIS_MODEL_ID),
@@ -233,6 +241,9 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
         ? Math.round(chunkConcurrency)
         : DEFAULT_CHUNK_CONCURRENCY,
   };
+
+  _cachedSettings = settings;
+  return settings;
 };
 
 export const saveAiSettings = async ({
@@ -254,6 +265,8 @@ export const saveAiSettings = async ({
   chunkStaggerSeconds,
   chunkConcurrency,
 }: AiSettings) => {
+  invalidateSettingsCache();
+
   await Promise.all([
     setStoredValue(API_KEY_KEY, apiKey.trim()),
     setStoredValue(MODEL_ID_KEY, analysisModelId.trim() || DEFAULT_ANALYSIS_MODEL_ID),

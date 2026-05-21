@@ -26,6 +26,7 @@ import {
   downloadTextFile,
   saveSessionPackage,
 } from '../services/sessionPackageService';
+import { getAppStorageLabel, getLegacyStorageLabel } from '../services/storagePaths';
 
 interface StepExportProps {
   analysis: SessionAnalysis;
@@ -358,7 +359,7 @@ export const StepExport: React.FC<StepExportProps> = ({
 
             <h3 className="mt-3 sm:mt-4 text-xl sm:text-2xl font-black">Lưu toàn bộ phiên xuống thiết bị</h3>
             <p className="mt-2 sm:mt-3 text-xs sm:text-sm leading-5 sm:leading-6 text-white/68 text-justify">
-              Mọi dữ liệu đã được <b>tự động lưu</b> vào thư mục <b>Documents/TSrecord</b>. Bạn có thể nhấn nút dưới đây để tạo lại cấu trúc thư mục hoặc chia sẻ thủ công nếu cần.
+              Mọi dữ liệu đã được <b>tự động lưu</b> vào <b>{getAppStorageLabel()}</b> để ứng dụng mở lại và xóa ổn định hơn. Khi cần chia sẻ ra ngoài, app sẽ tạo file export riêng trong thư mục công khai. Dữ liệu cũ ở <b>{getLegacyStorageLabel()}</b> chỉ còn được giữ để dọn chuyển tiếp nếu máy vẫn còn.
             </p>
 
             <button

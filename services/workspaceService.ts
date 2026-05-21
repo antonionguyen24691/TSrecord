@@ -10,8 +10,11 @@ import {
   WorkspaceProject,
   WorkspaceSessionSummary,
 } from '../types';
-
-const STORAGE_ROOT = 'TSrecord';
+import {
+  getAppStorageDirectory,
+  getAppStorageLabel,
+  STORAGE_ROOT,
+} from './storagePaths';
 const SESSION_CACHE_INDEX_KEY = 'tsrecord.workspace.index.v1';
 const SESSION_CACHE_ITEM_PREFIX = 'tsrecord.workspace.session.';
 const PROJECTS_STORAGE_KEY = 'tsrecord.workspace.projects.v1';
@@ -190,7 +193,7 @@ const readTextFile = async (path: string) => {
   try {
     const result = await Filesystem.readFile({
       path,
-      directory: Directory.Documents,
+      directory: getAppStorageDirectory(),
       encoding: Encoding.UTF8,
     });
 
@@ -267,7 +270,7 @@ const loadNativeWorkspaceSession = async (workspacePath: string): Promise<Sessio
             path: metadata.recordingPath,
             uri: '',
             workspacePath,
-            directoryLabel: `Documents/${STORAGE_ROOT}`,
+            directoryLabel: getAppStorageLabel(),
           }
         : null,
       originalFileName: metadata.originalFileName,
@@ -285,7 +288,7 @@ const listNativeWorkspaceSessions = async () => {
   try {
     const root = await Filesystem.readdir({
       path: STORAGE_ROOT,
-      directory: Directory.Documents,
+      directory: getAppStorageDirectory(),
     });
 
     const workspaceNames = root.files

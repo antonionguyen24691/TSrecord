@@ -10,12 +10,15 @@ import {
   X,
 } from 'lucide-react';
 import { SessionContext } from '../types';
+import { AttachmentManager } from './AttachmentManager';
 
 interface StepUploadProps {
   sessionContext: SessionContext;
   setSessionContext: (context: SessionContext) => void;
   file: File | null;
   setFile: (file: File | null) => void;
+  additionalFiles: File[];
+  setAdditionalFiles: (files: File[]) => void;
   onNext: () => void;
 }
 
@@ -44,6 +47,8 @@ export const StepUpload: React.FC<StepUploadProps> = ({
   setSessionContext,
   file,
   setFile,
+  additionalFiles,
+  setAdditionalFiles,
   onNext,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -208,6 +213,11 @@ export const StepUpload: React.FC<StepUploadProps> = ({
             </div>
           </div>
         )}
+        
+        <AttachmentManager
+          additionalFiles={additionalFiles}
+          setAdditionalFiles={setAdditionalFiles}
+        />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 p-4 backdrop-blur md:static md:mt-8 md:border-0 md:bg-transparent md:p-0">

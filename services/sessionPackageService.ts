@@ -11,9 +11,15 @@ import {
   createSessionWorkspaceName,
   sanitizeFileSegment,
 } from './recordingService';
+import {
+  getAppStorageDirectory,
+  getAppStorageLabel,
+  getExportDirectory,
+  getLegacyStorageLabel,
+  LEGACY_PUBLIC_STORAGE_ROOT,
+  STORAGE_ROOT,
+} from './storagePaths';
 import { cacheWorkspaceSession, clearWorkspaceStorage } from './workspaceService';
-
-const STORAGE_ROOT = 'TSrecord';
 
 const labelSource = (source: InputSource) =>
   source === InputSource.RECORDING ? 'Ghi âm trực tiếp' : 'Tải file có sẵn';
@@ -32,7 +38,7 @@ const ensureDirectory = async (path: string) => {
   try {
     await Filesystem.mkdir({
       path,
-      directory: Directory.Documents,
+      directory: getAppStorageDirectory(),
       recursive: true,
     });
   } catch (error: any) {
@@ -57,7 +63,7 @@ const writeTextFile = async (path: string, content: string) => {
   await Filesystem.writeFile({
     path,
     data: content,
-    directory: Directory.Documents,
+    directory: getAppStorageDirectory(),
     encoding: Encoding.UTF8,
     recursive: true,
   });
@@ -88,14 +94,14 @@ const saveNativeExportText = async ({
   await Filesystem.writeFile({
     path: exportPath,
     data: content,
-    directory: Directory.Documents,
+    directory: getExportDirectory(),
     encoding: Encoding.UTF8,
     recursive: true,
   });
 
   const uriResult = await Filesystem.getUri({
     path: exportPath,
-    directory: Directory.Documents,
+    directory: getExportDirectory(),
   });
 
   return {
@@ -122,13 +128,13 @@ const saveNativeExportBlob = async ({
   await Filesystem.writeFile({
     path: exportPath,
     data: await blobToBase64(blob),
-    directory: Directory.Documents,
+    directory: getExportDirectory(),
     recursive: true,
   });
 
   const uriResult = await Filesystem.getUri({
     path: exportPath,
-    directory: Directory.Documents,
+    directory: getExportDirectory(),
   });
 
   return {
@@ -1032,7 +1038,7 @@ export const saveSessionPackage = async ({
 
   const uriResult = await Filesystem.getUri({
     path: reportPath,
-    directory: Directory.Documents,
+    directory: getAppStorageDirectory(),
   });
 
   return {
@@ -1040,7 +1046,7 @@ export const saveSessionPackage = async ({
     path: reportPath,
     uri: uriResult.uri,
     workspacePath,
-    directoryLabel: `Documents/TSrecord`,
+    directoryLabel: getAppStorageLabel(),
     webPath: Capacitor.convertFileSrc(uriResult.uri),
   };
 };
@@ -1050,20 +1056,17 @@ export const clearAppStorage = async () => {
     await ensureFilesystemPermission();
 
     try {
-      await Filesystem.rmdir({
-        path: STORAGE_ROOT,
-        directory: Directory.Documents,
-        recursive: true,
-      });
-    } catch (error: any) {
-      const message = `${error?.message || ''}`.toLowerCase();
-      if (
-        !message.includes('not found') &&
-        !message.includes('exist') &&
-        !message.includes('no such file')
-      ) {
+      await removeDirectoryRecursively(STORAGE_ROOT, getAppStorageDirectory());
+    } catch (error: unknown) {
+      if (!isFilesystemNotFoundError(error)) {
         throw error;
       }
+    }
+
+    try {
+      await removeDirectoryRecursively(LEGACY_PUBLIC_STORAGE_ROOT, Directory.Documents);
+    } catch (error) {
+      console.warn('Legacy public storage cleanup skipped:', error);
     }
   }
 
@@ -1077,14 +1080,14 @@ export const initAppStorage = async () => {
   try {
     const root = await Filesystem.readdir({
       path: '',
-      directory: Directory.Documents,
+      directory: getAppStorageDirectory(),
     });
 
     const rootExists = root.files.some((f) => f.name === STORAGE_ROOT);
     if (!rootExists) {
       await Filesystem.mkdir({
         path: STORAGE_ROOT,
-        directory: Directory.Documents,
+        directory: getAppStorageDirectory(),
         recursive: true,
       });
     }
@@ -1092,11 +1095,109 @@ export const initAppStorage = async () => {
     try {
       await Filesystem.mkdir({
         path: STORAGE_ROOT,
-        directory: Directory.Documents,
+        directory: getAppStorageDirectory(),
         recursive: true,
       });
     } catch (e) {
       console.error('Failed to init storage:', e);
+    }
+  }
+};
+
+const getFilesystemErrorMessage = (error: unknown) =>
+  `${(error as { message?: string } | null)?.message || ''}`.toLowerCase();
+
+const isFilesystemNotFoundError = (error: unknown) => {
+  const message = getFilesystemErrorMessage(error);
+  return (
+    message.includes('not found') ||
+    message.includes('no such file') ||
+    message.includes('does not exist') ||
+    message.includes('file does not exist') ||
+    message.includes('folder does not exist')
+  );
+};
+
+const removeDirectoryRecursively = async (
+  path: string,
+  directory: Directory
+): Promise<void> => {
+  let entries: Array<{ name: string; type?: string }> = [];
+
+  try {
+    const result = await Filesystem.readdir({
+      path,
+      directory,
+    });
+    entries = result.files;
+  } catch (error) {
+    if (isFilesystemNotFoundError(error)) {
+      return;
+    }
+    throw error;
+  }
+
+  for (const entry of entries) {
+    const childPath = `${path}/${entry.name}`;
+    const entryType = entry.type?.toLowerCase();
+
+    if (entryType === 'directory') {
+      await removeDirectoryRecursively(childPath, directory);
+      continue;
+    }
+
+    if (entryType === 'file') {
+      try {
+        await Filesystem.deleteFile({
+          path: childPath,
+          directory,
+        });
+      } catch (error) {
+        if (!isFilesystemNotFoundError(error)) {
+          throw error;
+        }
+      }
+      continue;
+    }
+
+    try {
+      const stat = await Filesystem.stat({
+        path: childPath,
+        directory,
+      });
+
+      if (stat.type === 'directory') {
+        await removeDirectoryRecursively(childPath, directory);
+        continue;
+      }
+    } catch (error) {
+      if (isFilesystemNotFoundError(error)) {
+        continue;
+      }
+      throw error;
+    }
+
+    try {
+      await Filesystem.deleteFile({
+        path: childPath,
+        directory,
+      });
+    } catch (error) {
+      if (isFilesystemNotFoundError(error)) {
+        continue;
+      }
+      await removeDirectoryRecursively(childPath, directory);
+    }
+  }
+
+  try {
+    await Filesystem.rmdir({
+      path,
+      directory,
+    });
+  } catch (error) {
+    if (!isFilesystemNotFoundError(error)) {
+      throw error;
     }
   }
 };

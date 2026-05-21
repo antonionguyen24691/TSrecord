@@ -25,6 +25,7 @@ import {
   saveAiSettings,
 } from '../services/aiSettingsService';
 import { clearAppStorage } from '../services/sessionPackageService';
+import { getAppStorageLabel, getLegacyStorageLabel } from '../services/storagePaths';
 import { HardDrive, Trash2 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -892,11 +893,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </label>
                 <div className="rounded-lg border border-gray-200 bg-white p-3">
                   <code className="text-xs font-mono text-gray-600 break-all">
-                    Documents/TSrecord
+                    {getAppStorageLabel()}
                   </code>
                 </div>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  Tất cả file ghi âm, transcript và bản phân tích được lưu tại thư mục này trong bộ nhớ máy của bạn. Bạn có thể truy cập qua ứng dụng Quản lý file trên Android.
+                  File ghi âm, transcript và dữ liệu làm việc hiện được lưu trong bộ nhớ nội bộ của ứng dụng để thao tác xóa và phục hồi ổn định hơn. Chỉ các file export hoặc file chia sẻ thủ công mới được ghi ra thư mục công khai mà bạn có thể mở bằng ứng dụng quản lý file.
                 </p>
               </div>
 
@@ -906,7 +907,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Khu vực nguy hiểm
                 </label>
                 <p className="text-xs text-rose-700">
-                  Hành động này sẽ xóa vĩnh viễn toàn bộ thư mục <b>TSrecord</b>, bao gồm tất cả các bản ghi âm và kết quả đã lưu. Hành động này không thể hoàn tác.
+                  Hành động này sẽ xóa vĩnh viễn toàn bộ dữ liệu nội bộ của ứng dụng trong <b>{getAppStorageLabel()}</b>. Ứng dụng cũng sẽ cố gắng dọn dữ liệu cũ còn nằm ở <b>{getLegacyStorageLabel()}</b> nếu có. Hành động này không thể hoàn tác.
                 </p>
                 <button
                   onClick={async () => {

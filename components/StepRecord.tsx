@@ -27,6 +27,7 @@ import {
   saveRecordingToDevice,
   startRecordingStream,
 } from '../services/recordingService';
+import { AttachmentManager } from './AttachmentManager';
 
 interface StepRecordProps {
   sessionContext: SessionContext;
@@ -35,6 +36,8 @@ interface StepRecordProps {
   setFile: (file: File | null) => void;
   savedRecording: SavedDeviceFile | null;
   setSavedRecording: (file: SavedDeviceFile | null) => void;
+  additionalFiles: File[];
+  setAdditionalFiles: (files: File[]) => void;
   onNext: () => void;
 }
 
@@ -51,6 +54,7 @@ interface LiveMeetingState {
 }
 
 const LIVE_CHUNK_TIMESLICE_MS = 15000;
+const STORAGE_CHUNK_TIMESLICE_MS = 60000;
 
 const createEmptyLiveMeetingState = (statusMessage: string): LiveMeetingState => ({
   status: 'idle',
@@ -95,6 +99,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
   setFile,
   savedRecording,
   setSavedRecording,
+  additionalFiles,
+  setAdditionalFiles,
   onNext,
 }) => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -384,7 +390,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       if (sessionContext === SessionContext.MEETING) {
         recorder.start(LIVE_CHUNK_TIMESLICE_MS);
       } else {
-        recorder.start();
+        recorder.start(STORAGE_CHUNK_TIMESLICE_MS);
       }
 
       setRecordingSeconds(0);
@@ -704,6 +710,11 @@ export const StepRecord: React.FC<StepRecordProps> = ({
             </div>
           )}
         </section>
+
+        <AttachmentManager
+          additionalFiles={additionalFiles}
+          setAdditionalFiles={setAdditionalFiles}
+        />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 p-4 backdrop-blur md:static md:mt-8 md:border-0 md:bg-transparent md:p-0">

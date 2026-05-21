@@ -5,6 +5,8 @@
  * Free tier: có giới hạn RPM/RPD nhưng dùng cá nhân vẫn ổn.
  */
 
+import { ExtractionMode } from '../types';
+
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
 const MAX_FILE_SIZE_MB = 25;
 
@@ -15,7 +17,8 @@ const MAX_FILE_SIZE_MB = 25;
 export const transcribeWithGroq = async (
   file: File,
   apiKey: string,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  mode: ExtractionMode = ExtractionMode.TIMELINE
 ): Promise<string> => {
   if (!apiKey) {
     throw new Error('Chưa cấu hình Groq API Key. Vui lòng vào Cài đặt để nhập key.');
@@ -64,6 +67,11 @@ export const transcribeWithGroq = async (
   // verbose_json trả về segments với timestamps
   if (data.segments && data.segments.length > 0) {
     const segments = data.segments as Array<{ start: number; text: string }>;
+
+    if (mode === ExtractionMode.PLAIN) {
+      return segments.map((seg) => seg.text.trim()).filter(Boolean).join(' ');
+    }
+
     return segments
       .map((seg) => {
         const totalSecs = Math.floor(seg.start);

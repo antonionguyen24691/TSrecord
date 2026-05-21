@@ -70,7 +70,7 @@ const submitTranscription = async (
   return data.id as string;
 };
 
-/** Poll trạng thái job đến khi completed hoặc error, tối đa 10 phút */
+/** Poll trạng thái job đến khi completed hoặc error, tối đa 30 phút */
 const pollTranscription = async (
   transcriptId: string,
   apiKey: string,
@@ -118,7 +118,7 @@ const pollTranscription = async (
     // status: 'queued' | 'processing' — tiếp tục poll
   }
 
-  throw new Error('AssemblyAI quá thời gian chờ (10 phút). Vui lòng thử lại với file nhỏ hơn.');
+  throw new Error('AssemblyAI quá thời gian chờ (30 phút). Vui lòng thử lại với file nhỏ hơn.');
 };
 
 /**

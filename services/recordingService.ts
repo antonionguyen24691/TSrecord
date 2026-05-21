@@ -3,6 +3,11 @@ import { Directory, Filesystem } from '@capacitor/filesystem';
 import { MicrophonePermission } from '../plugins/microphonePermission';
 import { SavedDeviceFile } from '../types';
 import {
+  getAppStorageDirectory,
+  getAppStorageLabel,
+  STORAGE_ROOT,
+} from './storagePaths';
+import {
   AiSettings,
   DEFAULT_AUTO_GAIN_LEVEL,
   DEFAULT_ECHO_CANCELLATION_LEVEL,
@@ -15,7 +20,6 @@ import {
   loadAiSettings,
 } from './aiSettingsService';
 
-const STORAGE_ROOT = 'TSrecord';
 const AUDIO_DIRECTORY = 'media';
 const PREFERRED_MIME_TYPES = [
   'audio/webm;codecs=opus',
@@ -260,7 +264,7 @@ const ensureDirectory = async (path: string) => {
   try {
     await Filesystem.mkdir({
       path,
-      directory: Directory.Documents,
+      directory: getAppStorageDirectory(),
       recursive: true,
     });
   } catch (error: any) {
@@ -358,13 +362,13 @@ export const saveRecordingToDevice = async ({
   await Filesystem.writeFile({
     path: filePath,
     data,
-    directory: Directory.Documents,
+    directory: getAppStorageDirectory(),
     recursive: true,
   });
 
   const uriResult = await Filesystem.getUri({
     path: filePath,
-    directory: Directory.Documents,
+    directory: getAppStorageDirectory(),
   });
 
   return {
@@ -372,7 +376,7 @@ export const saveRecordingToDevice = async ({
     path: filePath,
     uri: uriResult.uri,
     workspacePath,
-    directoryLabel: `Documents/${STORAGE_ROOT}`,
+    directoryLabel: getAppStorageLabel(),
     webPath: Capacitor.convertFileSrc(uriResult.uri),
   };
 };

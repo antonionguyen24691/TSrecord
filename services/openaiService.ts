@@ -5,6 +5,8 @@
  * Không có free tier — cần nạp tiền tài khoản.
  */
 
+import { ExtractionMode } from '../types';
+
 const OPENAI_BASE = 'https://api.openai.com/v1';
 const MAX_FILE_SIZE_MB = 25;
 
@@ -12,7 +14,8 @@ const MAX_FILE_SIZE_MB = 25;
 export const transcribeWithOpenAI = async (
   file: File,
   apiKey: string,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  mode: ExtractionMode = ExtractionMode.TIMELINE
 ): Promise<string> => {
   if (!apiKey) {
     throw new Error('Chưa cấu hình OpenAI API Key. Vui lòng vào Cài đặt để nhập key.');
@@ -66,6 +69,11 @@ export const transcribeWithOpenAI = async (
 
   if (data.segments && data.segments.length > 0) {
     const segments = data.segments as Array<{ start: number; text: string }>;
+
+    if (mode === ExtractionMode.PLAIN) {
+      return segments.map((seg) => seg.text.trim()).filter(Boolean).join(' ');
+    }
+
     return segments
       .map((seg) => {
         const totalSecs = Math.floor(seg.start);

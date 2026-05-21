@@ -521,6 +521,9 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
   );
   const [graphNodes, setGraphNodes] = useState<MindmapRenderNode[]>(initialLayout.nodes);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
+  const svgRef = useRef<SVGSVGElement>(null);
+  const transformGroupRef = useRef<SVGGElement>(null);
+  const viewportRef = useRef({ x: 0, y: 0, scale: 1 });
   const dragRef = useRef<
     | {
         type: 'node';
@@ -538,21 +541,27 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
     | null
   >(null);
 
+  // Lưu vết pointer cho đa điểm trên điện thoại
+  const activePointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map());
+  const initialPinchDistanceRef = useRef<number>(0);
+  const initialPinchViewportRef = useRef<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
+
   useEffect(() => {
     setGraphNodes(initialLayout.nodes);
-    setViewport({ x: 0, y: 0, scale: 1 });
+    const resetVp = { x: 0, y: 0, scale: 1 };
+    setViewport(resetVp);
+    viewportRef.current = resetVp;
   }, [initialLayout]);
 
   const strokeForDepth = (depth: number) => {
-    const palette = ['#0f172a', '#2563eb', '#0d9488', '#f59e0b', '#ec4899', '#8b5cf6'];
+    const palette = ['#0f172a', '#0d7c66', '#2563eb', '#f59e0b', '#ec4899', '#8b5cf6'];
     return palette[Math.min(depth, palette.length - 1)];
   };
+
   const nodeById = useMemo(
     () => new Map(graphNodes.map((node) => [node.id, node])),
     [graphNodes]
   );
-
-  if (!tree) return <EmptyArtifactState message="Khong co du lieu mindmap de render." />;
 
   const isVisibleNode = (node: MindmapRenderNode) => {
     let currentParentId = node.parentId;
@@ -581,217 +590,392 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
     );
   };
 
-  const svgPoint = (
-    event: React.PointerEvent<SVGSVGElement> | React.WheelEvent<SVGSVGElement>
-  ) => {
-    const svg = event.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const clientX = 'clientX' in event ? event.clientX : 0;
-    const clientY = 'clientY' in event ? event.clientY : 0;
-    return {
-      x: (clientX - rect.left - viewport.x) / viewport.scale,
-      y: (clientY - rect.top - viewport.y) / viewport.scale,
-    };
+  const applyViewportTransform = () => {
+    if (!transformGroupRef.current) return;
+    const { x, y, scale } = viewportRef.current;
+    transformGroupRef.current.setAttribute('transform', `translate(${x} ${y}) scale(${scale})`);
   };
 
-  const handlePointerDown =
-    (nodeId?: string) => (event: React.PointerEvent<SVGSVGElement | SVGGElement>) => {
-      if (nodeId) {
-        const node = nodeById.get(nodeId);
-        if (!node) return;
-        event.stopPropagation();
-        const target = event.currentTarget;
-        const svg = target instanceof SVGSVGElement ? target : target.ownerSVGElement;
-        if (!svg) return;
-        const rect = svg.getBoundingClientRect();
-        const x = (event.clientX - rect.left - viewport.x) / viewport.scale;
-        const y = (event.clientY - rect.top - viewport.y) / viewport.scale;
-        dragRef.current = {
-          type: 'node',
-          nodeId,
-          offsetX: x - node.x,
-          offsetY: y - node.y,
-        };
-      } else {
-        dragRef.current = {
-          type: 'canvas',
-          startX: event.clientX,
-          startY: event.clientY,
-          originX: viewport.x,
-          originY: viewport.y,
-        };
-      }
-    };
+  const handlePointerDown = (nodeId?: string) => (event: React.PointerEvent<SVGSVGElement | SVGGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
 
-  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    const dragState = dragRef.current;
-    if (!dragState) return;
+    activePointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+    svg.setPointerCapture(event.pointerId);
 
-    if (dragState.type === 'canvas') {
-      setViewport((current) => ({
-        ...current,
-        x: dragState.originX + (event.clientX - dragState.startX),
-        y: dragState.originY + (event.clientY - dragState.startY),
-      }));
+    // Bắt đầu chụm ngón tay thu phóng (2 điểm chạm trở lên)
+    if (activePointersRef.current.size >= 2) {
+      const pointers = Array.from(activePointersRef.current.values());
+      const dx = pointers[0].clientX - pointers[1].clientX;
+      const dy = pointers[0].clientY - pointers[1].clientY;
+      initialPinchDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+      initialPinchViewportRef.current = { ...viewportRef.current };
+      dragRef.current = null; // Huỷ bỏ kéo thả thông thường
       return;
     }
 
-    const point = svgPoint(event);
-    setGraphNodes((current) =>
-      current.map((node) =>
-        node.id === dragState.nodeId
-          ? {
-              ...node,
-              x: point.x - dragState.offsetX,
-              y: point.y - dragState.offsetY,
-            }
-          : node
-      )
-    );
+    // Luồng di chuyển/kéo thả đơn điểm
+    if (nodeId) {
+      const node = nodeById.get(nodeId);
+      if (!node) return;
+      event.stopPropagation();
+      const rect = svg.getBoundingClientRect();
+      const vp = viewportRef.current;
+      const x = (event.clientX - rect.left - vp.x) / vp.scale;
+      const y = (event.clientY - rect.top - vp.y) / vp.scale;
+      dragRef.current = {
+        type: 'node',
+        nodeId,
+        offsetX: x - node.x,
+        offsetY: y - node.y,
+      };
+      svg.style.cursor = 'grabbing';
+    } else {
+      dragRef.current = {
+        type: 'canvas',
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: viewportRef.current.x,
+        originY: viewportRef.current.y,
+      };
+      svg.style.cursor = 'grabbing';
+    }
   };
 
-  const stopDragging = () => {
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (activePointersRef.current.has(event.pointerId)) {
+      activePointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+    }
+
+    // 1. Phóng to thu nhỏ bằng 2 ngón (Pinch-to-zoom)
+    if (activePointersRef.current.size === 2 && initialPinchDistanceRef.current > 0) {
+      const pointers = Array.from(activePointersRef.current.values());
+      const dx = pointers[0].clientX - pointers[1].clientX;
+      const dy = pointers[0].clientY - pointers[1].clientY;
+      const currentDistance = Math.sqrt(dx * dx + dy * dy);
+      const ratio = currentDistance / initialPinchDistanceRef.current;
+      const nextScale = Math.min(2.5, Math.max(0.3, initialPinchViewportRef.current.scale * ratio));
+
+      // Điểm tâm giữa 2 điểm chạm
+      const midX = (pointers[0].clientX + pointers[1].clientX) / 2;
+      const midY = (pointers[0].clientY + pointers[1].clientY) / 2;
+
+      const svg = svgRef.current;
+      if (svg) {
+        const rect = svg.getBoundingClientRect();
+        const px = (midX - rect.left - initialPinchViewportRef.current.x) / initialPinchViewportRef.current.scale;
+        const py = (midY - rect.top - initialPinchViewportRef.current.y) / initialPinchViewportRef.current.scale;
+
+        viewportRef.current = {
+          scale: nextScale,
+          x: midX - rect.left - px * nextScale,
+          y: midY - rect.top - py * nextScale,
+        };
+        applyViewportTransform();
+        setViewport({ ...viewportRef.current });
+      }
+      return;
+    }
+
+    const dragState = dragRef.current;
+    if (!dragState) return;
+
+    // 2. Kéo thả di chuyển Canvas nền
+    if (dragState.type === 'canvas') {
+      const dx = event.clientX - dragState.startX;
+      const dy = event.clientY - dragState.startY;
+      viewportRef.current = {
+        ...viewportRef.current,
+        x: dragState.originX + dx,
+        y: dragState.originY + dy,
+      };
+      applyViewportTransform();
+      setViewport({ ...viewportRef.current });
+      return;
+    }
+
+    // 3. Kéo thả dịch chuyển Node
+    if (dragState.type === 'node') {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const vp = viewportRef.current;
+      const px = (event.clientX - rect.left - vp.x) / vp.scale;
+      const py = (event.clientY - rect.top - vp.y) / vp.scale;
+
+      setGraphNodes((current) =>
+        current.map((node) =>
+          node.id === dragState.nodeId
+            ? {
+                ...node,
+                x: px - dragState.offsetX,
+                y: py - dragState.offsetY,
+              }
+            : node
+        )
+      );
+    }
+  };
+
+  const stopDragging = (event: React.PointerEvent<SVGSVGElement>) => {
+    activePointersRef.current.delete(event.pointerId);
+
+    if (activePointersRef.current.size < 2) {
+      initialPinchDistanceRef.current = 0;
+    }
+
+    const svg = svgRef.current;
+    if (svg) {
+      try {
+        svg.releasePointerCapture(event.pointerId);
+      } catch (e) {
+        // Ignore pointer capture release error if pointer was not captured
+      }
+      svg.style.cursor = 'grab';
+    }
+
     dragRef.current = null;
+    setViewport({ ...viewportRef.current });
   };
 
-  const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
-    event.preventDefault();
-    const point = svgPoint(event);
-    const nextScale = Math.min(1.8, Math.max(0.55, viewport.scale + (event.deltaY < 0 ? 0.08 : -0.08)));
-    setViewport((current) => ({
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const vp = viewportRef.current;
+      const px = (event.clientX - rect.left - vp.x) / vp.scale;
+      const py = (event.clientY - rect.top - vp.y) / vp.scale;
+      const delta = event.deltaY < 0 ? 0.08 : -0.08;
+      const nextScale = Math.min(2.5, Math.max(0.3, vp.scale + delta));
+
+      viewportRef.current = {
+        scale: nextScale,
+        x: vp.x - px * (nextScale - vp.scale),
+        y: vp.y - py * (nextScale - vp.scale),
+      };
+      applyViewportTransform();
+      setViewport({ ...viewportRef.current });
+    };
+
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const handleZoomIn = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const midX = rect.width / 2;
+    const midY = rect.height / 2;
+    const vp = viewportRef.current;
+    const px = (midX - vp.x) / vp.scale;
+    const py = (midY - vp.y) / vp.scale;
+    const nextScale = Math.min(2.5, vp.scale + 0.15);
+
+    viewportRef.current = {
       scale: nextScale,
-      x: current.x - point.x * (nextScale - current.scale),
-      y: current.y - point.y * (nextScale - current.scale),
-    }));
+      x: midX - px * nextScale,
+      y: midY - py * nextScale,
+    };
+    applyViewportTransform();
+    setViewport({ ...viewportRef.current });
   };
+
+  const handleZoomOut = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const midX = rect.width / 2;
+    const midY = rect.height / 2;
+    const vp = viewportRef.current;
+    const px = (midX - vp.x) / vp.scale;
+    const py = (midY - vp.y) / vp.scale;
+    const nextScale = Math.max(0.3, vp.scale - 0.15);
+
+    viewportRef.current = {
+      scale: nextScale,
+      x: midX - px * nextScale,
+      y: midY - py * nextScale,
+    };
+    applyViewportTransform();
+    setViewport({ ...viewportRef.current });
+  };
+
+  const handleZoomReset = () => {
+    const resetVp = { x: 0, y: 0, scale: 1 };
+    viewportRef.current = resetVp;
+    applyViewportTransform();
+    setViewport(resetVp);
+  };
+
+  if (!tree) {
+    return <EmptyArtifactState message="Không có dữ liệu mindmap để render." />;
+  }
 
   return (
-    <div className="rounded-[20px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_#ecfeff,_#ffffff_55%)] p-[4px]">
-      <div className="mb-[4px] flex flex-wrap items-center justify-between gap-[4px] px-[4px] py-[4px] text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        <span>Mindmap canvas</span>
-        <div className="flex items-center gap-[4px]">
-          <button
-            type="button"
-            onClick={() => setViewport({ x: 0, y: 0, scale: 1 })}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700"
-          >
-            Reset view
-          </button>
-        </div>
+    <div className="relative rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_#f8fafc,_#ffffff_75%)] shadow-inner overflow-hidden p-1">
+      {/* Zoom and status toolbar */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-md backdrop-blur">
+        <button
+          type="button"
+          onClick={handleZoomIn}
+          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 font-black text-sm text-slate-800 transition-all active:scale-95"
+          title="Phóng to"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={handleZoomOut}
+          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 font-black text-sm text-slate-800 transition-all active:scale-95"
+          title="Thu nhỏ"
+        >
+          −
+        </button>
+        <div className="h-4 w-[1px] bg-slate-200 mx-1" />
+        <button
+          type="button"
+          onClick={handleZoomReset}
+          className="rounded-lg hover:bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition-all active:scale-95"
+          title="Khôi phục mặc định"
+        >
+          Mặc định
+        </button>
       </div>
+
+      <div className="absolute top-4 left-4 z-10 hidden sm:flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 backdrop-blur">
+        <div className="h-1.5 w-1.5 rounded-full bg-[#0d7c66] animate-pulse" />
+        Hỗ trợ kéo thả & Zoom đa điểm (Pinch)
+      </div>
+
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${initialLayout.width} ${initialLayout.height}`}
-        className="h-[620px] w-full touch-none rounded-[16px] bg-white"
+        className="h-[580px] w-full touch-none bg-white transition-colors"
+        style={{ cursor: 'grab' }}
         role="img"
         aria-label="Mindmap visualization"
         onPointerDown={handlePointerDown()}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDragging}
         onPointerLeave={stopDragging}
-        onWheel={handleWheel}
+        onPointerCancel={stopDragging}
       >
         <g
+          ref={transformGroupRef}
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
-          style={{ transition: dragRef.current?.type === 'node' ? 'none' : 'transform 180ms ease-out' }}
         >
-        {visibleEdges.map((edge, index) => {
-          const from = visibleNodeMap.get(edge.from);
-          const to = visibleNodeMap.get(edge.to);
-          if (!from || !to) return null;
-          const midpoint = (from.x + to.x) / 2;
-          const curve = `M ${from.x} ${from.y} C ${midpoint} ${from.y}, ${midpoint} ${to.y}, ${to.x} ${to.y}`;
-          return (
-            <path
-              key={`edge-${index}`}
-              d={curve}
-              fill="none"
-              stroke={strokeForDepth(to.depth)}
-              strokeWidth={2.6}
-              opacity={0.82}
-              strokeLinecap="round"
-            />
-          );
-        })}
-
-        {visibleNodes.map((node) => {
-          const isRoot = node.depth === 0;
-          const hasChildren = node.childIds.length > 0;
-          const width = isRoot ? 240 : 210;
-          const height = isRoot ? 72 : 60;
-          const x = node.x - width / 2;
-          const y = node.y - height / 2;
-          const fill = isRoot ? '#0f172a' : '#ffffff';
-          const textColor = isRoot ? '#ffffff' : '#0f172a';
-          const border = isRoot ? '#0f172a' : strokeForDepth(node.depth);
-
-          return (
-            <g
-              key={node.id}
-              onPointerDown={handlePointerDown(node.id)}
-              style={{ cursor: 'grab', transition: 'transform 180ms ease-out' }}
-            >
-              <rect
-                x={x}
-                y={y}
-                width={width}
-                height={height}
-                rx={18}
-                ry={18}
-                fill={fill}
-                stroke={border}
-                strokeWidth={isRoot ? 0 : 2.2}
-                filter={isRoot ? 'drop-shadow(0px 14px 18px rgba(15,23,42,0.22))' : 'drop-shadow(0px 10px 12px rgba(15,23,42,0.08))'}
+          {visibleEdges.map((edge, index) => {
+            const from = visibleNodeMap.get(edge.from);
+            const to = visibleNodeMap.get(edge.to);
+            if (!from || !to) return null;
+            const midpoint = (from.x + to.x) / 2;
+            const curve = `M ${from.x} ${from.y} C ${midpoint} ${from.y}, ${midpoint} ${to.y}, ${to.x} ${to.y}`;
+            return (
+              <path
+                key={`edge-${index}`}
+                d={curve}
+                fill="none"
+                stroke={strokeForDepth(to.depth)}
+                strokeWidth={2.8}
+                opacity={0.7}
+                strokeLinecap="round"
+                className="transition-all duration-300"
               />
-              {hasChildren && (
-                <>
-                  <circle
-                    cx={node.side <= 0 ? x + width - 18 : x + 18}
-                    cy={y + 18}
-                    r={10}
-                    fill={isRoot ? '#7af2d1' : '#f8fafc'}
-                    stroke={border}
-                    strokeWidth={1.5}
+            );
+          })}
+
+          {visibleNodes.map((node) => {
+            const isRoot = node.depth === 0;
+            const hasChildren = node.childIds.length > 0;
+            const width = isRoot ? 240 : 210;
+            const height = isRoot ? 72 : 60;
+            const x = node.x - width / 2;
+            const y = node.y - height / 2;
+            const fill = isRoot ? '#0f172a' : '#ffffff';
+            const textColor = isRoot ? '#ffffff' : '#1e293b';
+            const border = isRoot ? '#0f172a' : strokeForDepth(node.depth);
+
+            return (
+              <g
+                key={node.id}
+                onPointerDown={handlePointerDown(node.id)}
+                style={{ cursor: 'grab' }}
+                className="select-none active:scale-[0.98] transition-transform duration-100"
+              >
+                <rect
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
+                  rx={16}
+                  ry={16}
+                  fill={fill}
+                  stroke={border}
+                  strokeWidth={isRoot ? 0 : 2.5}
+                  filter={isRoot ? 'drop-shadow(0px 12px 20px rgba(15,23,42,0.18))' : 'drop-shadow(0px 6px 12px rgba(15,23,42,0.06))'}
+                  className="transition-all hover:stroke-[#0d7c66]"
+                />
+
+                {hasChildren && (
+                  <g
                     onClick={(event) => {
                       event.stopPropagation();
                       toggleCollapse(node.id);
                     }}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                    }}
                     style={{ cursor: 'pointer' }}
-                  />
-                  <text
-                    x={node.side <= 0 ? x + width - 18 : x + 18}
-                    y={y + 22}
-                    textAnchor="middle"
-                    fontSize="14"
-                    fontWeight="700"
-                    fill={isRoot ? '#0f172a' : border}
-                    pointerEvents="none"
+                    className="hover:scale-110 transition-transform"
                   >
-                    {node.collapsed ? '+' : '−'}
-                  </text>
-                </>
-              )}
-              <foreignObject x={x + 14} y={y + 10} width={width - 28} height={height - 18}>
-                <div
-                  style={{
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    fontFamily: 'Be Vietnam Pro, sans-serif',
-                    fontWeight: isRoot ? 800 : 700,
-                    fontSize: isRoot ? '16px' : '13px',
-                    color: textColor,
-                    lineHeight: '1.18',
-                    padding: '0 3px',
-                  }}
-                >
-                  {node.label}
-                </div>
-              </foreignObject>
-            </g>
-          );
-        })}
+                    <circle
+                      cx={node.side <= 0 ? x + width - 18 : x + 18}
+                      cy={y + height / 2}
+                      r={10}
+                      fill={isRoot ? '#7af2d1' : '#f8fafc'}
+                      stroke={border}
+                      strokeWidth={1.5}
+                    />
+                    <text
+                      x={node.side <= 0 ? x + width - 18 : x + 18}
+                      y={y + height / 2 + 4}
+                      textAnchor="middle"
+                      fontSize="13"
+                      fontWeight="bold"
+                      fill={isRoot ? '#0f172a' : border}
+                      pointerEvents="none"
+                    >
+                      {node.collapsed ? '+' : '−'}
+                    </text>
+                  </g>
+                )}
+
+                <foreignObject x={x + 14} y={y + 10} width={width - 28} height={height - 20} pointerEvents="none">
+                  <div
+                    style={{
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      fontFamily: '"Be Vietnam Pro", sans-serif',
+                      fontWeight: isRoot ? 800 : 600,
+                      fontSize: isRoot ? '15px' : '12.5px',
+                      color: textColor,
+                      lineHeight: '1.25',
+                      padding: '0 4px',
+                    }}
+                  >
+                    {node.label}
+                  </div>
+                </foreignObject>
+              </g>
+            );
+          })}
         </g>
       </svg>
     </div>

@@ -1,7 +1,7 @@
 {
   "name": "trích-xuất-âm-thanh-ai",
   "private": true,
-  "version": "1.1.95",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -22,7 +22,9 @@
     "@capacitor/share": "^8.0.0",
     "@google/genai": "^1.31.0",
     "docx": "^9.6.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.555.0",
+    "mammoth": "^1.8.0",
     "mermaid": "^11.14.0",
     "pptxgenjs": "^4.0.1",
     "react": "^19.2.1",
@@ -39,6 +41,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/jszip": "^3.4.1",
     "@vitejs/plugin-react": "^5.0.0",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",

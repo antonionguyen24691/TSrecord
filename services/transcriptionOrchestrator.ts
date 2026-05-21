@@ -12,6 +12,7 @@ import { transcribeWithGroq } from './groqService';
 import { transcribeWithOpenAI } from './openaiService';
 import { logWarning } from './utils/logging';
 import { withTimeout } from './utils/timeout';
+import { extractTextFromFile, isClientSideExtractable, isPdfFile } from './utils/fileExtractor';
 
 export interface OrchestratorProgress {
   stageLabel?: string;
@@ -33,6 +34,7 @@ export interface OrchestratorOptions {
   source: InputSource;
   context: SessionContext;
   savedRecording?: SavedDeviceFile | null;
+  additionalFiles?: File[];
   onStageChange?: (stage: string) => void;
   onProgress?: (progress: OrchestratorProgress) => void;
 }
@@ -136,7 +138,7 @@ const withTranscriptionTimeout = <T>(provider: TranscriptionProvider, promise: P
     `${PROVIDER_LABELS[provider]} xu ly transcript qua lau. Vui long thu lai hoac chon provider khac.`
   );
 
-const transcribeChunkWithProvider = async ({
+const transcribeWithProvider = async ({
   provider,
   file,
   mode,
@@ -160,40 +162,9 @@ const transcribeChunkWithProvider = async ({
   } else if (provider === 'assemblyai') {
     transcriptPromise = transcribeWithAssemblyAI(file, assemblyaiApiKey, onStageChange);
   } else if (provider === 'groq') {
-    transcriptPromise = transcribeWithGroq(file, groqApiKey, onStageChange);
+    transcriptPromise = transcribeWithGroq(file, groqApiKey, onStageChange, mode);
   } else {
-    transcriptPromise = transcribeWithOpenAI(file, openaiApiKey, onStageChange);
-  }
-
-  return normalizeTimelineTranscriptText(
-    await withTranscriptionTimeout(provider, transcriptPromise),
-    mode
-  );
-};
-
-const transcribeDirectly = async ({
-  provider,
-  file,
-  mode,
-  settings,
-  onStageChange,
-}: {
-  provider: TranscriptionProvider;
-  file: File;
-  mode: ExtractionMode;
-  settings: Awaited<ReturnType<typeof loadAiSettings>>;
-  onStageChange?: (stage: string) => void;
-}) => {
-  let transcriptPromise: Promise<string>;
-
-  if (provider === 'gemini') {
-    transcriptPromise = transcribeAudioWithGemini({ file, mode });
-  } else if (provider === 'assemblyai') {
-    transcriptPromise = transcribeWithAssemblyAI(file, settings.assemblyaiApiKey, onStageChange);
-  } else if (provider === 'groq') {
-    transcriptPromise = transcribeWithGroq(file, settings.groqApiKey, onStageChange);
-  } else {
-    transcriptPromise = transcribeWithOpenAI(file, settings.openaiApiKey, onStageChange);
+    transcriptPromise = transcribeWithOpenAI(file, openaiApiKey, onStageChange, mode);
   }
 
   return normalizeTimelineTranscriptText(
@@ -259,6 +230,7 @@ const transcribeLongAudioIfNeeded = async ({
     }));
 
     let completedCount = 0;
+    let dispatchCounter = 0;
     const safeConcurrency = Math.max(1, Math.min(settings.chunkConcurrency, chunks.length));
     const syncProgress = (stageLabel?: string) => {
       onProgress?.({
@@ -277,7 +249,8 @@ const transcribeLongAudioIfNeeded = async ({
 
     const transcripts = await runWithConcurrency(
       chunks.map((chunk) => async () => {
-        const staggerDelayMs = chunk.index * settings.chunkStaggerSeconds * 1000;
+        const dispatchOrder = dispatchCounter++;
+        const staggerDelayMs = dispatchOrder * settings.chunkStaggerSeconds * 1000;
         if (staggerDelayMs > 0) {
           chunkStatuses[chunk.index] = {
             ...chunkStatuses[chunk.index],
@@ -303,14 +276,14 @@ const transcribeLongAudioIfNeeded = async ({
         );
 
         try {
-          const text = await transcribeChunkWithProvider({
+          const text = await transcribeWithProvider({
             provider,
             file: chunk.file,
             mode,
             assemblyaiApiKey: settings.assemblyaiApiKey,
             groqApiKey: settings.groqApiKey,
             openaiApiKey: settings.openaiApiKey,
-            onStageChange: (status) =>
+            onStageChange: (status: string) =>
               onStageChange?.(`Phần ${chunk.index + 1}/${chunk.total}: ${status}`),
           });
 
@@ -370,7 +343,7 @@ const transcribeLongAudioIfNeeded = async ({
 export const processWithOrchestrator = async (
   options: OrchestratorOptions
 ): Promise<SessionAnalysis> => {
-  const { file, mode, source, context, savedRecording, onStageChange, onProgress } = options;
+  const { file, mode, source, context, savedRecording, additionalFiles, onStageChange, onProgress } = options;
   const settings = await loadAiSettings();
   const provider = settings.transcriptionProvider;
   const providerLabel = PROVIDER_LABELS[provider];
@@ -422,11 +395,13 @@ export const processWithOrchestrator = async (
       chunkStatuses: [],
     });
 
-    transcriptText = await transcribeDirectly({
+    transcriptText = await transcribeWithProvider({
       provider,
       file,
       mode,
-      settings,
+      assemblyaiApiKey: settings.assemblyaiApiKey,
+      groqApiKey: settings.groqApiKey,
+      openaiApiKey: settings.openaiApiKey,
       onStageChange: handleProviderProgress,
     });
   }
@@ -435,7 +410,7 @@ export const processWithOrchestrator = async (
     throw new Error(`${providerLabel} không trả về transcript. Vui lòng thử lại.`);
   }
 
-  if (context !== SessionContext.MEETING) {
+  if (context === SessionContext.TRANSCRIPTION) {
     onProgress?.({
       phase: 'complete',
       stageLabel: 'Hoàn tất transcript.',
@@ -443,12 +418,28 @@ export const processWithOrchestrator = async (
       chunkStatuses: [],
     });
     onStageChange?.('Hoàn tất!');
+
+    const deriveTitle = (text: string, fallback: string) => {
+      const cleaned = text
+        .replace(/^\[[\d:]+\]\s*/gm, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return fallback;
+      const snippet = cleaned.slice(0, 80);
+      const cutoff = snippet.lastIndexOf(' ');
+      return (cutoff > 20 ? snippet.slice(0, cutoff) : snippet).trim() + (cleaned.length > 80 ? '...' : '');
+    };
+
+    const rawTitle = file.name.replace(/\.[^.]+$/, '') || 'Transcript';
+    const title = deriveTitle(transcriptText, rawTitle);
+    const folderName = rawTitle.replace(/\s+/g, '-') || 'transcript';
+
     return {
-      title: file.name.replace(/\.[^.]+$/, '') || 'Transcript',
+      title,
       mode,
       source,
       context,
-      suggestedFolderName: file.name.replace(/\.[^.]+$/, '').replace(/\s+/g, '-') || 'transcript',
+      suggestedFolderName: folderName,
       artifacts: {
         transcript: transcriptText,
         summary: '',
@@ -462,13 +453,51 @@ export const processWithOrchestrator = async (
     };
   }
 
+  // Trích xuất nội dung từ các file tài liệu đính kèm
+  const additionalExtractedTexts: Array<{ fileName: string; content: string }> = [];
+  const additionalPdfFiles: File[] = [];
+
+  if (additionalFiles && additionalFiles.length > 0) {
+    onStageChange?.('Đang trích xuất nội dung tài liệu đính kèm...');
+    onProgress?.({
+      phase: 'preparing',
+      stageLabel: 'Đang trích xuất nội dung tài liệu đính kèm...',
+      progressLabel: 'Đọc file bổ trợ',
+      chunkStatuses: [],
+    });
+
+    for (const addFile of additionalFiles) {
+      if (isPdfFile(addFile)) {
+        additionalPdfFiles.push(addFile);
+      } else if (isClientSideExtractable(addFile)) {
+        try {
+          const content = await extractTextFromFile(addFile);
+          if (content.trim()) {
+            additionalExtractedTexts.push({ fileName: addFile.name, content });
+          }
+        } catch (err) {
+          logWarning(`Lỗi khi trích xuất tài liệu ${addFile.name}:`, err);
+        }
+      }
+    }
+  }
+
+  const analysisLabel =
+    context === SessionContext.INTERVIEW
+      ? 'Gemini đang tạo title và hoàn thiện transcript phỏng vấn...'
+      : 'Gemini đang phân tích nội dung họp...';
+  const analysisProgress =
+    context === SessionContext.INTERVIEW
+      ? 'Tạo title và chuẩn hóa transcript phỏng vấn'
+      : 'Tạo summary, decisions, risks, folder tree, mindmap';
+
   onProgress?.({
     phase: 'analyzing',
-    stageLabel: 'Gemini đang phân tích nội dung họp...',
-    progressLabel: 'Tạo summary, decisions, risks, folder tree, mindmap',
+    stageLabel: analysisLabel,
+    progressLabel: analysisProgress,
     chunkStatuses: [],
   });
-  onStageChange?.('Gemini đang phân tích nội dung họp...');
+  onStageChange?.(analysisLabel);
 
   return withTimeout(
     analyzeTranscriptWithGemini({
@@ -478,6 +507,8 @@ export const processWithOrchestrator = async (
       source,
       context,
       savedRecording,
+      additionalExtractedTexts,
+      additionalPdfFiles,
     }),
     ANALYSIS_TIMEOUT_MS,
     'Gemini phan tich noi dung qua lau. Vui long thu lai.'

@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Settings, Sparkles } from 'lucide-react';
+import { ArrowLeft, Settings, Sparkles, WifiOff } from 'lucide-react';
 import { ModuleHome } from './components/ModuleHome';
 import { ScreenSkeleton } from './components/ScreenSkeleton';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import {
   AppModule,
@@ -60,6 +61,7 @@ const UpdateDialog = lazy(() =>
 );
 
 const App: React.FC = () => {
+  const isOnline = useOnlineStatus();
   const exportEnginesPrefetchedRef = useRef(false);
   const [activeModule, setActiveModule] = useState<AppModule | null>(null);
   const [step, setStep] = useState<number>(1);
@@ -68,6 +70,7 @@ const App: React.FC = () => {
     SessionContext.TRANSCRIPTION
   );
   const [file, setFile] = useState<File | null>(null);
+  const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<ExtractionMode>(ExtractionMode.TIMELINE);
   const [analysis, setAnalysis] = useState<SessionAnalysis | null>(null);
   const [processingState, setProcessingState] = useState<ProcessingState>({
@@ -186,6 +189,7 @@ const App: React.FC = () => {
 
   const resetSharedState = () => {
     setFile(null);
+    setAdditionalFiles([]);
     setAnalysis(null);
     setSavedRecording(null);
     setProcessingState({ status: 'idle' });
@@ -269,7 +273,9 @@ const App: React.FC = () => {
       stageLabel:
         sessionContext === SessionContext.MEETING
           ? 'AI đang tạo transcript, summary, decisions, risks, folder tree và mindmap...'
-          : 'AI đang tạo transcript...',
+          : sessionContext === SessionContext.INTERVIEW
+            ? 'AI đang chép lại nội dung phỏng vấn...'
+            : 'AI đang tạo transcript...',
     });
 
     try {
@@ -280,6 +286,7 @@ const App: React.FC = () => {
         source,
         context: sessionContext,
         savedRecording,
+        additionalFiles,
         onStageChange: (stage) =>
           setProcessingState((prev) => ({ ...prev, stageLabel: stage })),
         onProgress: (progress) =>
@@ -327,7 +334,11 @@ const App: React.FC = () => {
         errorMessage: message,
       });
       showToast(message);
-      setProcessingState({ status: 'idle' });
+      setTimeout(() => {
+        setProcessingState((prev) =>
+          prev.status === 'error' ? { status: 'idle' } : prev
+        );
+      }, 3000);
     }
   };
 
@@ -434,6 +445,13 @@ const App: React.FC = () => {
   return (
     <div className="app-shell min-h-screen text-slate-950 selection:bg-[#0d7c66] selection:text-white">
       <div className="app-shell__mesh" />
+
+      {!isOnline && (
+        <div className="sticky top-0 z-[60] flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-bold text-white shadow-md">
+          <WifiOff className="h-4 w-4" />
+          Mất kết nối mạng — các tính năng AI sẽ không hoạt động cho đến khi có mạng trở lại.
+        </div>
+      )}
 
       <header className="sticky top-0 z-50 border-b border-white/60 bg-white/75 backdrop-blur-xl">
         <div className="mx-auto flex h-14 sm:h-20 w-full max-w-6xl items-center justify-between px-3 sm:px-4 md:px-6">
@@ -543,6 +561,8 @@ const App: React.FC = () => {
               setSessionContext={setSessionContext}
               file={file}
               setFile={setFile}
+              additionalFiles={additionalFiles}
+              setAdditionalFiles={setAdditionalFiles}
               onNext={handleInputNext}
             />
           </Suspense>
@@ -557,6 +577,8 @@ const App: React.FC = () => {
               setFile={setFile}
               savedRecording={savedRecording}
               setSavedRecording={setSavedRecording}
+              additionalFiles={additionalFiles}
+              setAdditionalFiles={setAdditionalFiles}
               onNext={handleInputNext}
             />
           </Suspense>

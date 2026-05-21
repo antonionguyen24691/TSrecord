@@ -14,9 +14,15 @@ import {
 } from './aiSettingsService';
 import type { RealtimeMode } from './aiSettingsService';
 import { createGeminiUserError } from './utils/geminiError';
-import { logError } from './utils/logging';
+import { logError, logWarning } from './utils/logging';
 
 const MAX_FILE_SIZE_MB = 300;
+const INLINE_DATA_THRESHOLD_MB = 20;
+const TEMPERATURE_TRANSCRIPT = 0.1;
+const TEMPERATURE_ANALYSIS = 0.3;
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 2000;
+const RETRYABLE_STATUS_PATTERNS = /\b(429|500|502|503|504|unavailable|overloaded|resource_exhausted|too many requests|internal|deadline)\b/i;
 
 const sessionResponseSchema = {
   type: 'object',
@@ -85,14 +91,41 @@ export interface LiveMeetingChunkAnalysis {
   actionItems: string;
 }
 
-const fileToGenerativePart = async (file: File) => {
-  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-    throw new Error(
-      `File qua lon. Vui long chon file duoi ${MAX_FILE_SIZE_MB}MB de tranh treo ung dung.`
-    );
+const isRetryableError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return RETRYABLE_STATUS_PATTERNS.test(message);
+};
+
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  context: string
+): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= MAX_RETRIES || !isRetryableError(error)) {
+        throw error;
+      }
+
+      const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+      logWarning(
+        `${context}: Retry ${attempt + 1}/${MAX_RETRIES} sau ${delayMs}ms`,
+        error
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 
-  const base64EncodedDataPromise = new Promise<string>((resolve, reject) => {
+  throw lastError;
+};
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const result = reader.result as string;
@@ -103,9 +136,41 @@ const fileToGenerativePart = async (file: File) => {
     reader.readAsDataURL(file);
   });
 
+const fileToGenerativePart = async (
+  file: File,
+  ai?: GoogleGenAI
+): Promise<Record<string, unknown>> => {
+  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    throw new Error(
+      `File qua lon. Vui long chon file duoi ${MAX_FILE_SIZE_MB}MB de tranh treo ung dung.`
+    );
+  }
+
+  const fileSizeMB = file.size / (1024 * 1024);
+
+  if (ai && fileSizeMB > INLINE_DATA_THRESHOLD_MB) {
+    try {
+      const uploaded = await ai.files.upload({
+        file,
+        config: { mimeType: file.type || 'audio/webm' },
+      });
+
+      if (uploaded.uri) {
+        return {
+          fileData: {
+            fileUri: uploaded.uri,
+            mimeType: uploaded.mimeType || file.type || 'audio/webm',
+          },
+        };
+      }
+    } catch (uploadError) {
+      logWarning('Gemini Files API upload failed, falling back to inline data:', uploadError);
+    }
+  }
+
   return {
     inlineData: {
-      data: await base64EncodedDataPromise,
+      data: await fileToBase64(file),
       mimeType: file.type || 'audio/webm',
     },
   };
@@ -158,16 +223,16 @@ const sanitizeMeetingArtifacts = (artifacts: SessionAnalysis['artifacts']) => {
 
   return {
     ...artifacts,
-    decisions: relevanceRatio(artifacts.decisions, evidenceBase) >= 0.08 ? artifacts.decisions : '',
-    risks: relevanceRatio(artifacts.risks, evidenceBase) >= 0.08 ? artifacts.risks : '',
+    decisions: relevanceRatio(artifacts.decisions, evidenceBase) >= 0.15 ? artifacts.decisions : '',
+    risks: relevanceRatio(artifacts.risks, evidenceBase) >= 0.15 ? artifacts.risks : '',
     actionItems:
-      relevanceRatio(artifacts.actionItems, evidenceBase) >= 0.08 ? artifacts.actionItems : '',
+      relevanceRatio(artifacts.actionItems, evidenceBase) >= 0.15 ? artifacts.actionItems : '',
     folderTree:
-      structuralAllowed && relevanceRatio(artifacts.folderTree, evidenceBase) >= 0.08
+      structuralAllowed && relevanceRatio(artifacts.folderTree, evidenceBase) >= 0.15
         ? artifacts.folderTree
         : '',
     mindmap:
-      structuralAllowed && relevanceRatio(artifacts.mindmap, evidenceBase) >= 0.08
+      structuralAllowed && relevanceRatio(artifacts.mindmap, evidenceBase) >= 0.15
         ? artifacts.mindmap
         : '',
   };
@@ -382,6 +447,8 @@ const mapResponseToAnalysis = ({
   return mapped;
 };
 
+let _cachedAiClient: { ai: GoogleGenAI; apiKey: string } | null = null;
+
 const getAiClient = async () => {
   const settings = await loadAiSettings();
   const apiKey = settings.apiKey.trim();
@@ -394,8 +461,12 @@ const getAiClient = async () => {
     throw new Error('Vui long nhap Gemini API Key trong phan Cai dat tren thiet bi nay.');
   }
 
+  if (!_cachedAiClient || _cachedAiClient.apiKey !== apiKey) {
+    _cachedAiClient = { ai: new GoogleGenAI({ apiKey }), apiKey };
+  }
+
   return {
-    ai: new GoogleGenAI({ apiKey }),
+    ai: _cachedAiClient.ai,
     realtimeModelId,
     analysisModelId,
   };
@@ -441,7 +512,7 @@ export const processRealtimeMeetingChunk = async ({
 }): Promise<LiveMeetingChunkAnalysis> => {
   try {
     const { ai, realtimeModelId } = await getAiClient();
-    const filePart = await fileToGenerativePart(file);
+    const filePart = await fileToGenerativePart(file, ai);
 
     const fullPrompt = `
 Vai tro: AI note taker dang cap nhat bien ban cuoc hop theo tung doan ghi am ngan.
@@ -489,17 +560,21 @@ Rang buoc:
 - Output phai la JSON hop le duy nhat.
     `.trim();
 
-    const response = await ai.models.generateContent({
-      model: realtimeModelId,
-      contents: {
-        parts: [filePart, { text: realtimeMode === 'HYBRID' ? hybridPrompt : fullPrompt }],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseJsonSchema:
-          realtimeMode === 'HYBRID' ? liveMeetingChunkHybridSchema : liveMeetingChunkSchema,
-      },
-    });
+    const response = await retryWithBackoff(
+      () => ai.models.generateContent({
+        model: realtimeModelId,
+        contents: {
+          parts: [filePart, { text: realtimeMode === 'HYBRID' ? hybridPrompt : fullPrompt }],
+        },
+        config: {
+          temperature: TEMPERATURE_TRANSCRIPT,
+          responseMimeType: 'application/json',
+          responseJsonSchema:
+            realtimeMode === 'HYBRID' ? liveMeetingChunkHybridSchema : liveMeetingChunkSchema,
+        },
+      }),
+      'processRealtimeMeetingChunk'
+    );
 
     const rawText = sanitizeJsonText(response.text || '');
     let parsed: Record<string, unknown> | null = null;
@@ -537,17 +612,21 @@ export const transcribeAudioWithGemini = async ({
 }): Promise<string> => {
   try {
     const { ai, analysisModelId } = await getAiClient();
-    const filePart = await fileToGenerativePart(file);
-    const response = await ai.models.generateContent({
-      model: analysisModelId,
-      contents: {
-        parts: [filePart, { text: buildTranscriptOnlyPrompt(mode) }],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseJsonSchema: transcriptOnlyResponseSchema,
-      },
-    });
+    const filePart = await fileToGenerativePart(file, ai);
+    const response = await retryWithBackoff(
+      () => ai.models.generateContent({
+        model: analysisModelId,
+        contents: {
+          parts: [filePart, { text: buildTranscriptOnlyPrompt(mode) }],
+        },
+        config: {
+          temperature: TEMPERATURE_TRANSCRIPT,
+          responseMimeType: 'application/json',
+          responseJsonSchema: transcriptOnlyResponseSchema,
+        },
+      }),
+      'transcribeAudioWithGemini'
+    );
 
     const rawText = sanitizeJsonText(response.text || '');
     if (!rawText) throw new Error('Ket qua transcript rong.');
@@ -569,6 +648,8 @@ export const analyzeTranscriptWithGemini = async ({
   source,
   context,
   savedRecording,
+  additionalExtractedTexts,
+  additionalPdfFiles,
 }: {
   transcriptText: string;
   file: File;
@@ -576,36 +657,99 @@ export const analyzeTranscriptWithGemini = async ({
   source: InputSource;
   context: SessionContext;
   savedRecording?: SavedDeviceFile | null;
+  additionalExtractedTexts?: Array<{ fileName: string; content: string }>;
+  additionalPdfFiles?: File[];
 }): Promise<SessionAnalysis> => {
   try {
     const { ai, analysisModelId } = await getAiClient();
 
-    const prompt =
-      context === SessionContext.MEETING
-        ? buildTextOnlyPrompt(transcriptText, mode)
-        : `
-Vai tro: cong cu xu ly transcript.
+    // Chuẩn bị các file PDF đính kèm dưới dạng các generative parts đa phương thức
+    const pdfParts = await Promise.all(
+      (additionalPdfFiles || []).map((pdfFile) => fileToGenerativePart(pdfFile, ai))
+    );
 
+    let prompt: string;
+
+    if (context === SessionContext.MEETING) {
+      prompt = buildTextOnlyPrompt(transcriptText, mode);
+    } else if (context === SessionContext.INTERVIEW) {
+      prompt = `
+Vai tro: chuyen gia chep phong van.
+ 
+Duoi day la transcript cuoc phong van da co san:
+--- TRANSCRIPT BAT DAU ---
+${transcriptText}
+--- TRANSCRIPT KET THUC ---
+ 
+Nhiem vu:
+- Dat lai "transcript" bang dung transcript phong van o tren, giu nguyen cau hoi va tra loi.
+- Tao "title" ngan gon theo chu de cuoc phong van.
+- Tao "suggestedFolderName" dang slug ngan gon.
+- Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
+- Output phai la JSON hop le duy nhat.
+ 
+Rang buoc:
+- Khong tom tat, khong suy dien he thong, khong dung mindmap hay folder tree cho phong van.
+- Khong tu bia thong tin ngoai transcript.
+      `.trim();
+    } else {
+      prompt = `
+Vai tro: cong cu xu ly transcript.
+ 
 Duoi day la transcript da co san:
 --- TRANSCRIPT BAT DAU ---
 ${transcriptText}
 --- TRANSCRIPT KET THUC ---
-
+ 
 Nhiem vu:
 - Dat lai "transcript" bang dung transcript o tren.
 - Tao "title" va "suggestedFolderName" ngan gon.
 - Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
 - Output phai la JSON hop le duy nhat.
-          `.trim();
+      `.trim();
+    }
 
-    const response = await ai.models.generateContent({
-      model: analysisModelId,
-      contents: { parts: [{ text: prompt }] },
-      config: {
-        responseMimeType: 'application/json',
-        responseJsonSchema: sessionResponseSchema,
-      },
-    });
+    // Nhúng các nội dung văn bản phụ trợ bổ sung vào prompt chính
+    if (additionalExtractedTexts && additionalExtractedTexts.length > 0) {
+      const textsBlock = additionalExtractedTexts
+        .map(
+          (item) => `
+--- TAI LIEU DINH KEM BO TRO: ${item.fileName} ---
+${item.content}
+--- HET TAI LIEU: ${item.fileName} ---
+`
+        )
+        .join('\n\n');
+
+      prompt += `
+ 
+Duoi day la noi dung cua cac tai lieu bo tro do nguoi dung cung cap. Hay doc va ket hop doi chieu cac tai lieu nay voi transcript o tren de tra ve ket qua tom tat, quyet dinh, mindmap, va folder tree chinh xac va day du nhat:
+${textsBlock}
+`;
+    }
+
+    // Nếu có PDF đính kèm, thêm ghi chú cho mô hình biết để tham chiếu
+    if (additionalPdfFiles && additionalPdfFiles.length > 0) {
+      prompt += `
+ 
+Chu y: Co ${additionalPdfFiles.length} tai lieu PDF duoc dinh kem duoi dang cac dynamic parts trong request nay. Hay doc va phan tich truc tiep file PDF nay cung voi transcript de toi uu ket qua summary va mindmap.
+`;
+    }
+
+    const parts = [...pdfParts, { text: prompt }];
+
+    const response = await retryWithBackoff(
+      () => ai.models.generateContent({
+        model: analysisModelId,
+        contents: { parts },
+        config: {
+          temperature: context === SessionContext.MEETING ? TEMPERATURE_ANALYSIS : TEMPERATURE_TRANSCRIPT,
+          responseMimeType: 'application/json',
+          responseJsonSchema: sessionResponseSchema,
+        },
+      }),
+      'analyzeTranscriptWithGemini'
+    );
 
     const rawText = sanitizeJsonText(response.text || '');
     if (!rawText) throw new Error('Ket qua AI rong.');
@@ -632,6 +776,10 @@ Nhiem vu:
   }
 };
 
+/**
+ * @deprecated Prefer processWithOrchestrator which splits transcript + analysis into 2 steps.
+ * Kept as a fallback for direct single-step processing of small files.
+ */
 export const processMediaSession = async ({
   file,
   mode,
@@ -647,19 +795,23 @@ export const processMediaSession = async ({
 }): Promise<SessionAnalysis> => {
   try {
     const { ai, analysisModelId } = await getAiClient();
-    const filePart = await fileToGenerativePart(file);
+    const filePart = await fileToGenerativePart(file, ai);
     const prompt = buildPrompt(mode, context);
 
-    const response = await ai.models.generateContent({
-      model: analysisModelId,
-      contents: {
-        parts: [filePart, { text: prompt }],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseJsonSchema: sessionResponseSchema,
-      },
-    });
+    const response = await retryWithBackoff(
+      () => ai.models.generateContent({
+        model: analysisModelId,
+        contents: {
+          parts: [filePart, { text: prompt }],
+        },
+        config: {
+          temperature: context === SessionContext.MEETING ? TEMPERATURE_ANALYSIS : TEMPERATURE_TRANSCRIPT,
+          responseMimeType: 'application/json',
+          responseJsonSchema: sessionResponseSchema,
+        },
+      }),
+      'processMediaSession'
+    );
 
     const rawText = sanitizeJsonText(response.text || '');
     if (!rawText) throw new Error('Ket qua AI rong.');
