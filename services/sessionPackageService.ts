@@ -1122,7 +1122,7 @@ const removeDirectoryRecursively = async (
   path: string,
   directory: Directory
 ): Promise<void> => {
-  let entries: Array<{ name: string; type?: string }> = [];
+  let entries: Array<{ name: string; type?: string }>;
 
   try {
     const result = await Filesystem.readdir({

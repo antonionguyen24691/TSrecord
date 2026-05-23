@@ -87,6 +87,8 @@ def run_tests(cmd: list, cwd: Path) -> dict:
         "tests_failed": 0
     }
     
+    import os
+    use_shell = os.name == 'nt'
     try:
         proc = subprocess.run(
             cmd,
@@ -95,7 +97,8 @@ def run_tests(cmd: list, cwd: Path) -> dict:
             text=True,
             encoding='utf-8',
             errors='replace',
-            timeout=300  # 5 min timeout for tests
+            timeout=300,  # 5 min timeout for tests
+            shell=use_shell
         )
         
         result["output"] = proc.stdout[:3000] if proc.stdout else ""

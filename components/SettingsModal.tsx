@@ -189,7 +189,7 @@ const PROVIDERS: ProviderInfo[] = [
     id: 'groq',
     name: 'Groq Whisper',
     badge: 'MIỄN PHÍ',
-    badgeColor: '#7c3aed',
+    badgeColor: '#0d7c66',
     description: 'Siêu tốc — nhanh hơn thời gian thực. Giới hạn file 25MB. Phù hợp cho file nhỏ, cần tốc độ.',
     keyUrl: 'https://console.groq.com/keys',
     keyPlaceholder: 'gsk_...',

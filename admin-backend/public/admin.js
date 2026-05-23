@@ -241,13 +241,13 @@ window.viewUser = async (id) => {
 window.grantSub = async (userId, plan) => {
   if (!confirm(`Cấp gói ${plan} cho user #${userId}?`)) return;
   await jsonApi(`/api/users/${userId}/grant`, { method: 'POST', body: JSON.stringify({ plan }) });
-  viewUser(userId);
+  window.viewUser(userId);
 };
 
 window.cancelSub = async (userId) => {
   if (!confirm('Hủy subscription?')) return;
   await api(`/api/users/${userId}/subscription`, { method: 'DELETE' });
-  viewUser(userId);
+  window.viewUser(userId);
 };
 
 // ── Payments ─────────────────────────────────────────────────

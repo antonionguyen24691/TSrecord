@@ -46,7 +46,7 @@ const findOrCreateUser = (identifier: string): number => {
   const db = getDb();
 
   // Try device_id first, then email
-  let user = db.prepare('SELECT id FROM users WHERE device_id = ? OR email = ?').get(identifier, identifier) as { id: number } | undefined;
+  const user = db.prepare('SELECT id FROM users WHERE device_id = ? OR email = ?').get(identifier, identifier) as { id: number } | undefined;
 
   if (!user) {
     const result = db.prepare('INSERT INTO users (device_id) VALUES (?)').run(identifier);
@@ -80,7 +80,7 @@ router.post('/sepay', (req: Request, res: Response) => {
       transferAmount,
       content,
       referenceCode,
-      transactionDate,
+      transactionDate: _transactionDate,
     } = req.body;
 
     // Parse content to extract user identifier and plan

@@ -554,7 +554,7 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
   }, [initialLayout]);
 
   const strokeForDepth = (depth: number) => {
-    const palette = ['#0f172a', '#0d7c66', '#2563eb', '#f59e0b', '#ec4899', '#8b5cf6'];
+    const palette = ['#0f172a', '#0d7c66', '#2563eb', '#f59e0b', '#ec4899', '#14b8a6'];
     return palette[Math.min(depth, palette.length - 1)];
   };
 
