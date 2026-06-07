@@ -30,5 +30,12 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "admin-backend",
+    "android",
+    "ios"
+  ]
 }
