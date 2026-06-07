@@ -2,36 +2,38 @@ import { ArrowRight, AudioLines } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { AdSlot } from '../components/AdSlot';
 import { SiteLayout } from '../components/SiteLayout';
-import { articles } from '../content/articles';
 import { fetchCmsArticles } from '../content/cms';
+import { dateLocales, getArticlesForLocale } from '../content/localizedContent';
+import { useSiteLocale } from '../hooks/useSiteLocale';
 import { SiteSeo } from '../seo/SiteSeo';
 
 export const ArticlesPage = () => {
-  const [publishedArticles, setPublishedArticles] = useState(articles);
+  const { locale, copy } = useSiteLocale();
+  const text = copy.articles;
+  const [publishedArticles, setPublishedArticles] = useState(getArticlesForLocale(locale));
 
   useEffect(() => {
-    fetchCmsArticles()
+    setPublishedArticles(getArticlesForLocale(locale));
+    fetchCmsArticles(locale)
       .then((items) => {
         if (items.length > 0) setPublishedArticles(items);
       })
       .catch(() => undefined);
-  }, []);
+  }, [locale]);
 
   return (
     <SiteLayout>
     <SiteSeo
-      title="Bài viết về phiên âm, ghi âm và năng suất | TSrecord"
-      description="Hướng dẫn chuyển ghi âm thành văn bản, ghi chép cuộc họp, bảo mật dữ liệu và tổ chức nội dung."
+      title={text.seoTitle}
+      description={text.seoDescription}
       path="/tin-tuc"
+      language={locale}
     />
     <section className="page-hero page-hero--editorial">
       <div className="site-container">
-        <span className="site-kicker">Thư viện TSrecord</span>
-        <h1>Kiến thức để làm việc tốt hơn với âm thanh và văn bản.</h1>
-        <p>
-          Bài viết được biên soạn theo các tình huống sử dụng thực tế, có ngày cập nhật và
-          đường dẫn riêng để dễ tìm kiếm, chia sẻ.
-        </p>
+        <span className="site-kicker">{text.kicker}</span>
+        <h1>{text.title}</h1>
+        <p>{text.description}</p>
       </div>
     </section>
     <section className="site-section site-section--editorial">
@@ -45,13 +47,13 @@ export const ArticlesPage = () => {
               </div>
               <div>
                 <span className="article-list-item__meta">
-                  {article.category} · {article.readingMinutes} phút đọc ·{' '}
-                  {new Date(article.updatedAt).toLocaleDateString('vi-VN')}
+                  {article.category} · {article.readingMinutes} {text.minutes} ·{' '}
+                  {new Date(article.updatedAt).toLocaleDateString(dateLocales[locale])}
                 </span>
                 <h2><a href={`/tin-tuc/${article.slug}`}>{article.title}</a></h2>
                 <p>{article.description}</p>
                 <a className="article-link" href={`/tin-tuc/${article.slug}`}>
-                  Đọc bài viết <ArrowRight />
+                  {text.read} <ArrowRight />
                 </a>
               </div>
             </article>
@@ -60,9 +62,9 @@ export const ArticlesPage = () => {
         <div className="content-rail">
           <AdSlot format="rectangle" />
           <aside className="rail-note">
-            <strong>Bạn đang có một tệp cần xử lý?</strong>
-            <p>Mở ứng dụng để phiên âm và lưu kết quả theo dự án.</p>
-            <a href="/app">Mở TSrecord <ArrowRight /></a>
+            <strong>{text.railTitle}</strong>
+            <p>{text.railText}</p>
+            <a href="/app">{copy.common.openApp} <ArrowRight /></a>
           </aside>
         </div>
       </div>

@@ -235,9 +235,9 @@ export const ensureCmsDefaults = () => {
     for (const page of pages) {
       await query(
         `INSERT INTO cms_pages_v2
-           (slug, title, description, eyebrow, content, metadata, status, published_at)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 'published', now())
-         ON CONFLICT (slug) DO NOTHING`,
+           (locale, slug, title, description, eyebrow, content, metadata, status, published_at)
+         VALUES ('vi', $1, $2, $3, $4, $5::jsonb, $6::jsonb, 'published', now())
+         ON CONFLICT (locale, slug) DO NOTHING`,
         [
           page.slug,
           page.title,
@@ -252,10 +252,10 @@ export const ensureCmsDefaults = () => {
     for (const article of articles) {
       await query(
         `INSERT INTO cms_articles_v2
-           (slug, title, description, category, content, status, featured,
+           (locale, slug, title, description, category, content, status, featured,
             reading_minutes, published_at)
-         VALUES ($1, $2, $3, $4, $5::jsonb, 'published', $6, $7, $8::timestamptz)
-         ON CONFLICT (slug) DO NOTHING`,
+         VALUES ('vi', $1, $2, $3, $4, $5::jsonb, 'published', $6, $7, $8::timestamptz)
+         ON CONFLICT (locale, slug) DO NOTHING`,
         [
           article.slug,
           article.title,

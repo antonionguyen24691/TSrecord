@@ -1,6 +1,8 @@
 import type { ArticleSection, SiteArticle } from './articles';
+import type { SiteLocale } from './localizedContent';
 
 export type CmsPage = {
+  locale?: SiteLocale;
   slug: string;
   title: string;
   description: string;
@@ -31,6 +33,7 @@ const requestJson = async <T>(path: string): Promise<T> => {
 };
 
 type CmsArticleResponse = {
+  locale?: SiteLocale;
   slug: string;
   title: string;
   description: string;
@@ -54,13 +57,15 @@ const normalizeArticle = (article: CmsArticleResponse): SiteArticle => ({
   updatedAt: article.updated_at,
 });
 
-export const fetchCmsArticles = async () =>
-  (await requestJson<CmsArticleResponse[]>('/articles')).map(normalizeArticle);
+export const fetchCmsArticles = async (locale: SiteLocale) =>
+  (await requestJson<CmsArticleResponse[]>(`/articles?locale=${locale}`)).map(normalizeArticle);
 
-export const fetchCmsArticle = async (slug: string) =>
-  normalizeArticle(await requestJson<CmsArticleResponse>(`/articles/${encodeURIComponent(slug)}`));
+export const fetchCmsArticle = async (slug: string, locale: SiteLocale) =>
+  normalizeArticle(await requestJson<CmsArticleResponse>(
+    `/articles/${encodeURIComponent(slug)}?locale=${locale}`
+  ));
 
-export const fetchCmsPage = async (slug: string): Promise<CmsPage> => {
+export const fetchCmsPage = async (slug: string, locale: SiteLocale): Promise<CmsPage> => {
   const page = await requestJson<{
     slug: string;
     title: string;
@@ -69,7 +74,8 @@ export const fetchCmsPage = async (slug: string): Promise<CmsPage> => {
     content: ArticleSection[];
     metadata: Record<string, unknown>;
     updated_at: string;
-  }>(`/pages/${encodeURIComponent(slug)}`);
+    locale?: SiteLocale;
+  }>(`/pages/${encodeURIComponent(slug)}?locale=${locale}`);
   return {
     ...page,
     content: Array.isArray(page.content) ? page.content : [],

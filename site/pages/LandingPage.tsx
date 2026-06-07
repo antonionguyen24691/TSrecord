@@ -11,26 +11,36 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SiteLayout } from '../components/SiteLayout';
-import { articles } from '../content/articles';
 import { fetchCmsArticles } from '../content/cms';
+import { getArticlesForLocale } from '../content/localizedContent';
+import { useSiteLocale } from '../hooks/useSiteLocale';
 import { getSiteUrl, SiteSeo } from '../seo/SiteSeo';
 
 export const LandingPage = () => {
+  const { locale, copy } = useSiteLocale();
+  const text = copy.landing;
   const siteUrl = getSiteUrl();
-  const [featuredArticles, setFeaturedArticles] = useState(articles.slice(0, 3));
+  const [featuredArticles, setFeaturedArticles] = useState(
+    getArticlesForLocale(locale).slice(0, 3)
+  );
 
   useEffect(() => {
-    fetchCmsArticles()
-      .then((items) => setFeaturedArticles(items.filter((item) => item.featured).slice(0, 3)))
+    setFeaturedArticles(getArticlesForLocale(locale).slice(0, 3));
+    fetchCmsArticles(locale)
+      .then((items) => {
+        const featured = items.filter((item) => item.featured).slice(0, 3);
+        if (featured.length > 0) setFeaturedArticles(featured);
+      })
       .catch(() => undefined);
-  }, []);
+  }, [locale]);
 
   return (
     <SiteLayout>
       <SiteSeo
-        title="TSrecord - Chuyển ghi âm thành văn bản và ghi chép cuộc họp"
-        description="Ghi âm, chuyển âm thanh thành văn bản, tạo biên bản cuộc họp và quản lý nội dung trong một quy trình rõ ràng."
+        title={text.seoTitle}
+        description={text.seoDescription}
         path="/"
+        language={locale}
         jsonLd={[
           {
             '@context': 'https://schema.org',
@@ -46,8 +56,7 @@ export const LandingPage = () => {
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web, Android, iOS',
             url: `${siteUrl}/app`,
-            description:
-              'Ứng dụng ghi âm, chuyển âm thanh thành văn bản và tổ chức biên bản cuộc họp.',
+            description: text.seoDescription,
             offers: {
               '@type': 'Offer',
               price: '0',
@@ -62,33 +71,30 @@ export const LandingPage = () => {
           <div className="site-hero__copy">
             <div className="site-eyebrow">
               <AudioLines aria-hidden="true" />
-              Từ bản ghi đến tài liệu có thể sử dụng
+              {text.eyebrow}
             </div>
-            <h1>Nghe lại ít hơn. Nắm đúng nội dung cần làm.</h1>
-            <p>
-              TSrecord giúp chuyển ghi âm thành văn bản, tạo biên bản và sắp xếp nội dung
-              theo từng phiên làm việc. Bạn kiểm soát nguồn âm, ngôn ngữ và kết quả cuối cùng.
-            </p>
+            <h1>{text.title}</h1>
+            <p>{text.description}</p>
             <div className="site-hero__actions">
               <a className="site-button site-button--primary" href="/app">
-                Bắt đầu phiên âm
+                {text.start}
                 <ArrowRight aria-hidden="true" />
               </a>
               <a className="site-button site-button--secondary" href="/tin-tuc">
-                Xem hướng dẫn
+                {text.viewGuides}
               </a>
             </div>
             <div className="site-hero__trust">
-              <span><Check /> Không cần cài đặt trên web</span>
-              <span><Check /> Hỗ trợ nhiều nhà cung cấp AI</span>
+              <span><Check /> {text.trustWeb}</span>
+              <span><Check /> {text.trustAi}</span>
             </div>
           </div>
 
-          <div className="product-scene" aria-label="Minh họa quy trình xử lý bản ghi">
+          <div className="product-scene" aria-label={text.sceneLabel}>
             <div className="product-scene__top">
               <span className="product-scene__dot" />
-              <span>Phiên họp sản phẩm - 07/06/2026</span>
-              <strong>Đang xử lý</strong>
+              <span>{text.session}</span>
+              <strong>{text.processing}</strong>
             </div>
             <div className="product-scene__wave" aria-hidden="true">
               {Array.from({ length: 38 }).map((_, index) => (
@@ -98,20 +104,20 @@ export const LandingPage = () => {
             <div className="product-scene__timeline">
               <span>00:00</span>
               <div>
-                <strong>Người nói 1</strong>
-                <p>Chúng ta cần thống nhất phạm vi phát hành và người phụ trách kiểm thử.</p>
+                <strong>{text.speaker}</strong>
+                <p>{text.transcript}</p>
               </div>
             </div>
             <div className="product-scene__timeline product-scene__timeline--active">
               <span>02:18</span>
               <div>
-                <strong>Quyết định</strong>
-                <p>Phát hành bản thử nghiệm nội bộ sau khi hoàn tất kiểm tra dữ liệu.</p>
+                <strong>{text.decision}</strong>
+                <p>{text.decisionText}</p>
               </div>
             </div>
             <div className="product-scene__status">
-              <span><FileAudio /> 42 phút âm thanh</span>
-              <span><Languages /> Giữ ngôn ngữ gốc</span>
+              <span><FileAudio /> {text.audioLength}</span>
+              <span><Languages /> {text.sourceLanguage}</span>
             </div>
           </div>
         </div>
@@ -119,11 +125,8 @@ export const LandingPage = () => {
 
       <section className="site-proof">
         <div className="site-container site-proof__row">
-          <p>Dùng cho những công việc cần nghe kỹ và lưu lại có hệ thống</p>
-          <span>Cuộc họp</span>
-          <span>Phỏng vấn</span>
-          <span>Nghiên cứu</span>
-          <span>Nội dung số</span>
+          <p>{text.proof}</p>
+          {text.useCases.map((useCase) => <span key={useCase}>{useCase}</span>)}
         </div>
       </section>
 
@@ -131,13 +134,10 @@ export const LandingPage = () => {
         <div className="site-container">
           <div className="site-section__heading site-section__heading--split">
             <div>
-              <span className="site-kicker">Một quy trình liền mạch</span>
-              <h2>Không dừng lại ở một bản transcript dài.</h2>
+              <span className="site-kicker">{text.flowKicker}</span>
+              <h2>{text.flowTitle}</h2>
             </div>
-            <p>
-              Kết quả được tổ chức để bạn có thể kiểm tra, chỉnh sửa, xuất tài liệu và tiếp
-              tục công việc mà không phải chuyển qua nhiều công cụ rời rạc.
-            </p>
+            <p>{text.flowDescription}</p>
           </div>
 
           <div className="feature-layout">
@@ -145,21 +145,21 @@ export const LandingPage = () => {
               <span className="feature-panel__icon"><FileAudio /></span>
               <div>
                 <span className="feature-panel__number">01</span>
-                <h3>Đưa tệp vào hoặc ghi âm trực tiếp</h3>
-                <p>Tiếp nhận âm thanh, video và tài liệu bổ sung trong cùng một phiên làm việc.</p>
+                <h3>{text.features[0][0]}</h3>
+                <p>{text.features[0][1]}</p>
               </div>
             </article>
             <article className="feature-panel">
               <span className="feature-panel__icon"><Sparkles /></span>
               <span className="feature-panel__number">02</span>
-              <h3>Phiên âm theo mục đích</h3>
-              <p>Chọn văn bản liền mạch hoặc mốc thời gian để phù hợp với cách sử dụng.</p>
+              <h3>{text.features[1][0]}</h3>
+              <p>{text.features[1][1]}</p>
             </article>
             <article className="feature-panel feature-panel--dark">
               <span className="feature-panel__icon"><FolderKanban /></span>
               <span className="feature-panel__number">03</span>
-              <h3>Lưu theo dự án</h3>
-              <p>Giữ bản ghi, ghi chú và kết quả đã chỉnh sửa trong một không gian làm việc.</p>
+              <h3>{text.features[2][0]}</h3>
+              <p>{text.features[2][1]}</p>
             </article>
           </div>
         </div>
@@ -168,36 +168,33 @@ export const LandingPage = () => {
       <section className="site-section site-section--ink">
         <div className="site-container security-grid">
           <div>
-            <span className="site-kicker site-kicker--light">Kiểm soát và minh bạch</span>
-            <h2>Dữ liệu công việc cần một quy trình có trách nhiệm.</h2>
-            <p>
-              TSrecord tách rõ ứng dụng, website nội dung và backend dịch vụ. Khóa truy cập
-              nhạy cảm không được đưa vào nội dung công khai hoặc bài viết.
-            </p>
+            <span className="site-kicker site-kicker--light">{text.controlKicker}</span>
+            <h2>{text.controlTitle}</h2>
+            <p>{text.controlDescription}</p>
             <a href="/chinh-sach-bao-mat">
-              Đọc chính sách bảo mật <ArrowRight />
+              {text.readPrivacy} <ArrowRight />
             </a>
           </div>
           <div className="security-points">
             <article>
               <LockKeyhole />
               <div>
-                <h3>Cấu hình backend riêng</h3>
-                <p>Frontend kết nối dịch vụ qua URL môi trường, thuận tiện thay đổi hạ tầng.</p>
+                <h3>{text.controls[0][0]}</h3>
+                <p>{text.controls[0][1]}</p>
               </div>
             </article>
             <article>
               <Languages />
               <div>
-                <h3>Giữ ngôn ngữ nội dung</h3>
-                <p>Ưu tiên phiên âm đúng ngôn ngữ nói thay vì tự động dịch ngoài yêu cầu.</p>
+                <h3>{text.controls[1][0]}</h3>
+                <p>{text.controls[1][1]}</p>
               </div>
             </article>
             <article>
               <BookOpenText />
               <div>
-                <h3>Nội dung có nguồn gốc rõ</h3>
-                <p>Bài viết hướng dẫn phục vụ người dùng, không tạo trang rỗng chỉ để đặt quảng cáo.</p>
+                <h3>{text.controls[2][0]}</h3>
+                <p>{text.controls[2][1]}</p>
               </div>
             </article>
           </div>
@@ -208,10 +205,10 @@ export const LandingPage = () => {
         <div className="site-container">
           <div className="site-section__heading site-section__heading--row">
             <div>
-              <span className="site-kicker">Kiến thức thực hành</span>
-              <h2>Hướng dẫn làm việc với bản ghi.</h2>
+              <span className="site-kicker">{text.knowledgeKicker}</span>
+              <h2>{text.knowledgeTitle}</h2>
             </div>
-            <a href="/tin-tuc">Xem tất cả bài viết <ArrowRight /></a>
+            <a href="/tin-tuc">{text.viewAll} <ArrowRight /></a>
           </div>
           <div className="article-grid">
             {featuredArticles.map((article, index) => (
@@ -221,10 +218,10 @@ export const LandingPage = () => {
                   <AudioLines />
                 </div>
                 <div className="article-card__body">
-                  <span>{article.category} · {article.readingMinutes} phút đọc</span>
+                  <span>{article.category} · {article.readingMinutes} {text.minutesRead}</span>
                   <h3><a href={`/tin-tuc/${article.slug}`}>{article.title}</a></h3>
                   <p>{article.description}</p>
-                  <a href={`/tin-tuc/${article.slug}`}>Đọc bài viết <ArrowRight /></a>
+                  <a href={`/tin-tuc/${article.slug}`}>{text.readArticle} <ArrowRight /></a>
                 </div>
               </article>
             ))}
@@ -235,11 +232,11 @@ export const LandingPage = () => {
       <section className="site-cta">
         <div className="site-container site-cta__inner">
           <div>
-            <span className="site-kicker">Bắt đầu từ tệp của bạn</span>
-            <h2>Biến một bản ghi thành tài liệu có thể hành động.</h2>
+            <span className="site-kicker">{text.ctaKicker}</span>
+            <h2>{text.ctaTitle}</h2>
           </div>
           <a className="site-button site-button--light" href="/app">
-            Mở TSrecord <ArrowRight />
+            {text.ctaButton} <ArrowRight />
           </a>
         </div>
       </section>

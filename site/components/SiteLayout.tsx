@@ -1,20 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Menu, Mic2, X } from 'lucide-react';
+import { useSiteLocale } from '../hooks/useSiteLocale';
+import { SiteLanguageSwitcher } from './SiteLanguageSwitcher';
 
 type SiteLayoutProps = {
   children: React.ReactNode;
 };
 
-const navItems = [
-  { href: '/', label: 'Trang chủ' },
-  { href: '/tin-tuc', label: 'Bài viết' },
-  { href: '/gioi-thieu', label: 'Giới thiệu' },
-  { href: '/lien-he', label: 'Liên hệ' },
-];
-
 export const SiteLayout = ({ children }: SiteLayoutProps) => {
+  const { copy } = useSiteLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+  const navItems = [
+    { href: '/', label: copy.common.home },
+    { href: '/tin-tuc', label: copy.common.articles },
+    { href: '/gioi-thieu', label: copy.common.about },
+    { href: '/lien-he', label: copy.common.contact },
+  ];
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -33,18 +35,18 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
   return (
     <div className="site-shell">
       <a className="skip-link" href="#main-content">
-        Đi đến nội dung
+        {copy.common.skip}
       </a>
       <header className="site-header">
         <div className="site-container site-header__inner">
-          <a className="site-brand" href="/" aria-label="TSrecord - Trang chủ">
+          <a className="site-brand" href="/" aria-label={`TSrecord - ${copy.common.home}`}>
             <span className="site-brand__mark">
               <Mic2 aria-hidden="true" />
             </span>
             <span>TSrecord</span>
           </a>
 
-          <nav className="site-nav" aria-label="Điều hướng chính">
+          <nav className="site-nav" aria-label={copy.common.navLabel}>
             {navItems.map((item) => (
               <a
                 key={item.href}
@@ -56,15 +58,17 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
             ))}
           </nav>
 
+          <SiteLanguageSwitcher />
+
           <a className="site-header__cta" href="/app">
-            Mở ứng dụng
+            {copy.common.openApp}
             <ArrowRight aria-hidden="true" />
           </a>
 
           <button
             className="site-menu-button"
             type="button"
-            aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
+            aria-label={menuOpen ? copy.common.closeMenu : copy.common.openMenu}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((current) => !current)}
           >
@@ -76,14 +80,14 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
           <button
             className="site-mobile-backdrop"
             type="button"
-            aria-label="Đóng menu"
+            aria-label={copy.common.closeMenu}
             tabIndex={menuOpen ? 0 : -1}
             onClick={() => setMenuOpen(false)}
           />
-          <nav className="site-mobile-nav" aria-label="Điều hướng di động">
+          <nav className="site-mobile-nav" aria-label={copy.common.mobileNavLabel}>
             <div className="site-mobile-nav__intro">
-              <span>Khám phá TSrecord</span>
-              <p>Từ bản ghi đến nội dung có thể sử dụng.</p>
+              <span>{copy.common.explore}</span>
+              <p>{copy.common.tagline}</p>
             </div>
             {navItems.map((item, index) => (
               <a
@@ -96,8 +100,9 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
                 {item.label}
               </a>
             ))}
+            <SiteLanguageSwitcher mobile />
             <a className="site-mobile-nav__cta" href="/app" tabIndex={menuOpen ? 0 : -1}>
-              Mở ứng dụng
+              {copy.common.openApp}
               <ArrowRight aria-hidden="true" />
             </a>
           </nav>
@@ -115,24 +120,24 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
               </span>
               <span>TSrecord</span>
             </a>
-            <p>Công cụ ghi âm, phiên âm và tổ chức nội dung dành cho công việc thực tế.</p>
+            <p>{copy.common.footerDescription}</p>
           </div>
           <div>
-            <strong>Sản phẩm</strong>
-            <a href="/app">Ứng dụng web</a>
-            <a href="/tin-tuc">Kiến thức và hướng dẫn</a>
+            <strong>{copy.common.product}</strong>
+            <a href="/app">{copy.common.webApp}</a>
+            <a href="/tin-tuc">{copy.common.guides}</a>
           </div>
           <div>
-            <strong>Thông tin</strong>
-            <a href="/gioi-thieu">Giới thiệu</a>
-            <a href="/lien-he">Liên hệ</a>
-            <a href="/chinh-sach-bao-mat">Chính sách bảo mật</a>
-            <a href="/dieu-khoan">Điều khoản sử dụng</a>
+            <strong>{copy.common.information}</strong>
+            <a href="/gioi-thieu">{copy.common.about}</a>
+            <a href="/lien-he">{copy.common.contact}</a>
+            <a href="/chinh-sach-bao-mat">{copy.common.privacy}</a>
+            <a href="/dieu-khoan">{copy.common.terms}</a>
           </div>
         </div>
         <div className="site-container site-footer__bottom">
           <span>© {new Date().getFullYear()} TSrecord.</span>
-          <span>Nội dung được biên soạn cho người dùng Việt Nam.</span>
+          <span>{copy.common.footerNote}</span>
         </div>
       </footer>
     </div>

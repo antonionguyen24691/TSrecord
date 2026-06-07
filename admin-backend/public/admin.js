@@ -446,6 +446,19 @@ const cmsTextarea = (label, id, value, rows = 10) => `
       class="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-mono text-xs leading-6 focus:outline-none focus:ring-2 focus:ring-emerald-500">${escapeHtml(value)}</textarea>
   </label>`;
 
+const cmsLocaleSelect = (id, value = 'vi') => `
+  <label class="block">
+    <span class="block text-xs font-bold text-slate-600 mb-1.5">Ngôn ngữ</span>
+    <select id="${id}" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+      ${[
+        ['vi', 'Tiếng Việt'],
+        ['en', 'English'],
+        ['zh', '中文'],
+        ['ko', '한국어'],
+      ].map(([code, label]) => `<option value="${code}" ${value === code ? 'selected' : ''}>${label}</option>`).join('')}
+    </select>
+  </label>`;
+
 const renderCms = async (el) => {
   const data = await jsonApi('/api/cms/admin/content');
   if (!data?.pages || !data?.articles) {
@@ -476,7 +489,7 @@ const renderCms = async (el) => {
             <article class="bg-white border border-slate-200 rounded-2xl p-5">
               <div class="flex items-start justify-between gap-4">
                 <div>
-                  <div class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">/${escapeHtml(page.slug)}</div>
+                  <div class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">${escapeHtml(page.locale || 'vi')} · /${escapeHtml(page.slug)}</div>
                   <h4 class="font-black text-lg mt-1">${escapeHtml(page.title)}</h4>
                   <p class="text-sm text-slate-500 mt-2 line-clamp-2">${escapeHtml(page.description)}</p>
                 </div>
@@ -499,6 +512,8 @@ const renderCms = async (el) => {
               <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   <span>${escapeHtml(article.category)}</span>
+                  <span>·</span>
+                  <span>${escapeHtml(article.locale || 'vi')}</span>
                   <span>·</span>
                   <span>/${escapeHtml(article.slug)}</span>
                   ${article.featured ? '<span class="text-emerald-700">· Nổi bật</span>' : ''}
@@ -529,6 +544,7 @@ window.editCmsPage = (index) => {
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         ${cmsField('Slug', 'cms-page-slug', page.slug, 'readonly')}
+        ${cmsLocaleSelect('cms-page-locale', page.locale || 'vi')}
         ${cmsField('Nhãn đầu trang', 'cms-page-eyebrow', page.eyebrow)}
         ${cmsField('Tiêu đề', 'cms-page-title', page.title)}
         <label class="block"><span class="block text-xs font-bold text-slate-600 mb-1.5">Trạng thái</span>
@@ -553,6 +569,7 @@ window.saveCmsPage = async () => {
     const response = await api(`/api/cms/admin/pages/${slug}`, {
       method: 'PUT',
       body: JSON.stringify({
+        locale: $('cms-page-locale').value,
         title: $('cms-page-title').value,
         description: $('cms-page-description').value,
         eyebrow: $('cms-page-eyebrow').value,
@@ -583,6 +600,7 @@ window.editCmsArticle = (index) => {
       <input id="cms-article-id" type="hidden" value="${article?.id || ''}" />
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         ${cmsField('Slug', 'cms-article-slug', article?.slug || '')}
+        ${cmsLocaleSelect('cms-article-locale', article?.locale || 'vi')}
         ${cmsField('Chuyên mục', 'cms-article-category', article?.category || 'Kiến thức')}
         ${cmsField('Tiêu đề', 'cms-article-title', article?.title || '')}
         ${cmsField('Số phút đọc', 'cms-article-minutes', article?.reading_minutes || 5, 'type="number" min="1"')}
@@ -609,6 +627,7 @@ window.saveCmsArticle = async () => {
   try {
     const id = $('cms-article-id').value;
     const payload = {
+      locale: $('cms-article-locale').value,
       slug: $('cms-article-slug').value.trim(),
       title: $('cms-article-title').value.trim(),
       description: $('cms-article-description').value.trim(),

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
-import { getArticleBySlug } from './content/articles';
+import { getArticleForLocale } from './content/localizedContent';
+import { useSiteLocale } from './hooks/useSiteLocale';
 import { ArticlePage } from './pages/ArticlePage';
 import { ArticlesPage } from './pages/ArticlesPage';
 import { AboutPage, ContactPage, PrivacyPage, TermsPage } from './pages/InfoPages';
@@ -15,18 +16,20 @@ const normalizePath = (path: string) => {
 };
 
 export const SiteRouter = () => {
+  const { locale, copy } = useSiteLocale();
   const path = normalizePath(window.location.pathname);
 
   if (path === '/app') {
     return (
       <>
         <SiteSeo
-          title="Ứng dụng TSrecord"
-          description="Không gian làm việc phiên âm và ghi chép của TSrecord."
+          title={copy.common.appTitle}
+          description={copy.common.appDescription}
           path="/app"
           noIndex
+          language={locale}
         />
-        <Suspense fallback={<div className="route-loading">Đang mở TSrecord...</div>}>
+        <Suspense fallback={<div className="route-loading">{copy.common.loadingApp}</div>}>
           <ProductApp />
         </Suspense>
       </>
@@ -41,7 +44,7 @@ export const SiteRouter = () => {
 
   if (path.startsWith('/tin-tuc/') || path.startsWith('/bai-viet/')) {
     const slug = path.split('/').filter(Boolean).at(-1) || '';
-    return <ArticlePage slug={slug} fallbackArticle={getArticleBySlug(slug)} />;
+    return <ArticlePage slug={slug} fallbackArticle={getArticleForLocale(slug, locale)} />;
   }
 
   return <NotFoundPage />;

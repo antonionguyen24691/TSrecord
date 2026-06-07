@@ -26,8 +26,9 @@ i18n
       escapeValue: false, // react already safes from xss
     },
     detection: {
-      order: ['navigator', 'htmlTag'],
-      caches: [], // we will use Capacitor Preferences manually
+      order: ['querystring', 'navigator', 'htmlTag'],
+      lookupQuerystring: 'lang',
+      caches: [],
     },
   });
 
@@ -36,6 +37,12 @@ const PREF_KEY = 'tsrecord_user_lang';
 
 export const initLanguagePersistence = async () => {
   try {
+    const queryLanguage = new URLSearchParams(window.location.search).get('lang');
+    if (queryLanguage && ['vi', 'en', 'zh', 'ko'].includes(queryLanguage)) {
+      await i18n.changeLanguage(queryLanguage);
+      await Preferences.set({ key: PREF_KEY, value: queryLanguage });
+      return;
+    }
     const { value } = await Preferences.get({ key: PREF_KEY });
     if (value && ['vi', 'en', 'zh', 'ko'].includes(value)) {
       await i18n.changeLanguage(value);

@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { initLanguagePersistence } from './i18n';
 import { initCrashReporter } from './services/utils/crashReporter';
 import { SiteRouter } from './site/SiteRouter';
 
@@ -12,10 +13,15 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <SiteRouter />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+
+const renderApp = () => {
+  root.render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <SiteRouter />
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+};
+
+void initLanguagePersistence().finally(renderApp);

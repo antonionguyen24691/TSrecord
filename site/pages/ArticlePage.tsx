@@ -4,6 +4,8 @@ import { AdSlot } from '../components/AdSlot';
 import { SiteLayout } from '../components/SiteLayout';
 import { SiteArticle } from '../content/articles';
 import { fetchCmsArticle } from '../content/cms';
+import { dateLocales } from '../content/localizedContent';
+import { useSiteLocale } from '../hooks/useSiteLocale';
 import { getSiteUrl, SiteSeo } from '../seo/SiteSeo';
 
 export const ArticlePage = ({
@@ -13,26 +15,30 @@ export const ArticlePage = ({
   slug: string;
   fallbackArticle?: SiteArticle;
 }) => {
+  const { locale, copy } = useSiteLocale();
+  const text = copy.articles;
   const [article, setArticle] = useState<SiteArticle | undefined>(fallbackArticle);
   const [missing, setMissing] = useState(false);
   const siteUrl = getSiteUrl();
   const path = `/tin-tuc/${slug}`;
 
   useEffect(() => {
-    fetchCmsArticle(slug)
+    setArticle(fallbackArticle);
+    setMissing(false);
+    fetchCmsArticle(slug, locale)
       .then((item) => setArticle(item))
       .catch(() => setMissing(!fallbackArticle));
-  }, [fallbackArticle, slug]);
+  }, [fallbackArticle, locale, slug]);
 
   if (!article) {
     return (
       <SiteLayout>
         <section className="article-loading">
           <div className="site-container">
-            <span>{missing ? '404' : 'Đang tải'}</span>
-            <h1>{missing ? 'Không tìm thấy bài viết.' : 'Đang mở bài viết...'}</h1>
+            <span>{missing ? '404' : text.loading}</span>
+            <h1>{missing ? text.missing : text.loadingArticle}</h1>
             <a className="site-button site-button--primary" href="/tin-tuc">
-              Về trang bài viết
+              {text.back}
             </a>
           </div>
         </section>
@@ -47,6 +53,7 @@ export const ArticlePage = ({
         description={article.description}
         path={path}
         type="article"
+        language={locale}
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Article',
@@ -72,13 +79,13 @@ export const ArticlePage = ({
       <article className="article-page">
         <header className="article-page__header">
           <div className="site-container article-page__header-inner">
-            <a href="/tin-tuc" className="back-link"><ArrowLeft /> Tất cả bài viết</a>
+            <a href="/tin-tuc" className="back-link"><ArrowLeft /> {text.all}</a>
             <span className="site-kicker">{article.category}</span>
             <h1>{article.title}</h1>
             <p>{article.description}</p>
             <div className="article-page__meta">
-              <span><CalendarDays /> Cập nhật {new Date(article.updatedAt).toLocaleDateString('vi-VN')}</span>
-              <span><Clock3 /> {article.readingMinutes} phút đọc</span>
+              <span><CalendarDays /> {text.updated} {new Date(article.updatedAt).toLocaleDateString(dateLocales[locale])}</span>
+              <span><Clock3 /> {article.readingMinutes} {text.minutes}</span>
             </div>
           </div>
         </header>
@@ -97,15 +104,15 @@ export const ArticlePage = ({
               </section>
             ))}
             <div className="article-page__cta">
-              <strong>Áp dụng với bản ghi của bạn</strong>
-              <p>Trải nghiệm quy trình phiên âm, chỉnh sửa và lưu kết quả trong TSrecord.</p>
-              <a href="/app">Mở ứng dụng <ArrowRight /></a>
+              <strong>{text.applyTitle}</strong>
+              <p>{text.applyText}</p>
+              <a href="/app">{copy.common.openApp} <ArrowRight /></a>
             </div>
           </div>
           <aside className="content-rail">
             <AdSlot format="rectangle" />
-            <nav className="rail-note" aria-label="Nội dung bài viết">
-              <strong>Trong bài viết</strong>
+            <nav className="rail-note" aria-label={text.inArticle}>
+              <strong>{text.inArticle}</strong>
               {article.sections.map((section) => <span key={section.heading}>{section.heading}</span>)}
             </nav>
           </aside>

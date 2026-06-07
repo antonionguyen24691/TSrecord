@@ -200,7 +200,8 @@ CREATE TABLE IF NOT EXISTS ad_events_v2 (
 
 CREATE TABLE IF NOT EXISTS cms_pages_v2 (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug text NOT NULL UNIQUE,
+  locale text NOT NULL DEFAULT 'vi',
+  slug text NOT NULL,
   title text NOT NULL,
   description text NOT NULL DEFAULT '',
   eyebrow text NOT NULL DEFAULT 'TSrecord',
@@ -212,12 +213,17 @@ CREATE TABLE IF NOT EXISTS cms_pages_v2 (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS cms_pages_v2_status_idx
-  ON cms_pages_v2(status, updated_at DESC);
+ALTER TABLE cms_pages_v2 ADD COLUMN IF NOT EXISTS locale text NOT NULL DEFAULT 'vi';
+ALTER TABLE cms_pages_v2 DROP CONSTRAINT IF EXISTS cms_pages_v2_slug_key;
+CREATE UNIQUE INDEX IF NOT EXISTS cms_pages_v2_locale_slug_unique
+  ON cms_pages_v2(locale, slug);
+CREATE INDEX IF NOT EXISTS cms_pages_v2_locale_status_idx
+  ON cms_pages_v2(locale, status, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS cms_articles_v2 (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug text NOT NULL UNIQUE,
+  locale text NOT NULL DEFAULT 'vi',
+  slug text NOT NULL,
   title text NOT NULL,
   description text NOT NULL DEFAULT '',
   category text NOT NULL DEFAULT 'Kiến thức',
@@ -231,8 +237,12 @@ CREATE TABLE IF NOT EXISTS cms_articles_v2 (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS cms_articles_v2_public_idx
-  ON cms_articles_v2(status, published_at DESC, updated_at DESC);
+ALTER TABLE cms_articles_v2 ADD COLUMN IF NOT EXISTS locale text NOT NULL DEFAULT 'vi';
+ALTER TABLE cms_articles_v2 DROP CONSTRAINT IF EXISTS cms_articles_v2_slug_key;
+CREATE UNIQUE INDEX IF NOT EXISTS cms_articles_v2_locale_slug_unique
+  ON cms_articles_v2(locale, slug);
+CREATE INDEX IF NOT EXISTS cms_articles_v2_locale_public_idx
+  ON cms_articles_v2(locale, status, published_at DESC, updated_at DESC);
 
 INSERT INTO plans_v2
   (code, name, duration_months, request_limit, price_vnd, price_usd_minor, ads_enabled, own_key_enabled, features)

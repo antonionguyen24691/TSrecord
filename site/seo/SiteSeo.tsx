@@ -10,6 +10,7 @@ type SiteSeoProps = {
   image?: string;
   jsonLd?: JsonLd;
   noIndex?: boolean;
+  language?: string;
 };
 
 const upsertMeta = (selector: string, attributes: Record<string, string>) => {
@@ -42,6 +43,7 @@ export const SiteSeo = ({
   image = '/og-cover.svg',
   jsonLd,
   noIndex = false,
+  language = 'vi',
 }: SiteSeoProps) => {
   useEffect(() => {
     const siteUrl = getSiteUrl();
@@ -49,7 +51,7 @@ export const SiteSeo = ({
     const imageUrl = image.startsWith('http') ? image : `${siteUrl}${image}`;
 
     document.title = title;
-    document.documentElement.lang = 'vi';
+    document.documentElement.lang = language;
     upsertMeta('meta[name="description"]', { name: 'description', content: description });
     upsertMeta('meta[name="robots"]', {
       name: 'robots',
@@ -63,6 +65,7 @@ export const SiteSeo = ({
     upsertMeta('meta[property="og:type"]', { property: 'og:type', content: type });
     upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonical });
     upsertMeta('meta[property="og:image"]', { property: 'og:image', content: imageUrl });
+    upsertMeta('meta[property="og:locale"]', { property: 'og:locale', content: language });
     upsertMeta('meta[name="twitter:card"]', {
       name: 'twitter:card',
       content: 'summary_large_image',
@@ -87,7 +90,7 @@ export const SiteSeo = ({
     return () => {
       document.head.querySelector('#site-json-ld')?.remove();
     };
-  }, [description, image, jsonLd, noIndex, path, title, type]);
+  }, [description, image, jsonLd, language, noIndex, path, title, type]);
 
   return null;
 };
