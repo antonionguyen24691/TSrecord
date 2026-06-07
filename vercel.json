@@ -4,31 +4,31 @@
   "rewrites": [
     {
       "source": "/tin-tuc/:path*",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/bai-viet/:path*",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/gioi-thieu",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/lien-he",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/about",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/contact",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/((?!assets/|robots.txt|sitemap.xml|ads.txt|logo.svg|og-cover.svg).*)",
-      "destination": "/index.html"
+      "destination": "/"
     }
   ],
   "headers": [
