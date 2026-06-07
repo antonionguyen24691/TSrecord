@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initCrashReporter } from './services/utils/crashReporter';
-import App from './App';
+import { SiteRouter } from './site/SiteRouter';
 
 initCrashReporter();
 
@@ -15,7 +15,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <SiteRouter />
     </ErrorBoundary>
   </React.StrictMode>
 );

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">TSrecord</title>
+  <desc id="desc">Chuyển ghi âm thành văn bản và tài liệu có thể sử dụng</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8fff7"/>
+      <stop offset="1" stop-color="#dce9f5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1060" cy="80" r="260" fill="#7af2d1" opacity=".28"/>
+  <rect x="70" y="70" width="1060" height="490" rx="42" fill="#f9fffc" stroke="#bcded3"/>
+  <rect x="112" y="112" width="76" height="76" rx="22" fill="#0c6759"/>
+  <path d="M135 145v12M146 130v42M157 139v24M168 124v54" stroke="#dffbf2" stroke-width="7" stroke-linecap="round"/>
+  <text x="214" y="166" font-family="Arial, sans-serif" font-size="46" font-weight="700" fill="#10231e">TSrecord</text>
+  <text x="112" y="290" font-family="Arial, sans-serif" font-size="66" font-weight="700" fill="#10231e">Từ bản ghi đến tài liệu</text>
+  <text x="112" y="370" font-family="Arial, sans-serif" font-size="66" font-weight="700" fill="#0c6759">có thể sử dụng.</text>
+  <text x="112" y="450" font-family="Arial, sans-serif" font-size="28" fill="#526760">Phiên âm · Biên bản · Không gian làm việc</text>
+  <path d="M774 453c34-104 67-104 101 0s67 104 101 0 67-104 101 0" fill="none" stroke="#0c6759" stroke-width="12" stroke-linecap="round"/>
+</svg>

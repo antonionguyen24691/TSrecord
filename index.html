@@ -6,25 +6,34 @@
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self';
-        script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline';
+        script-src 'self' https://cdn.tailwindcss.com https://accounts.google.com/gsi/client https://apis.google.com 'unsafe-inline';
         style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
         font-src 'self' https://fonts.gstatic.com;
         connect-src 'self'
+          https:
           https://generativelanguage.googleapis.com
           https://api.groq.com
           https://api.openai.com
           https://api.assemblyai.com
           https://api.github.com
+          https://accounts.google.com
+          https://www.googleapis.com
+          https://content.googleapis.com
           blob:;
-        img-src 'self' data: blob:;
+        img-src 'self' data: blob: https:;
         media-src 'self' blob:;
+        frame-src 'self' https://accounts.google.com https://content.googleapis.com;
         worker-src 'self' blob:;"
     />
-    <title>TSrecord</title>
-    <meta name="description" content="TSrecord - Ứng dụng trích xuất âm thanh AI cao cấp, ghi âm và chuyển đổi văn bản tự động tích hợp Gemini, Groq, OpenAI, AssemblyAI." />
-    <meta property="og:title" content="TSrecord - AI Recording & Transcription Studio" />
-    <meta property="og:description" content="Trích xuất âm thanh AI chuyên nghiệp, tự động tạo tóm tắt, quyết định, mindmap từ các phiên họp và phỏng vấn." />
+    <title>TSrecord - Chuyển ghi âm thành văn bản và ghi chép cuộc họp</title>
+    <meta name="description" content="Ghi âm, chuyển âm thanh thành văn bản, tạo biên bản cuộc họp và quản lý nội dung trong một quy trình rõ ràng." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta property="og:title" content="TSrecord - Chuyển ghi âm thành văn bản" />
+    <meta property="og:description" content="Từ bản ghi đến transcript, biên bản và tài liệu có thể sử dụng." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-cover.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
     <script src="https://cdn.tailwindcss.com"></script>
     <link
       href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
