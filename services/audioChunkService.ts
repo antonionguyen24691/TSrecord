@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { AudioVad } from '../plugins/audioVad';
+import { getAudioContext, encodeWav, downmixToMono, resampleMonoChannel } from './utils/audioUtils';
 
 export interface AudioChunkPart {
   file: File;
@@ -8,6 +9,7 @@ export interface AudioChunkPart {
   total: number;
   startSeconds: number;
   endSeconds: number;
+  tempFileUri?: string;
 }
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.webm', '.flac'];
@@ -16,19 +18,6 @@ const ANALYSIS_WINDOW_SECONDS = 0.25;
 const SILENCE_SEARCH_RADIUS_SECONDS = 45;
 const MIN_CHUNK_DURATION_SECONDS = 60;
 const TARGET_CHUNK_SAMPLE_RATE = 16000;
-
-const getAudioContext = () => {
-  const ContextClass =
-    window.AudioContext ||
-    (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
-
-  if (!ContextClass) {
-    throw new Error('Thiết bị hiện tại không hỗ trợ AudioContext để chia file dài.');
-  }
-
-  return new ContextClass();
-};
 
 const getBaseName = (fileName: string) => fileName.replace(/\.[^.]+$/, '') || 'audio';
 
@@ -102,6 +91,27 @@ const nativeChunkUriToFile = async (fileUri: string, fileName: string) => {
   });
 };
 
+const normalizeAudioBlobToMono16kWav = async (file: File) => {
+  const audioContext = getAudioContext();
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const originalChannels = Array.from({ length: decoded.numberOfChannels }, (_, channelIndex) =>
+      decoded.getChannelData(channelIndex)
+    );
+    const monoChannel = downmixToMono(originalChannels);
+    const resampledChannel = resampleMonoChannel(
+      monoChannel,
+      decoded.sampleRate,
+      TARGET_CHUNK_SAMPLE_RATE
+    );
+
+    return encodeWav([resampledChannel], TARGET_CHUNK_SAMPLE_RATE);
+  } finally {
+    await audioContext.close();
+  }
+};
+
 const readDurationFromMediaElement = (file: File) =>
   new Promise<number>((resolve, reject) => {
     const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
@@ -128,92 +138,6 @@ const readDurationFromMediaElement = (file: File) =>
     };
   });
 
-const encodeWav = (channelData: Float32Array[], sampleRate: number) => {
-  const channelCount = channelData.length;
-  const sampleCount = channelData[0]?.length || 0;
-  const bytesPerSample = 2;
-  const blockAlign = channelCount * bytesPerSample;
-  const buffer = new ArrayBuffer(44 + sampleCount * blockAlign);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, value: string) => {
-    for (let index = 0; index < value.length; index += 1) {
-      view.setUint8(offset + index, value.charCodeAt(index));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + sampleCount * blockAlign, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, channelCount, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bytesPerSample * 8, true);
-  writeString(36, 'data');
-  view.setUint32(40, sampleCount * blockAlign, true);
-
-  let offset = 44;
-  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
-    for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
-      const sample = Math.max(-1, Math.min(1, channelData[channelIndex][sampleIndex] || 0));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-      offset += bytesPerSample;
-    }
-  }
-
-  return new Blob([buffer], { type: 'audio/wav' });
-};
-
-const downmixToMono = (channelData: Float32Array[]) => {
-  if (channelData.length <= 1) return channelData[0] || new Float32Array();
-
-  const length = channelData[0].length;
-  const mono = new Float32Array(length);
-
-  for (let sampleIndex = 0; sampleIndex < length; sampleIndex += 1) {
-    let sum = 0;
-    for (let channelIndex = 0; channelIndex < channelData.length; channelIndex += 1) {
-      sum += channelData[channelIndex][sampleIndex] || 0;
-    }
-    mono[sampleIndex] = sum / channelData.length;
-  }
-
-  return mono;
-};
-
-const resampleMonoChannel = (
-  source: Float32Array,
-  sourceSampleRate: number,
-  targetSampleRate: number
-) => {
-  if (sourceSampleRate === targetSampleRate) return source;
-
-  const ratio = sourceSampleRate / targetSampleRate;
-  const targetLength = Math.max(1, Math.round(source.length / ratio));
-  const resampled = new Float32Array(targetLength);
-
-  for (let targetIndex = 0; targetIndex < targetLength; targetIndex += 1) {
-    const start = Math.floor(targetIndex * ratio);
-    const end = Math.min(source.length, Math.floor((targetIndex + 1) * ratio));
-
-    if (end <= start) {
-      resampled[targetIndex] = source[Math.min(source.length - 1, start)] || 0;
-      continue;
-    }
-
-    let sum = 0;
-    for (let sourceIndex = start; sourceIndex < end; sourceIndex += 1) {
-      sum += source[sourceIndex] || 0;
-    }
-    resampled[targetIndex] = sum / (end - start);
-  }
-
-  return resampled;
-};
 
 const computeRmsWindows = (audioBuffer: AudioBuffer) => {
   const channelData = audioBuffer.getChannelData(0);
@@ -390,7 +314,8 @@ const detectAndroidVadBoundaries = async (file: File, chunkDurationSeconds: numb
 
 const splitAudioFileIntoNativeAndroidChunks = async (
   file: File,
-  chunkDurationSeconds: number
+  chunkDurationSeconds: number,
+  speechOnlyUpload: boolean
 ): Promise<AudioChunkPart[] | null> => {
   if (Capacitor.getPlatform() !== 'android') return null;
 
@@ -408,6 +333,7 @@ const splitAudioFileIntoNativeAndroidChunks = async (
       fileUri: fileUri.uri,
       fileName: file.name,
       chunkDurationSeconds,
+      speechOnlyUpload,
     });
 
     return Promise.all(
@@ -417,6 +343,7 @@ const splitAudioFileIntoNativeAndroidChunks = async (
         total: chunk.total,
         startSeconds: chunk.startSeconds,
         endSeconds: chunk.endSeconds,
+        tempFileUri: chunk.fileUri,
       }))
     );
   } catch (error) {
@@ -442,18 +369,20 @@ export const canSplitFileIntoAudioChunks = (file: File) =>
 export const splitAudioFileIntoChunks = async ({
   file,
   chunkDurationSeconds,
+  speechOnlyUpload = false,
 }: {
   file: File;
   chunkDurationSeconds: number;
+  speechOnlyUpload?: boolean;
 }): Promise<AudioChunkPart[]> => {
-  if (!isAudioFile(file)) {
+  const isAndroidExtractableMedia =
+    Capacitor.getPlatform() === 'android' && (isAudioFile(file) || isVideoFile(file));
+  if (!isAudioFile(file) && !isAndroidExtractableMedia) {
     throw new Error('Chỉ hỗ trợ chia chunk tự động cho file audio.');
   }
 
-  const isAndroidExtractableMedia =
-    Capacitor.getPlatform() === 'android' && (isAudioFile(file) || isVideoFile(file));
   const nativeAndroidParts = isAndroidExtractableMedia
-    ? await splitAudioFileIntoNativeAndroidChunks(file, chunkDurationSeconds)
+    ? await splitAudioFileIntoNativeAndroidChunks(file, chunkDurationSeconds, speechOnlyUpload)
     : null;
   if (nativeAndroidParts && nativeAndroidParts.length > 0) {
     return nativeAndroidParts;
@@ -522,5 +451,46 @@ export const splitAudioFileIntoChunks = async ({
     return parts;
   } finally {
     await audioContext.close();
+  }
+};
+
+export const cleanupNativeAudioChunkTemps = async (chunks: AudioChunkPart[]) => {
+  const fileUris = chunks.map((chunk) => chunk.tempFileUri).filter((uri): uri is string => Boolean(uri));
+  if (fileUris.length === 0 || Capacitor.getPlatform() !== 'android') return;
+
+  try {
+    await AudioVad.deleteTempFiles({ fileUris });
+  } catch (error) {
+    console.warn('Native Android chunk temp cleanup failed:', error);
+  }
+};
+
+export const prepareAudioFileForTranscription = async (
+  file: File,
+  options?: { skipNormalization?: boolean }
+) => {
+  if (
+    options?.skipNormalization ||
+    file.name.includes('-part-') ||
+    file.name.includes('-normalized.wav') ||
+    !isAudioFile(file) ||
+    isVideoFile(file)
+  ) {
+    return file;
+  }
+
+  try {
+    const normalizedBlob = await normalizeAudioBlobToMono16kWav(file);
+    return new File(
+      [normalizedBlob],
+      `${getBaseName(file.name)}-normalized.wav`,
+      {
+        type: 'audio/wav',
+        lastModified: Date.now(),
+      }
+    );
+  } catch (error) {
+    console.warn('Audio normalization failed, using original file for transcription:', error);
+    return file;
   }
 };

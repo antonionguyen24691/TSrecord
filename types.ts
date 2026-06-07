@@ -6,6 +6,7 @@ export enum ExtractionMode {
 export enum AppModule {
   TRANSCRIBE = 'TRANSCRIBE',
   RECORD_NOTES = 'RECORD_NOTES',
+  AUDIO_EDITOR = 'AUDIO_EDITOR',
 }
 
 export enum InputSource {
@@ -36,6 +37,8 @@ export interface ProcessingState {
   progressCurrent?: number;
   progressTotal?: number;
   progressLabel?: string;
+  transcriptPreview?: string;
+  completedBatchCount?: number;
   chunkStatuses?: Array<{
     id: string;
     label: string;
@@ -70,10 +73,62 @@ export interface SessionAnalysis {
   context: SessionContext;
   suggestedFolderName: string;
   artifacts: SessionArtifacts;
+  analysisStatus?: 'draft_transcript' | 'complete';
   savedRecording?: SavedDeviceFile | null;
   workspacePath?: string;
   createdAt?: string;
   originalFileName?: string;
+  processingJobId?: string;
+  processingJobStatus?: TranscriptProcessingJob['status'];
+  processingJobCurrentBatch?: number;
+  processingJobTotalBatches?: number;
+  processingSavedBatchCount?: number;
+  processingFailedBatchCount?: number;
+  processingLastFailedBatchIndex?: number | null;
+  processingLastErrorMessage?: string | null;
+  transcriptBatches?: TranscriptBatchRecord[];
+}
+
+export interface TranscriptBatchRecord {
+  batchIndex: number;
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+export interface TranscriptProcessingBatchCheckpoint {
+  batchIndex: number;
+  microChunkIndexes: number[];
+  startMs: number;
+  endMs: number;
+  uploadStatus: 'pending' | 'uploaded' | 'failed';
+  transcribeStatus: 'pending' | 'done' | 'failed';
+  saveStatus: 'pending' | 'saved' | 'failed';
+  retryCount: number;
+  audioTempPath?: string | null;
+  textPath?: string | null;
+  errorMessage?: string | null;
+  updatedAt: string;
+}
+
+export interface TranscriptProcessingJob {
+  id: string;
+  workspacePath: string;
+  sourceAudioPath: string;
+  sourceAudioFileName: string;
+  status: 'pending' | 'processing' | 'paused' | 'complete' | 'failed';
+  provider: string;
+  mode: ExtractionMode;
+  source: InputSource;
+  context: SessionContext;
+  currentBatch: number;
+  totalBatches: number;
+  createdAt: string;
+  updatedAt: string;
+  transcriptTextPath: string;
+  transcriptBatchesPath: string;
+  microChunkMinutes: number;
+  macroBatchMinutes: number;
 }
 
 export interface WorkspaceSessionSummary {
@@ -82,6 +137,7 @@ export interface WorkspaceSessionSummary {
   context: SessionContext;
   source: InputSource;
   mode: ExtractionMode;
+  analysisStatus?: 'draft_transcript' | 'complete';
   createdAt: string;
   workspacePath: string;
   transcriptPreview: string;

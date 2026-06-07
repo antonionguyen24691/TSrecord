@@ -1,0 +1,751 @@
+{
+  "common": {
+    "home": "홈",
+    "settings": "설정",
+    "offline_warning": "네트워크 연결이 끊겼습니다 — 연결이 복구될 때까지 AI 기능을 사용할 수 없습니다."
+  },
+  "ModuleHome": {
+    "tag": "TSrecord",
+    "heroTitle": "직접 녹음하거나 파일을 업로드하여 완성도 높은 회의록 만들기",
+    "heroDesc": "TSrecord는 기기 내 직접 녹음, 기존 오디오/비디오 파일 업로드, 마인드맵이 포함된 회의록 생성, 필요 시 Word 또는 PPT로 즉시 내보내기라는 4가지 핵심 작업에 집중합니다.",
+    "features": {
+      "directRecord": "직접 녹음",
+      "upload": "파일 업로드",
+      "mindmap": "회의록 + 마인드맵",
+      "export": "Word/PPT 내보내기"
+    },
+    "modules": {
+      "transcribe": {
+        "title": "음성 전사",
+        "desc": "기존 파일 업로드"
+      },
+      "record": {
+        "title": "녹음 메모",
+        "desc": "기기에서 바로 녹음"
+      },
+      "editor": {
+        "title": "오디오 편집기",
+        "desc": "오디오를 자른 뒤 바로 전사 모듈로 보내기"
+      }
+    },
+    "workspace": {
+      "badge": "Workspace",
+      "title": "처리된 세션 찾기",
+      "descEmpty": "처리가 끝난 모든 세션은 라이브러리에 자동으로 표시되어 다시 열고 검색할 수 있습니다.",
+      "descWithCount": "{{count}}개의 세션이 저장되었습니다. {{recentSessionTitle}}",
+      "recentPrefix": "최근: "
+    }
+  },
+  "App": {
+    "title": "TSrecord",
+    "titleTranscribe": "전사 추출",
+    "titleRecord": "녹음 및 메모",
+    "titleAudioEditor": "오디오 편집기",
+    "titleWorkspace": "세션 라이브러리 및 검색",
+    "subtitle": "AI 녹음 및 전사 스튜디오",
+    "subtitleTranscribe": "오디오 전사 모듈",
+    "subtitleRecord": "녹음 및 메모 모듈",
+    "subtitleAudioEditor": "오디오 편집 모듈",
+    "workspaceLoadError": "세션 라이브러리를 불러올 수 없습니다.",
+    "processing_meeting": "AI가 전사, 요약, 결정 사항, 리스크, 폴더 트리 및 마인드맵을 생성하는 중입니다...",
+    "processing_interview": "AI가 인터뷰 내용을 전사하는 중입니다...",
+    "processing_general": "AI가 전사하는 중입니다...",
+    "processing_done": "전사와 분석이 완료되었습니다. 결과를 여는 중...",
+    "deleteProjectConfirm": "\"{{name}}\" 프로젝트를 삭제하시겠습니까? 원본 세션은 워크스페이스에 유지됩니다.",
+    "toast": {
+      "sessionLoadError": "이 세션을 다시 열 수 없습니다. 최신 버전에서 패키지를 다시 저장해 보세요.",
+      "backgroundResumeTriggered": "앱이 백그라운드 스케줄러를 통해 전사 작업 하나를 복구했고, 워크스페이스를 새로고침했습니다."
+    },
+    "errors": {
+      "processFile": "파일을 처리하는 중 오류가 발생했습니다.",
+      "reanalyzeTranscript": "저장된 전사를 다시 분석할 수 없습니다.",
+      "resumeTranscription": "중단된 전사 작업을 다시 이어갈 수 없습니다.",
+      "createProject": "새 프로젝트를 만들 수 없습니다."
+    },
+    "resumeTranscription": {
+      "stageLabel": "저장된 체크포인트에서 전사 작업을 다시 이어가는 중...",
+      "progressLabel": "앱이 이미 저장된 batch는 건너뛰고 남은 부분만 계속 처리합니다"
+    },
+    "reanalyze": {
+      "stageLabel": "저장된 전사로 다시 분석하는 중...",
+      "progressLabel": "처음부터 다시 전사할 필요 없음"
+    },
+    "skeleton": {
+      "workspace": "워크스페이스 불러오는 중",
+      "upload": "업로드 화면 불러오는 중",
+      "record": "녹음 모듈 불러오는 중",
+      "audioEditor": "오디오 편집기 불러오는 중",
+      "mode": "AI 설정 불러오는 중",
+      "result": "AI 결과 불러오는 중",
+      "export": "내보내기 화면 불러오는 중"
+    }
+  },
+  "ScreenSkeleton": {
+    "workspace": "워크스페이스 불러오는 중",
+    "record": "녹음 모듈 불러오는 중",
+    "audioEditor": "오디오 편집기 불러오는 중",
+    "mode": "AI 설정 불러오는 중",
+    "result": "AI 결과 불러오는 중",
+    "export": "내보내기 화면 불러오는 중",
+    "default": "화면 불러오는 중"
+  },
+  "UpdateDialog": {
+    "title": "새 버전이 있습니다",
+    "releasedOn": "{{date}}에 출시됨",
+    "androidHint": "APK가 직접 다운로드되어 설치 화면이 열립니다",
+    "genericHint": "이 릴리스에는 APK 파일이 포함되어 있지 않습니다",
+    "needInstallPermission": "Android 설정에서 이 출처의 설치를 한 번 허용해야 합니다.",
+    "downloadDone": "APK 다운로드가 완료되었습니다. Android가 설치 화면을 엽니다.",
+    "downloading": "업데이트 다운로드 중...",
+    "paused": "다운로드가 일시 중지되었습니다. 적절한 네트워크가 연결되면 Android가 계속 진행합니다.",
+    "downloadFailed": "APK 다운로드 실패. 오류 코드: {{reason}}",
+    "cannotTrack": "APK 다운로드 진행 상황을 추적할 수 없습니다.",
+    "downloadStarted": "APK 다운로드를 시작했습니다...",
+    "openPermissionScreen": "Android가 먼저 이 출처의 설치 허용 화면을 엽니다.",
+    "cannotStart": "업데이트 다운로드를 시작할 수 없습니다.",
+    "cannotOpenInstaller": "설치 화면을 열 수 없습니다.",
+    "openInstaller": "설치 화면 열기",
+    "downloadProgress": "{{progress}} 다운로드 중",
+    "downloadAndInstall": "다운로드 및 설치",
+    "openReleasePage": "릴리스 페이지 열기",
+    "releaseNotes": "릴리스 노트",
+    "later": "나중에",
+    "noReleaseNotes": "릴리스 노트가 없습니다."
+  },
+  "SettingsModal": {
+    "title": "AI 설정",
+    "tabs": {
+      "provider": "STT 소스",
+      "models": "AI 모델",
+      "chunking": "긴 파일",
+      "realtime": "실시간",
+      "recording": "녹음",
+      "storage": "저장소",
+      "googleDrive": "Google Drive",
+      "license": "서비스 요금제"
+    },
+    "common": {
+      "show": "표시",
+      "hide": "숨기기",
+      "copy": "복사",
+      "copied": "복사됨"
+    },
+    "provider": {
+      "useAdminKey": {
+        "title": "시스템 API Key 사용 (관리자)",
+        "description": "이 옵션을 켜면 개인 API Key를 입력하지 않아도 됩니다. 사용하려면 활성화된 요금제가 필요합니다."
+      },
+      "sourceLabel": "음성 텍스트 변환 소스",
+      "adminEnabled": {
+        "title": "시스템 API Key 사용 중",
+        "description": "현재 기기는 시스템에서 제공한 API Key로 음성 인식({{provider}})과 분석을 수행하고 있습니다. 개인 Key 입력란은 숨겨졌으며, {{planTab}} 탭에서 활성 요금제가 있는지 확인해 주세요."
+      },
+      "keyLabel": "API Key — {{provider}}",
+      "keyStoredLocally": "이 Key는 현재 기기에만 로컬로 저장됩니다.",
+      "getKeyHere": "여기에서 Key 받기 →",
+      "geminiAnalysisKey": {
+        "title": "Gemini API Key (분석에 필수)",
+        "description": "음성 인식 provider가 무엇이든 summary, mindmap, action items 등의 분석에는 Gemini가 계속 사용됩니다. 아직 없다면 Gemini API Key를 입력해 주세요.",
+        "link": "여기에서 Gemini Key 받기 →"
+      },
+      "options": {
+        "gemini": {
+          "name": "Google Gemini",
+          "badge": "무료",
+          "description": "멀티모달로 오디오를 직접 처리하며 300MB까지 지원합니다. 대부분의 경우에 적합합니다.",
+          "keyPlaceholder": "AIza...",
+          "limit": "하루 1,500회 무료 요청"
+        },
+        "assemblyai": {
+          "name": "AssemblyAI",
+          "badge": "$50 무료",
+          "description": "화자 분리 기능이 있는 STT 전용 서비스로 파일 크기 제한이 거의 없어 다인 회의에 적합합니다.",
+          "keyPlaceholder": "AssemblyAI API Key 입력...",
+          "limit": "약 333시간 무료 오디오"
+        },
+        "groq": {
+          "name": "Groq Whisper",
+          "badge": "무료",
+          "description": "매우 빠르며 실시간보다도 빠르게 처리합니다. 파일당 25MB 제한이 있어 작은 파일에 적합합니다.",
+          "keyPlaceholder": "gsk_...",
+          "limit": "RPM 제한, 파일 최대 25MB"
+        },
+        "openai": {
+          "name": "OpenAI Whisper",
+          "badge": "유료",
+          "description": "정확도가 높고 무료 구간은 없으며, 오디오 1분당 0.006달러입니다. 파일당 25MB 제한이 있습니다.",
+          "keyPlaceholder": "sk-...",
+          "limit": "$0.006/분, 파일 최대 25MB"
+        }
+      }
+    },
+    "models": {
+      "realtimeLabel": "실시간 녹음용 모델",
+      "analysisLabel": "최종 분석용 모델",
+      "realtimeHintPrefix": "추천:",
+      "realtimeHintMiddle": "는 더 빠른 속도와 더 좋은 품질이 필요할 때 좋습니다. 비용을 가장 아끼려면",
+      "analysisHintPrefix": "추천:",
+      "analysisHintMiddle": "는 긴 회의나 깊은 분석에 적합합니다. 균형 잡힌 선택을 원하면",
+      "options": {
+        "gemini-3-flash-preview": "Gemini 3 Flash Preview (유료, 2.5 Flash보다 빠름)",
+        "gemini-3-pro-preview": "Gemini 3 Pro Preview (유료, 가장 깊은 추론)",
+        "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
+        "gemini-2.5-flash": "Gemini 2.5 Flash (추천, 균형형)",
+        "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite (가장 저렴함)",
+        "gemini-2.5-pro": "Gemini 2.5 Pro (가장 깊은 분석)"
+      }
+    },
+    "chunking": {
+      "title": "긴 파일 처리",
+      "description": "오디오가 이 기준보다 길어지면 앱이 여러 파트로 나누고, 문장이 끊기지 않도록 무음 구간 근처에서 잘라 병렬 전사를 수행한 뒤 최종 transcript를 합칩니다.",
+      "durationLabel": "파트당 분 수",
+      "durationHint": "기본값은 8분입니다. 값을 줄이면 타임아웃 위험은 줄지만 요청 수는 늘어납니다.",
+      "macroBatchLabel": "API 배치당 분",
+      "macroBatchHint": "API 배치는 micro-chunk보다 크게 잡아야 합니다. Gemini free는 request 실패를 줄이기 위해 더 안전한 상한을 자동 적용합니다.",
+      "staggerLabel": "파트별 시작 지연",
+      "staggerHint": "기본값은 2초입니다. 병렬 요청을 살짝 분산해 rate limit 충돌 가능성을 낮춥니다.",
+      "concurrencyLabel": "병렬 작업 수",
+      "concurrencyHint": "프로덕션 처리 흐름은 RAM 급증, 발열, 모바일 크래시를 막기 위해 1 worker로 고정되어 있습니다."
+    },
+    "realtime": {
+      "title": "실시간 모드",
+      "note": "* 실시간 모드는 위의 transcript 소스 설정과 관계없이 항상 Google Gemini를 사용합니다.",
+      "options": {
+        "HYBRID": {
+          "name": "Hybrid (추천)",
+          "description": "실시간 단계에서는 transcript와 짧은 summary만 업데이트합니다. decisions, risks, action items는 마지막 단계에서 완전하게 생성됩니다."
+        },
+        "FULL": {
+          "name": "Full Realtime",
+          "description": "모든 chunk마다 전체 AI 업데이트를 수행합니다. 더 편리하지만 요청 수가 더 많습니다."
+        },
+        "OFF": {
+          "name": "실시간 끄기",
+          "description": "녹음 중에는 AI를 호출하지 않고, 녹음이 끝난 뒤 한 번만 분석합니다."
+        }
+      }
+    },
+    "recording": {
+      "profiles": {
+        "title": "녹음 프로필",
+        "options": {
+          "BALANCED": {
+            "name": "균형",
+            "description": "대부분의 상황에 적합한 기본 설정입니다. 음성 선명도와 적당한 노이즈 처리를 함께 유지합니다."
+          },
+          "VOICE_FOCUS": {
+            "name": "음성 집중",
+            "description": "마이크 가까이의 음성을 우선합니다. 회의, 인터뷰, 1인 녹음에 적합합니다."
+          },
+          "NOISY_ENV": {
+            "name": "시끄러운 환경",
+            "description": "야외나 울림이 큰 공간에서 더 강한 노이즈, 에코, 게인 처리를 적용합니다."
+          },
+          "RAW": {
+            "name": "원본 녹음",
+            "description": "자동 처리를 끕니다. 외부 마이크 사용이나 별도 후처리에 적합합니다."
+          },
+          "CUSTOM": {
+            "name": "사용자 지정",
+            "description": "noise, echo, gain, sample rate, 채널 수를 직접 선택합니다."
+          }
+        }
+      },
+      "advanced": {
+        "title": "고급 조정",
+        "description": "아래 설정은 마이크 제약과 기기 하드웨어 지원 범위에 따라 적용됩니다. 브라우저와 Android는 지원되는 범위에서만 반영합니다.",
+        "noiseLabel": "Noise suppression",
+        "echoLabel": "Echo cancellation",
+        "gainLabel": "Auto gain",
+        "sampleRateLabel": "Sample rate",
+        "channelLabel": "Channel",
+        "processingLevels": {
+          "OFF": "끔",
+          "LOW": "낮음",
+          "MEDIUM": "중간",
+          "HIGH": "높음"
+        }
+      }
+    },
+    "storage": {
+      "localPathTitle": "로컬 저장 위치",
+      "localPathDescription": "녹음 파일, transcript, 작업 데이터는 더 안정적인 정리와 복구를 위해 앱 내부 저장소에 보관됩니다. 내보낸 파일이나 수동 공유 파일만 공개 폴더에 저장됩니다.",
+      "dangerTitle": "위험 구역",
+      "dangerDescription": "{{appStorage}}에 있는 앱 내부 데이터를 모두 영구 삭제합니다. {{legacyStorage}}에 남아 있는 이전 데이터도 가능하면 함께 정리합니다. 이 작업은 되돌릴 수 없습니다.",
+      "confirmDeleteAll": "경고: 녹음과 transcript를 포함한 모든 앱 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+      "deleteSuccess": "모든 데이터가 성공적으로 삭제되었습니다.",
+      "deleteError": "데이터 삭제 중 오류: {{message}}",
+      "deleteAll": "모든 데이터 삭제"
+    },
+    "googleDrive": {
+      "title": "Google Drive 연결",
+      "description": "본인의 Google 계정으로 로그인하여 Google Drive에서 오디오 또는 비디오 파일을 직접 선택합니다.",
+      "apiKeyLabel": "Developer API Key",
+      "apiKeyPlaceholder": "Google Cloud API Key 입력...",
+      "note": "앱은 Google 로그인 창을 열기 위해 OAuth 설정만 사용합니다. 실제로 연결되는 Drive와 선택한 파일은 로그인한 본인의 Google 계정에 속합니다."
+    },
+    "license": {
+      "status": {
+        "title": "라이선스 상태",
+        "activated": "활성화됨",
+        "notActivated": "비활성",
+        "planLabel": "요금제",
+        "expiresLabel": "만료일",
+        "planPromo": "프로모션 / 체험판",
+        "planFree": "무료 / 체험판",
+        "unlimited": "무제한 / 평생",
+        "deviceIdLabel": "기기 ID",
+        "loadingDeviceId": "불러오는 중...",
+        "copyDeviceId": "Device ID 복사"
+      },
+      "promo": {
+        "title": "Promo Code로 활성화",
+        "placeholder": "프로모션 코드 입력...",
+        "success": "활성화에 성공했습니다!",
+        "invalid": "유효하지 않은 코드입니다.",
+        "error": "오류가 발생했습니다.",
+        "submitting": "전송 중...",
+        "activate": "활성화"
+      },
+      "plans": {
+        "title": "시스템 Key 요금제 구매",
+        "copiedSyntax": "이체 문구 복사됨",
+        "copyTransferSyntax": "이체 문구 복사",
+        "monthly": {
+          "name": "1개월 요금제",
+          "price": "29,000đ",
+          "period": "/월",
+          "description": "meeting transcript와 분석을 위해 시스템 API Key를 제한 없이 사용할 수 있습니다."
+        },
+        "lifetime": {
+          "name": "평생 요금제",
+          "badge": "절약",
+          "price": "199,000đ",
+          "period": "/영구",
+          "description": "한 번만 결제하면 모든 기능과 시스템 API Key를 평생 사용할 수 있으며 유지비가 없습니다."
+        }
+      },
+      "paymentInfo": {
+        "title": "계좌이체 결제 정보:",
+        "bankLabel": "은행:",
+        "defaultBankName": "MB BANK (Military Bank)",
+        "accountNumberLabel": "계좌번호:",
+        "accountNameLabel": "예금주:",
+        "notice": "* 중요: 시스템이 입금 후 1-2분 내에 자동으로 요금제를 활성화할 수 있도록 반드시 지정된 이체 문구를 사용해 주세요."
+      }
+    },
+    "clearGeminiKey": "Gemini 키 삭제",
+    "close": "닫기",
+    "saving": "저장 중...",
+    "save": "설정 저장"
+  },
+  "AttachmentManager": {
+    "title": "보조 첨부 파일",
+    "description": "PDF, Word, PowerPoint 또는 텍스트 파일을 첨부하면 AI가 함께 분석하여 더 나은 결과를 제공합니다.",
+    "addFile": "파일 추가",
+    "emptyTitle": "보조 문서를 이곳에 끌어다 놓거나 클릭해서 찾아보세요",
+    "emptyHint": "PDF, DOCX, PPTX, TXT, MD 지원 (파일당 최대 20MB)",
+    "legacyBadge": "구형",
+    "removeTitle": "파일 제거",
+    "unsupportedFileAlert": "\"{{name}}\" 파일은 지원되지 않습니다. PDF, Word, PowerPoint, TXT, MD 형식의 보조 문서만 허용됩니다.",
+    "legacyWarning": {
+      "title": "참고: 구형 파일 형식 (.doc, .ppt)",
+      "body": "브라우저는 오래된 .doc 또는 .ppt 파일에서 텍스트를 직접 자동 추출할 수 없습니다. 최상의 AI 분석 결과를 위해 첨부 전에 .docx, .pptx 또는 .pdf 형식으로 변환해 주세요."
+    }
+  },
+  "StepUpload": {
+    "tag": "전사 모듈",
+    "title": "전사 또는 회의 메모용 파일 업로드",
+    "description": "기존 오디오 또는 비디오 파일을 선택하면 앱이 전사, 회의 메모, 마인드맵을 만들고 Word 또는 PPT 내보내기를 준비합니다.",
+    "context": {
+      "transcription": "전사",
+      "meeting": "회의 메모",
+      "interview": "인터뷰"
+    },
+    "buttons": {
+      "googleDrive": "Google Drive",
+      "connecting": "연결 중...",
+      "chooseFile": "파일 선택",
+      "importDrive": "Google Drive에서 가져오기",
+      "connectingDrive": "Drive에 연결 중...",
+      "removeFile": "파일 제거",
+      "next": "형식 선택"
+    },
+    "dropzone": {
+      "title": "파일을 끌어다 놓거나 클릭해서 선택하세요",
+      "description": "MP3, WAV, M4A, MP4 및 일반적인 오디오/비디오 형식을 지원합니다."
+    },
+    "alerts": {
+      "unsupportedFormat": "지원되지 않는 형식입니다. 오디오 또는 비디오 파일을 선택해 주세요.",
+      "missingGoogleConfig": "앱의 Google Drive 설정이 아직 완료되지 않았습니다. 잠시 후 다시 시도하거나 앱 관리자에게 문의해 주세요.",
+      "sdkNotReady": "Google SDK가 아직 완전히 로드되지 않았습니다. 인터넷 연결을 확인해 주세요.",
+      "pickerLoadFailed": "Google Picker SDK를 불러올 수 없습니다.",
+      "googleLoginFailed": "Google 로그인 실패: {{error}}",
+      "missingAccessToken": "Google OAuth2 액세스 토큰을 가져올 수 없습니다.",
+      "driveDownloadError": "Google Drive 다운로드 실패: {{status}}",
+      "driveDownloadProcessError": "Google Drive에서 파일을 다운로드하는 중 오류가 발생했습니다.",
+      "sdkConfigError": "Google SDK 연결 또는 구성 오류입니다."
+    }
+  },
+  "StepRecord": {
+    "tag": "녹음 모듈",
+    "title": "세션 유형 선택",
+    "description": "회의 모드에는 실시간 메모가 포함되고, 인터뷰 모드는 종료 후에만 녹음과 전사를 진행합니다.",
+    "contexts": {
+      "meetingTitle": "회의",
+      "meetingDescription": "녹음 후 전사, 요약, 결정 사항, 리스크, 액션 아이템, 폴더 트리와 마인드맵을 생성합니다.",
+      "interviewTitle": "인터뷰",
+      "interviewDescription": "녹음 후 인터뷰 내용만 전사하며, 마인드맵이나 회의 메모는 자동 생성하지 않습니다."
+    },
+    "liveCard": {
+      "title": "실시간 회의 메모",
+      "description": "실시간 업데이트는 약 15초 단위 청크로 진행됩니다. Hybrid 모드에서는 전사와 빠른 요약만 업데이트되고, 녹음이 끝나면 전체 파일에 대해 완전한 AI 단계가 다시 실행됩니다."
+    },
+    "recording": {
+      "tag": "직접 녹음",
+      "activeTitle": "세션을 녹음하는 중",
+      "idleTitle": "마이크 준비 완료",
+      "description": "녹음이 끝나면 앱이 새 오디오 파일을 만들고 기기에 저장한 뒤, 선택한 세션 유형에 맞는 AI 단계로 이동합니다.",
+      "duration": "길이",
+      "start": "녹음 시작",
+      "resume": "이어가기",
+      "pause": "일시정지",
+      "stop": "중지",
+      "statusTitle": "녹음 상태",
+      "recordAgain": "다시 녹음",
+      "aiSettings": "AI 설정",
+      "audioPreviewUnsupported": "브라우저가 오디오 미리듣기를 지원하지 않습니다."
+    },
+    "livePanel": {
+      "title": "실시간 회의 메모",
+      "subtitle": "전사와 메모가 점진적으로 업데이트됩니다",
+      "processedChunks": "{{count}}개 청크 처리됨",
+      "transcriptPreview": "전사 미리보기",
+      "summaryPreview": "누적 요약",
+      "decisionsActionItems": "결정 사항 및 액션 아이템",
+      "risks": "리스크 / 블로커",
+      "emptyTranscript": "아직 실시간 전사가 없습니다.",
+      "emptySummary": "아직 실시간 요약이 없습니다.",
+      "emptyDecisions": "추출된 결정 사항이 아직 없습니다.",
+      "emptyActionItems": "실시간 액션 아이템이 아직 없습니다.",
+      "emptyRisks": "감지된 리스크 또는 블로커가 아직 없습니다."
+    },
+    "status": {
+      "waitingMeeting": "실시간 메모가 회의 녹음을 기다리는 중입니다.",
+      "waitingInterview": "인터뷰 모드는 세션 종료 후에만 녹음과 전사를 진행합니다.",
+      "nextChunkWaiting": "실시간 메모가 다음 녹음 청크를 기다리는 중입니다.",
+      "processingChunk": "AI가 녹음 청크 {{index}}에서 업데이트하는 중...",
+      "updatedChunks": "실시간 메모가 {{count}}개의 녹음 청크를 업데이트했습니다.",
+      "finalizingRealtime": "마지막 AI 업데이트를 마무리하는 중...",
+      "realtimeError": "실시간 메모에서 오류가 발생했지만, 녹음을 중지한 뒤 메인 녹음은 계속 처리할 수 있습니다.",
+      "realtimeUpdateFailed": "실시간 메모를 업데이트할 수 없습니다.",
+      "cleared": "현재 녹음이 지워졌습니다.",
+      "requestingMic": "마이크 권한을 요청하는 중...",
+      "hybridReady": "실시간 HYBRID 모드가 활성화되었습니다: 각 청크마다 전사와 빠른 요약을 업데이트합니다.",
+      "fullReady": "실시간 FULL 모드가 활성화되었습니다: 각 청크마다 전체 회의 메모를 업데이트합니다.",
+      "offBySettings": "실시간 기능이 설정에서 꺼져 있습니다. 세션이 끝나면 앱이 한 번의 전체 분석을 수행합니다.",
+      "missingApiKey": "Gemini API Key가 없어 실시간 메모가 비활성화되었습니다. 그래도 녹음 후 전체 분석을 진행할 수 있습니다.",
+      "noAudioData": "오디오 데이터가 수집되지 않았습니다. 다시 시도해 주세요.",
+      "savingRecording": "녹음을 기기에 저장하는 중...",
+      "savedRecording": "녹음이 {{path}}에 저장되었습니다.",
+      "saveRecordingFailed": "녹음은 끝났지만 파일을 기기에 저장할 수 없습니다. 그래도 AI 단계로 계속 진행할 수 있습니다.",
+      "finalizingRecording": "녹음 파일을 마무리하는 중...",
+      "realtimeFinalPass": "전체 AI 단계로 이동하기 전에 마지막 실시간 업데이트를 마무리하는 중입니다.",
+      "realtimeDone": "이 녹음 세션의 실시간 메모 업데이트가 완료되었습니다.",
+      "recordingNow": "실시간 오디오를 녹음하는 중...",
+      "startFailed": "녹음을 시작할 수 없습니다.",
+      "paused": "녹음이 일시정지되었습니다.",
+      "resumed": "녹음이 다시 시작되었습니다."
+    }
+  },
+  "StepMode": {
+    "tag": "처리 단계",
+    "title": "전사 형식 선택",
+    "source": "소스",
+    "sourceRecording": "녹음",
+    "sourceUpload": "업로드",
+    "module": "모듈",
+    "moduleRecording": "녹음",
+    "moduleUpload": "업로드",
+    "context": "컨텍스트",
+    "contextMeeting": "회의",
+    "contextInterview": "인터뷰",
+    "contextTranscription": "전사",
+    "timeline": "타임라인",
+    "plainText": "일반 텍스트",
+    "progressTag": "처리 진행 상황",
+    "initializing": "파이프라인 초기화 중...",
+    "progress": "진행률",
+    "transcriptPreviewTitle": "점진적으로 쌓이는 transcript",
+    "transcriptPreviewCount": "{{count}}개 batch 저장됨",
+    "transcriptPreviewEmpty": "아직 저장된 transcript batch가 없습니다.",
+    "back": "뒤로",
+    "processingAi": "AI 처리 중",
+    "runAnalysis": "분석 실행"
+  },
+  "StepResult": {
+    "resultTag": "AI 결과",
+    "savedBadge": "기기에 자동 저장됨",
+    "description": "기본적으로 앱은 각 artifact를 가장 적절한 표시 형식으로 렌더링합니다. 수동 편집이 필요하면 원본 텍스트 편집 모드로 전환할 수 있습니다.",
+    "draftNotice": "이 전사는 초안으로 저장되었습니다. 처음부터 음성 인식을 다시 돌리지 않고도 읽고 수정한 뒤 분석을 계속할 수 있습니다.",
+    "resumeNotice": "이전 전사 작업이 중간에 끊기거나 실패했습니다. 전체를 다시 업로드하고 처음부터 전사하지 않아도 저장된 체크포인트에서 이어갈 수 있습니다.",
+    "context": "컨텍스트",
+    "source": "소스",
+    "sourceRecording": "녹음",
+    "sourceUpload": "업로드",
+    "artifacts": "Artifacts",
+    "browserTitle": "Artifact 브라우저",
+    "previewMode": "표준 보기",
+    "editMode": "텍스트 편집",
+    "copied": "복사됨",
+    "copySection": "이 섹션 복사",
+    "textareaPlaceholder": "내용이 여기에 표시됩니다...",
+    "reanalyzing": "재분석 중",
+    "resumingTranscription": "전사 이어가는 중",
+    "resumeTranscription": "전사 이어가기",
+    "reanalyzeFromTranscript": "전사에서 계속 분석",
+    "reanalyzeArtifacts": "artifact 재분석",
+    "next": "내보내기로 이동",
+    "checkpoint": {
+      "title": "체크포인트 상태",
+      "status": "작업 상태",
+      "progress": "저장된 배치",
+      "progressValue": "{{saved}} / {{total}} 배치",
+      "currentBatch": "현재 진행",
+      "currentBatchValue": "{{current}} / {{total}} 배치 진행 중",
+      "failedBatch": "최근 실패 배치",
+      "failedBatchValue": "{{index}}번 배치",
+      "failedBatchFallback": "실패한 배치 {{count}}개",
+      "lastError": "최근 오류:",
+      "statusValues": {
+        "pending": "대기 중",
+        "processing": "처리 중",
+        "paused": "일시 중지됨",
+        "complete": "완료됨",
+        "failed": "실패"
+      }
+    },
+    "contextValueMeeting": "회의",
+    "contextValueInterview": "인터뷰",
+    "contextValueTranscription": "전사",
+    "artifactLabels": {
+      "transcript": "전사",
+      "summary": "요약",
+      "decisions": "결정 사항",
+      "risks": "리스크",
+      "folderTree": "폴더 트리",
+      "mindmap": "마인드맵",
+      "actionItems": "액션 아이템"
+    },
+    "artifactDescriptions": {
+      "transcript": "주요 전사 내용.",
+      "summary": "회의 요약.",
+      "decisions": "확정된 결정 사항.",
+      "risks": "리스크와 미해결 포인트.",
+      "folderTree": "추천 폴더 구조.",
+      "mindmap": "시스템 마인드맵.",
+      "actionItems": "작업 체크리스트."
+    },
+    "previewCards": {
+      "folderTreeTitle": "추천 폴더 구조",
+      "folderTreeSubtitle": "원시 텍스트 대신 트리 보기로 표시합니다.",
+      "mindmapSubtitle": "Mermaid에서 직접 다이어그램으로 렌더링합니다.",
+      "nodeOutline": "노드 개요"
+    },
+    "emptyArtifact": "이 artifact에는 아직 데이터가 없습니다.",
+    "mindmapEmpty": "렌더링할 마인드맵 데이터가 없습니다.",
+    "mindmapZoomIn": "확대",
+    "mindmapZoomOut": "축소",
+    "mindmapReset": "기본 보기로 복원",
+    "mindmapResetShort": "기본값",
+    "mindmapAutoFit": "도표 다시 맞추기",
+    "mindmapAutoFitShort": "맞춤",
+    "mindmapHint": "드래그 이동과 멀티터치 확대/축소 지원",
+    "mindmapAria": "마인드맵 시각화",
+    "mindmapStatus": "줌 {{scale}}% · 더블클릭으로 도표 다시 맞춤 · 배경 드래그로 이동 · 노드 드래그로 수동 재배치",
+    "timelineEditor": {
+      "title": "타임라인 편집기",
+      "description": "각 타임스탬프는 별도 블록으로 나뉘어 있어 내보내기 전에 전사를 검토하기 쉽습니다.",
+      "addBlock": "블록 추가",
+      "segmentPlaceholder": "이 타임스탬프의 전사 내용...",
+      "removeBlock": "블록 {{index}} 삭제"
+    }
+  },
+  "StepAudioEditor": {
+    "badge": "오디오 편집기 Pro",
+    "title": "AI에 보내기 전에 오디오 자르기",
+    "description": "원하는 구간만 남기고 타임라인에서 바로 미리 들어본 뒤 새 오디오 파일로 저장하거나 전사 모듈로 바로 보낼 수 있습니다.",
+    "waveLane": "웨이브 라인 (실제 파형)",
+    "noFile": "아직 파일이 없습니다",
+    "chooseFileToViewWave": "파형을 보려면 오디오 파일을 선택하세요",
+    "rangeStart": "시작",
+    "rangeEnd": "끝",
+    "rangeLength": "길이",
+    "currentPosition": "현재 위치",
+    "totalDuration": "전체 길이",
+    "sourceTag": "원본 파일",
+    "sourceTitle": "파일을 선택하고 자를 구간을 지정하세요",
+    "chooseAudio": "오디오 선택",
+    "emptyTitle": "원본 파일용 오디오 편집기",
+    "emptyDescription": "프리미엄 편집기는 오디오 파일의 실제 파형을 보여줍니다. 원하는 시간 구간을 선택하고 추출 전에 정확히 미리 들어볼 수 있습니다.",
+    "previewSelection": "선택 구간 미리 듣기",
+    "trimmedReady": "잘라낸 오디오 준비 완료",
+    "savedAt": "저장 위치: {{path}}",
+    "saveEdited": "편집한 오디오 저장",
+    "saving": "저장 중...",
+    "buildingFile": "파일 생성 중...",
+    "buildingSegment": "잘라낸 구간 생성 중...",
+    "sendToTranscribe": "전사 모듈로 보내기",
+    "unsupportedPreview": "브라우저가 오디오 미리듣기를 지원하지 않습니다.",
+    "errors": {
+      "unsupportedAudio": "오디오 편집기는 현재 오디오 파일만 지원합니다.",
+      "openAudioFailed": "오디오 파일을 열 수 없습니다.",
+      "buildSegmentFailed": "잘라낸 오디오 구간을 만들 수 없습니다.",
+      "saveSegmentFailed": "잘라낸 오디오 파일을 저장할 수 없습니다."
+    }
+  },
+  "WorkspaceLibrary": {
+    "workspaceBadge": "워크스페이스",
+    "title": "프로젝트 및 세션",
+    "description": "간결한 세션 목록입니다. 각 행을 클릭하면 상세 내용을 보거나 처리된 세션을 다시 열 수 있습니다.",
+    "statsSessions": "세션",
+    "statsProjects": "프로젝트",
+    "statsMeetings": "회의",
+    "refresh": "데이터 새로고침",
+    "oldProjects": "저장된 프로젝트",
+    "newProjectPlaceholder": "새 프로젝트 이름...",
+    "createProject": "생성",
+    "allSessions": "모든 세션",
+    "allSessionsDescription": "프로젝트 필터 없이 전체 라이브러리를 봅니다.",
+    "noProjects": "아직 프로젝트가 없습니다. 관련 세션을 묶으려면 첫 프로젝트를 만들어 보세요.",
+    "projectCount": "{{count}}개 세션",
+    "projectHasNote": "수기 메모 있음",
+    "searchLabel": "제목, 요약, 액션 아이템 또는 경로로 검색",
+    "searchInProject": "프로젝트에서 검색: {{name}}",
+    "searchPlaceholder": "예: sprint planning, 인터뷰, 고객 A...",
+    "activeProject": "열린 프로젝트",
+    "recordingCount": "{{count}}개 직접 녹음",
+    "unpinProject": "프로젝트 고정 해제",
+    "pinProject": "프로젝트 고정",
+    "deleteProject": "프로젝트 삭제",
+    "closeProject": "프로젝트 닫기",
+    "projectNoteTitle": "프로젝트 메모",
+    "projectNotePlaceholder": "이 프로젝트에 대한 메모를 남겨 보세요: 배경, 기억할 점, 회의 외 결정 사항, 다음 실행용 전용 프롬프트 등...",
+    "loading": "워크스페이스 데이터를 불러오는 중...",
+    "emptySearchTitle": "일치하는 세션을 찾지 못했습니다",
+    "emptyScopeTitle": "이 범위에는 아직 세션이 없습니다",
+    "emptySearchDescription": "키워드를 줄이거나 모든 세션 보기로 돌아가 보세요.",
+    "emptyProjectDescription": "이 프로젝트에는 아직 세션이 없습니다. 아래 세션을 선택해 이 프로젝트에 추가하세요.",
+    "emptyGeneralDescription": "녹음이나 파일 업로드 후 AI 처리가 끝나면 앱이 세션을 여기에 자동 저장합니다.",
+    "sessionNoteBadge": "세션 메모 있음",
+    "open": "열기",
+    "summary": "요약",
+    "summaryEmpty": "아직 요약이 없거나 전사 전용 세션입니다.",
+    "transcript": "전사",
+    "transcriptEmpty": "아직 전사 미리보기가 없습니다.",
+    "actionItems": "액션 아이템",
+    "actionItemsEmpty": "아직 액션 아이템이 없거나 이 세션에는 필요하지 않습니다.",
+    "sessionNoteTitle": "세션 메모",
+    "sessionNotePlaceholder": "이 세션 전용 메모를 남겨 보세요: AI가 잘못 들은 부분, 후속 작업, 다시 열 때 주의할 점, Word/PPT를 누구에게 보낼지 등...",
+    "removeFromProject": "프로젝트에서 제거",
+    "addToProject": "프로젝트에 추가",
+    "contexts": {
+      "meeting": "회의 메모",
+      "interview": "인터뷰",
+      "transcription": "전사"
+    },
+    "sources": {
+      "recording": "직접 녹음",
+      "upload": "업로드한 파일"
+    }
+  },
+  "ServiceMessages": {
+    "languages": {
+      "vi": "베트남어",
+      "en": "영어",
+      "zh": "중국어(간체)",
+      "ko": "한국어"
+    },
+    "timeout": {
+      "default": "요청 시간이 초과되었습니다. 다시 시도해 주세요."
+    },
+    "gemini": {
+      "errors": {
+        "invalidApiKeyOrModel": "Gemini API Key가 올바르지 않거나 현재 모델을 사용할 수 없습니다.",
+        "unauthorizedModel": "현재 Gemini API Key에는 이 모델에 대한 접근 권한이 없습니다.",
+        "fileTooLarge": "파일 크기가 AI 제한을 초과했습니다.",
+        "timeout": "Gemini 응답 시간이 너무 깁니다. 더 짧은 파일이나 다른 provider로 다시 시도해 주세요.",
+        "quota": "Gemini가 현재 호출 한도 또는 quota에 걸렸습니다. 잠시 후 다시 시도해 주세요.",
+        "temporary": "Gemini에 일시적인 오류가 발생했습니다. 나중에 다시 시도해 주세요.",
+        "unavailable": "Gemini가 현재 과부하 상태이거나 사용할 수 없습니다. 나중에 다시 시도해 주세요.",
+        "network": "네트워크 오류입니다. 인터넷 연결을 확인해 주세요.",
+        "retryHint": "다시 시도할 수 있습니다."
+      },
+      "general": {
+        "fileTooLargeForUpload": "파일이 너무 큽니다. 앱이 멈추지 않도록 {{limit}}MB 이하 파일을 선택해 주세요.",
+        "cannotParseJson": "AI JSON을 해석할 수 없습니다. 현재 확보된 원본 텍스트는 유지됩니다.",
+        "transcriptMissing": "AI가 transcript를 반환하지 않았습니다.",
+        "enterApiKey": "이 기기의 설정에서 Gemini API Key를 입력해 주세요.",
+        "cannotUpdateRealtimeNotes": "실시간 노트를 업데이트할 수 없습니다.",
+        "emptyTranscriptResult": "Transcript 결과가 비어 있습니다.",
+        "invalidTranscriptResponse": "Gemini가 유효한 transcript를 반환하지 않았습니다.",
+        "cannotTranscribe": "Gemini로 오디오를 전사할 수 없습니다.",
+        "cannotAnalyzeProxy": "프록시를 통해 transcript를 분석하는 중 오류가 발생했습니다.",
+        "emptyResult": "AI 결과가 비어 있습니다.",
+        "cannotAnalyze": "Transcript를 분석하는 중 오류가 발생했습니다.",
+        "cannotProcessFile": "파일을 처리하는 중 오류가 발생했습니다."
+      },
+      "prompts": {
+        "outputLanguageInstruction": "title, summary, decisions, risks, actionItems, folderTree, mindmap 같은 사용자 표시용 필드는 반드시 {{language}}로 작성해야 합니다. transcript 자체는 파일의 원래 발화 언어를 그대로 유지해야 합니다."
+      }
+    },
+    "providers": {
+      "openai": {
+        "missingApiKey": "OpenAI API Key가 설정되지 않았습니다. 설정에서 입력해 주세요.",
+        "fileTooLarge": "파일 크기({{size}}MB)가 OpenAI Whisper 제한 {{limit}}MB를 초과합니다. 더 큰 파일은 Google Gemini 또는 AssemblyAI를 사용해 주세요.",
+        "invalidApiKey": "OpenAI API Key가 유효하지 않거나 만료되었습니다.",
+        "outOfCredit": "OpenAI 계정 잔액이 부족합니다. 먼저 충전해 주세요."
+      },
+      "groq": {
+        "missingApiKey": "Groq API Key가 설정되지 않았습니다. 설정에서 입력해 주세요.",
+        "fileTooLarge": "파일 크기({{size}}MB)가 Groq Whisper 제한 {{limit}}MB를 초과합니다. 더 큰 파일은 Google Gemini 또는 AssemblyAI를 사용해 주세요."
+      }
+    },
+    "orchestrator": {
+      "providerTimeout": "{{provider}}가 transcript를 생성하는 데 너무 오래 걸렸습니다. 다시 시도하거나 다른 provider를 선택해 주세요.",
+      "chunkPreparing": "{{provider}}용 긴 파일을 준비하는 중...",
+      "chunkPreparingDetails": "메타데이터를 읽고 무음 구간 근처에서 오디오를 분할하는 중",
+      "fileLongSplitting": "파일 길이가 {{minutes}}분입니다. 503 오류를 피하기 위해 약 {{chunkMinutes}}분 단위로 분할하는 중...",
+      "chunkLabel": "{{index}}/{{total}} 구간",
+      "chunkProgress": "{{completed}}/{{total}} 구간 완료",
+      "chunkSplitComplete": "{{count}}개 구간으로 분할되었고, 최대 {{concurrency}}개 병렬 작업으로 전사 중...",
+      "chunkWaitingBeforeSend": "전송 전에 {{seconds}}초 대기",
+      "chunkRetry": "네트워크 오류입니다. 3초 후 다시 시도합니다 ({{attempt}}/{{maxRetries}})...",
+      "chunkProcessing": "{{index}}/{{total}} 구간을 최대 {{concurrency}}개 병렬 작업으로 처리 중...",
+      "chunkStarting": "{{index}}/{{total}} 구간 시작 중 ({{start}} - {{end}})...",
+      "chunkDone": "{{start}} - {{end}} 구간 완료",
+      "chunkCompleteMerging": "모든 구간 전사가 끝났습니다. 최종 transcript를 병합하는 중...",
+      "chunkFallbackDirect": "청크 처리에 실패하여 직접 전사로 되돌아갑니다...",
+      "preparingPipeline": "오디오 처리 파이프라인을 준비하는 중...",
+      "currentProvider": "현재 provider: {{provider}}",
+      "providerUploading": "{{provider}}로 업로드 중...",
+      "providerQueued": "파일이 {{provider}} 대기열에 있습니다...",
+      "providerProcessingSpeech": "{{provider}}가 음성을 인식하는 중...",
+      "providerProcessingDone": "음성 인식이 완료되었습니다.",
+      "androidVideoPrepFailed": "이 비디오는 Android에서 전사하기 전에 오디오 트랙을 먼저 추출해야 하지만, 오디오 준비 단계가 실패했습니다.",
+      "directTranscript": "{{provider}}가 업로드된 파일을 직접 전사하는 중...",
+      "directTranscriptShortFile": "짧은 파일이므로 직접 전사 흐름을 사용합니다",
+      "providerNoTranscript": "{{provider}}가 transcript를 반환하지 않았습니다. 다시 시도해 주세요.",
+      "transcriptDone": "Transcript 완료.",
+      "done": "완료!",
+      "extractingAttachments": "첨부 문서의 내용을 추출하는 중...",
+      "readingSupportingFiles": "보조 파일을 읽는 중",
+      "extractingAttachmentFailed": "문서 {{fileName}} 추출 실패:",
+      "geminiInterviewAnalysis": "Gemini가 제목을 만들고 인터뷰 transcript를 다듬는 중...",
+      "geminiMeetingAnalysis": "Gemini가 회의 내용을 분석하는 중...",
+      "geminiInterviewProgress": "제목 생성 및 인터뷰 transcript 정리",
+      "geminiMeetingProgress": "summary, decisions, risks, folder tree, mindmap 생성",
+      "geminiAnalysisTimeout": "Gemini가 내용을 분석하는 데 너무 오래 걸렸습니다. 다시 시도해 주세요."
+    }
+  }
+}

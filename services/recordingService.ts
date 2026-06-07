@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Filesystem } from '@capacitor/filesystem';
 import { MicrophonePermission } from '../plugins/microphonePermission';
 import { SavedDeviceFile } from '../types';
 import {
@@ -57,6 +57,30 @@ const guessExtension = (mimeType: string) => {
   if (mimeType.includes('ogg')) return 'ogg';
   if (mimeType.includes('wav')) return 'wav';
   return 'webm';
+};
+
+const guessMimeTypeFromFileName = (fileName: string) => {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith('.wav')) return 'audio/wav';
+  if (lowerName.endsWith('.mp3')) return 'audio/mpeg';
+  if (lowerName.endsWith('.m4a')) return 'audio/mp4';
+  if (lowerName.endsWith('.aac')) return 'audio/aac';
+  if (lowerName.endsWith('.ogg')) return 'audio/ogg';
+  if (lowerName.endsWith('.flac')) return 'audio/flac';
+  if (lowerName.endsWith('.mp4')) return 'video/mp4';
+  if (lowerName.endsWith('.mov')) return 'video/quicktime';
+  if (lowerName.endsWith('.mkv')) return 'video/x-matroska';
+  if (lowerName.endsWith('.webm')) return 'audio/webm';
+  return 'application/octet-stream';
+};
+
+const base64ToBytes = (value: string) => {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
 };
 
 const blobToBase64 = async (blob: Blob) =>
@@ -379,4 +403,36 @@ export const saveRecordingToDevice = async ({
     directoryLabel: getAppStorageLabel(),
     webPath: Capacitor.convertFileSrc(uriResult.uri),
   };
+};
+
+export const loadSavedRecordingFile = async ({
+  path,
+  fileName,
+}: {
+  path: string;
+  fileName?: string;
+}) => {
+  const result = await Filesystem.readFile({
+    path,
+    directory: getAppStorageDirectory(),
+  });
+
+  const base64Data =
+    typeof result.data === 'string'
+      ? result.data.includes(',')
+        ? result.data.split(',')[1]
+        : result.data
+      : '';
+
+  if (!base64Data) {
+    throw new Error('Không thể đọc lại file nguồn đã lưu trên thiết bị.');
+  }
+
+  const resolvedFileName = fileName || path.split('/').pop() || `recording.${guessExtension('audio/webm')}`;
+  const bytes = base64ToBytes(base64Data);
+
+  return new File([bytes], resolvedFileName, {
+    type: guessMimeTypeFromFileName(resolvedFileName),
+    lastModified: Date.now(),
+  });
 };

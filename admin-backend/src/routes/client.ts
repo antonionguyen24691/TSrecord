@@ -1,8 +1,98 @@
 import { Router, Request, Response } from 'express';
+import Stripe from 'stripe';
 import { getDb } from '../database.js';
 import type { PromoCode } from '../types.js';
 
 const router = Router();
+
+type LicenseSnapshot = {
+  valid: boolean;
+  plan: string | null;
+  expiresAt: string | null;
+  features: string[];
+  userId: number | null;
+  requestsLimit: number | null;
+  requestsUsed: number;
+  adsEnabled: number;
+  ownKeyPurchased: number;
+};
+
+const GEMINI_PROXY_MAX_RETRIES = 3;
+const GEMINI_PROXY_RETRY_BASE_DELAY_MS = 2000;
+const GEMINI_PROXY_RETRYABLE_PATTERN = /\b(429|500|502|503|504|unavailable|overloaded|resource_exhausted|too many requests|internal|deadline)\b/i;
+
+type RetryableGeminiProxyError = Error & {
+  retryAfterMs?: number;
+};
+
+// ── GET /api/client/license?device_id= ───────────────────────
+// Main app gọi API này để kiểm tra trạng thái subscription
+const getLicenseSnapshot = (deviceId: string): LicenseSnapshot => {
+  if (!deviceId) {
+    return { valid: false, plan: null, expiresAt: null, features: ['trial'], userId: null, requestsLimit: null, requestsUsed: 0, adsEnabled: 1, ownKeyPurchased: 0 };
+  }
+  const db = getDb();
+  const user = db.prepare('SELECT id FROM users WHERE device_id = ?').get(deviceId) as { id: number } | undefined;
+
+  if (!user) {
+    return { valid: false, plan: null, expiresAt: null, features: ['trial'], userId: null, requestsLimit: null, requestsUsed: 0, adsEnabled: 1, ownKeyPurchased: 0 };
+  }
+
+  // Update last active
+  db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
+
+  const sub = db.prepare(
+    "SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1"
+  ).get(user.id) as { 
+    plan: string; 
+    expires_at: string | null; 
+    requests_limit: number | null; 
+    requests_used: number;
+    ads_enabled: number;
+    own_key_purchased: number;
+  } | undefined;
+
+  if (!sub) {
+    return { valid: false, plan: null, expiresAt: null, features: ['trial'], userId: user.id, requestsLimit: null, requestsUsed: 0, adsEnabled: 1, ownKeyPurchased: 0 };
+  }
+
+  // Check expiration for monthly plans
+  if (sub.expires_at && new Date(sub.expires_at) < new Date()) {
+    db.prepare("UPDATE subscriptions SET status = 'expired' WHERE user_id = ? AND status = 'active'").run(user.id);
+    return { valid: false, plan: null, expiresAt: null, features: ['trial'], userId: user.id, requestsLimit: null, requestsUsed: 0, adsEnabled: 1, ownKeyPurchased: 0 };
+  }
+
+  const features = [
+    'transcription',
+    'meeting',
+    'interview',
+    'export',
+    'workspace',
+    'system_google_drive',
+  ];
+
+  const isSystemKeyPlan = sub.plan.startsWith('monthly_') || sub.plan === 'promo' || sub.plan === 'monthly';
+  if (isSystemKeyPlan) {
+    features.push('system_api_key');
+  }
+
+  const adsOff = sub.ads_enabled === 0 || isSystemKeyPlan || sub.plan === 'lifetime' || sub.plan === 'own_key_no_ads';
+  if (adsOff) {
+    features.push('disable_ads');
+  }
+
+  return {
+    valid: true,
+    plan: sub.plan,
+    expiresAt: sub.expires_at,
+    features,
+    userId: user.id,
+    requestsLimit: sub.requests_limit,
+    requestsUsed: sub.requests_used,
+    adsEnabled: adsOff ? 0 : 1,
+    ownKeyPurchased: sub.own_key_purchased,
+  };
+};
 
 // ── GET /api/client/license?device_id= ───────────────────────
 // Main app gọi API này để kiểm tra trạng thái subscription
@@ -13,38 +103,43 @@ router.get('/license', (req: Request, res: Response) => {
     return;
   }
 
-  const db = getDb();
-  const user = db.prepare('SELECT id FROM users WHERE device_id = ?').get(deviceId) as { id: number } | undefined;
+  const snapshot = getLicenseSnapshot(deviceId);
+  res.json({
+    valid: snapshot.valid,
+    plan: snapshot.plan,
+    expiresAt: snapshot.expiresAt,
+    features: snapshot.features,
+    requestsLimit: snapshot.requestsLimit,
+    requestsUsed: snapshot.requestsUsed,
+    adsEnabled: snapshot.adsEnabled,
+    ownKeyPurchased: snapshot.ownKeyPurchased,
+  });
+});
 
-  if (!user) {
-    res.json({ valid: false, plan: null, expiresAt: null, features: ['trial'] });
+// ── GET /api/client/runtime-config?device_id= ────────────────
+// Trả về các cấu hình hệ thống được phép dùng theo entitlement của thiết bị.
+router.get('/runtime-config', (req: Request, res: Response) => {
+  const deviceId = req.query.device_id as string;
+  if (!deviceId) {
+    res.status(400).json({ error: 'Thiếu device_id.' });
     return;
   }
 
-  // Update last active
-  db.prepare("UPDATE users SET last_active_at = datetime('now') WHERE id = ?").run(user.id);
-
-  const sub = db.prepare(
-    "SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1"
-  ).get(user.id) as { plan: string; expires_at: string | null } | undefined;
-
-  if (!sub) {
-    res.json({ valid: false, plan: null, expiresAt: null, features: ['trial'] });
-    return;
-  }
-
-  // Check expiration for monthly plans
-  if (sub.expires_at && new Date(sub.expires_at) < new Date()) {
-    db.prepare("UPDATE subscriptions SET status = 'expired' WHERE user_id = ? AND status = 'active'").run(user.id);
-    res.json({ valid: false, plan: null, expiresAt: null, features: ['trial'] });
-    return;
-  }
+  const snapshot = getLicenseSnapshot(deviceId);
 
   res.json({
-    valid: true,
-    plan: sub.plan,
-    expiresAt: sub.expires_at,
-    features: ['transcription', 'meeting', 'interview', 'export', 'workspace'],
+    features: snapshot.features,
+    googleClientId: getSystemConfig('system_google_client_id'),
+    googleApiKey: getSystemConfig('system_google_api_key'),
+    requestsLimit: snapshot.requestsLimit,
+    requestsUsed: snapshot.requestsUsed,
+    adsEnabled: snapshot.adsEnabled,
+    ownKeyPurchased: snapshot.ownKeyPurchased,
+    admobAppId: getSystemConfig('admob_app_id'),
+    admobBannerId: getSystemConfig('admob_banner_id'),
+    admobRewardedId: getSystemConfig('admob_rewarded_id'),
+    customBannerHtml: getSystemConfig('custom_banner_html'),
+    customBannerEnabled: getSystemConfig('custom_banner_enabled') === 'true',
   });
 });
 
@@ -133,23 +228,793 @@ router.post('/usage', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-// ── GET /api/client/payment-info ─────────────────────────────
-// Thông tin thanh toán cho user hiển thị trong app
-router.get('/payment-info', (_req: Request, res: Response) => {
+// ── POST /api/client/ads/watched ──────────────────────────────
+router.post('/ads/watched', (req: Request, res: Response) => {
+  const { deviceId } = req.body;
+  if (!deviceId) {
+    res.status(400).json({ error: 'Thiếu deviceId.' });
+    return;
+  }
   const db = getDb();
-  const getVal = (key: string) =>
-    (db.prepare('SELECT value FROM system_config WHERE key = ?').get(key) as { value: string } | undefined)?.value || '';
+  let user = db.prepare('SELECT id FROM users WHERE device_id = ?').get(deviceId) as { id: number } | undefined;
+  if (!user) {
+    const result = db.prepare('INSERT INTO users (device_id) VALUES (?)').run(deviceId);
+    user = { id: Number(result.lastInsertRowid) };
+  }
 
+  db.prepare(`
+    INSERT INTO ad_rewards (user_id, status)
+    VALUES (?, 'pending')
+  `).run(user.id);
+
+  res.json({ ok: true, message: 'Xem quảng cáo thành công. Đã cộng 1 lượt dùng thử 5 phút.' });
+});
+
+export interface RequestAuthResult {
+  status: 'paid' | 'free_ad';
+  subscriptionId?: number;
+  adRewardId?: number;
+}
+
+export const authorizeAndPrepareRequest = (
+  db: any,
+  deviceId: string,
+  durationSeconds?: number,
+  context?: string
+): RequestAuthResult => {
+  let user = db.prepare('SELECT id FROM users WHERE device_id = ?').get(deviceId) as { id: number } | undefined;
+  if (!user) {
+    const result = db.prepare('INSERT INTO users (device_id) VALUES (?)').run(deviceId);
+    user = { id: Number(result.lastInsertRowid) };
+  }
+
+  const sub = db.prepare(
+    "SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1"
+  ).get(user.id) as {
+    id: number;
+    plan: string;
+    requests_limit: number | null;
+    requests_used: number;
+    expires_at: string | null;
+  } | undefined;
+
+  if (sub) {
+    if (sub.expires_at && new Date(sub.expires_at) < new Date()) {
+      db.prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ?").run(sub.id);
+    } else {
+      if (sub.requests_limit !== null && sub.requests_used >= sub.requests_limit) {
+        throw new Error('Gói dịch vụ của bạn đã dùng hết lượt. Vui lòng nâng cấp hoặc mua thêm lượt.');
+      }
+      return { status: 'paid', subscriptionId: sub.id };
+    }
+  }
+
+  const pendingReward = db.prepare(
+    "SELECT id FROM ad_rewards WHERE user_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 1"
+  ).get(user.id) as { id: number } | undefined;
+
+  if (!pendingReward) {
+    throw new Error('Yêu cầu thanh toán: Vui lòng mua gói dịch vụ hoặc xem video quảng cáo để dịch dùng thử.');
+  }
+
+  if (context && ['meeting', 'interview', 'recording', 'realtime'].includes(context.toLowerCase())) {
+    throw new Error('Bản dùng thử qua quảng cáo không hỗ trợ chế độ cuộc họp, phỏng vấn hoặc ghi âm.');
+  }
+
+  if (durationSeconds && durationSeconds > 305) {
+    throw new Error('Bản dùng thử qua quảng cáo chỉ hỗ trợ xử lý tối đa 5 phút (300 giây) mỗi lần.');
+  }
+
+  return { status: 'free_ad', adRewardId: pendingReward.id };
+};
+
+export const completeRequestUsage = (
+  db: any,
+  auth: RequestAuthResult,
+  durationSeconds?: number,
+  isGeminiAnalysis: boolean = false
+) => {
+  if (auth.status === 'paid' && auth.subscriptionId) {
+    if (isGeminiAnalysis) {
+      db.prepare(`
+        UPDATE subscriptions
+        SET seconds_used = seconds_used + 1800,
+            requests_used = requests_used + 1
+        WHERE id = ?
+      `).run(auth.subscriptionId);
+    } else {
+      const duration = Number(durationSeconds) || 300;
+      db.prepare(`
+        UPDATE subscriptions
+        SET seconds_used = seconds_used + ?,
+            requests_used = CAST((seconds_used + ?) / 1800 AS INTEGER)
+        WHERE id = ?
+      `).run(duration, duration, auth.subscriptionId);
+    }
+  } else if (auth.status === 'free_ad' && auth.adRewardId) {
+    db.prepare(`
+      UPDATE ad_rewards
+      SET status = 'consumed', consumed_at = datetime('now')
+      WHERE id = ?
+    `).run(auth.adRewardId);
+  }
+};
+
+
+
+// Helper to get system config value
+const getSystemConfig = (key: string): string => {
+  const db = getDb();
+  const row = db.prepare('SELECT value FROM system_config WHERE key = ?').get(key) as { value: string } | undefined;
+  return row?.value || '';
+};
+
+const sanitizeJsonText = (value: string) =>
+  value
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+const normalizeGenerationConfigForRest = (generationConfig: Record<string, any> | undefined) => {
+  if (!generationConfig) return undefined;
+  const { responseJsonSchema, ...rest } = generationConfig;
+  return responseJsonSchema
+    ? {
+        ...rest,
+        responseSchema: responseJsonSchema,
+      }
+    : rest;
+};
+
+const extractGeminiCandidateText = (responseBody: any) =>
+  responseBody?.candidates?.[0]?.content?.parts
+    ?.map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('')
+    .trim() || '';
+
+const extractTranscriptFromModelText = (rawText: string) => {
+  const cleaned = sanitizeJsonText(rawText);
+  if (!cleaned) return '';
+
+  try {
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    const transcript = typeof parsed.transcript === 'string' ? parsed.transcript.trim() : '';
+    if (transcript) return transcript;
+  } catch {
+    // Plain-text output is expected for Gemini STT.
+  }
+
+  return cleaned;
+};
+
+const isRetryableGeminiProxyError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return GEMINI_PROXY_RETRYABLE_PATTERN.test(message);
+};
+
+const getGeminiProxyRetryDelayMs = (error: unknown, attempt: number) => {
+  const retryAfterMs =
+    error instanceof Error
+      ? (error as RetryableGeminiProxyError).retryAfterMs
+      : undefined;
+  if (typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+    return Math.min(retryAfterMs, 120000);
+  }
+  return GEMINI_PROXY_RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+};
+
+const retryGeminiProxyRequest = async <T>(
+  fn: () => Promise<T>,
+  context: string
+): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= GEMINI_PROXY_MAX_RETRIES; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= GEMINI_PROXY_MAX_RETRIES || !isRetryableGeminiProxyError(error)) {
+        throw error;
+      }
+
+      const delayMs = getGeminiProxyRetryDelayMs(error, attempt);
+      console.warn(`${context}: retry ${attempt + 1}/${GEMINI_PROXY_MAX_RETRIES} after ${delayMs}ms`, error);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw lastError;
+};
+
+const parseGeminiProxyRetryDelayMs = (response: globalThis.Response, bodyText: string) => {
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const asSeconds = Number(retryAfter);
+    if (Number.isFinite(asSeconds) && asSeconds > 0) {
+      return asSeconds * 1000;
+    }
+
+    const asDate = Date.parse(retryAfter);
+    if (Number.isFinite(asDate)) {
+      return Math.max(0, asDate - Date.now());
+    }
+  }
+
+  const retryDelayMatch = bodyText.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/i);
+  if (retryDelayMatch) {
+    return Number(retryDelayMatch[1]) * 1000;
+  }
+
+  return undefined;
+};
+
+const fetchGeminiProxyResponse = async (
+  input: string,
+  init: RequestInit,
+  context: string
+) =>
+  retryGeminiProxyRequest(async () => {
+    const response = await fetch(input, init);
+    if (
+      !response.ok &&
+      GEMINI_PROXY_RETRYABLE_PATTERN.test(
+        `${response.status} ${response.statusText || ''}`
+      )
+    ) {
+      const bodyText = await response.text();
+      const error = new Error(
+        `Gemini proxy upstream error (${response.status}): ${bodyText}`
+      ) as RetryableGeminiProxyError;
+      error.retryAfterMs = parseGeminiProxyRetryDelayMs(response, bodyText);
+      throw error;
+    }
+    return response;
+  }, context);
+
+const buildGeminiTranscriptionModelCandidates = (preferredModelId?: string) =>
+  Array.from(
+    new Set(
+      [
+        'gemini-2.5-flash-lite',
+        preferredModelId,
+        'gemini-2.5-flash',
+      ].filter((modelId): modelId is string => Boolean(modelId && modelId.trim()))
+    )
+  );
+
+// Helper to upload a buffer to Gemini Files API via REST
+const uploadToGeminiFiles = async (
+  buffer: Buffer,
+  mimeType: string,
+  fileName: string,
+  geminiApiKey: string
+): Promise<string> => {
+  // 1. Start resumable upload
+  const initRes = await fetchGeminiProxyResponse(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': buffer.length.toString(),
+        'X-Goog-Upload-Header-Content-Type': mimeType,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file: {
+          displayName: fileName || 'audio_chunk.wav',
+        },
+      }),
+    },
+    'uploadToGeminiFiles:init'
+  );
+
+  if (!initRes.ok) {
+    const errText = await initRes.text();
+    throw new Error(`Failed to initiate Gemini file upload: ${errText}`);
+  }
+
+  const uploadUrl = initRes.headers.get('x-goog-upload-url') || initRes.headers.get('X-Goog-Upload-Url');
+  if (!uploadUrl) {
+    throw new Error('Did not receive upload URL from Gemini API.');
+  }
+
+  // 2. Upload file contents
+  const uploadRes = await fetchGeminiProxyResponse(
+    uploadUrl,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Length': buffer.length.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: buffer,
+    },
+    'uploadToGeminiFiles:finalize'
+  );
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`Failed to upload file bytes to Gemini: ${errText}`);
+  }
+
+  const fileMetadata = (await uploadRes.json()) as any;
+  const fileUri = fileMetadata.file?.uri;
+  const fileNameOnServer = fileMetadata.file?.name; // files/abc123xyz
+
+  if (!fileUri || !fileNameOnServer) {
+    throw new Error('Upload succeeded but metadata is missing server name or URI.');
+  }
+
+  // 3. Poll for state to become ACTIVE
+  let state = fileMetadata.file?.state;
+  while (state === 'PROCESSING') {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const pollRes = await fetchGeminiProxyResponse(
+      `https://generativelanguage.googleapis.com/v1beta/${fileNameOnServer}?key=${geminiApiKey}`,
+      {},
+      'uploadToGeminiFiles:poll'
+    );
+    if (!pollRes.ok) {
+      throw new Error(`Failed to poll file status: ${await pollRes.text()}`);
+    }
+    const pollData = (await pollRes.json()) as any;
+    state = pollData.state;
+    if (state === 'FAILED') {
+      throw new Error('Gemini File processing state failed.');
+    }
+  }
+
+  return fileUri;
+};
+
+// ── POST /api/client/proxy/gemini ─────────────────────────────
+// Proxy cho các cuộc gọi Gemini (ví dụ: phân tích văn bản)
+router.post('/proxy/gemini', async (req: Request, res: Response) => {
+  const { deviceId, model, contents, generationConfig } = req.body;
+
+  if (!deviceId) {
+    res.status(400).json({ error: 'Thiếu deviceId.' });
+    return;
+  }
+
+  const db = getDb();
+  let auth: RequestAuthResult;
+  try {
+    auth = authorizeAndPrepareRequest(db, deviceId, undefined, undefined);
+  } catch (err: any) {
+    res.status(402).json({ error: err.message });
+    return;
+  }
+
+  const geminiApiKey = getSystemConfig('admin_gemini_api_key');
+  if (!geminiApiKey) {
+    res.status(500).json({ error: 'Key hệ thống Gemini chưa được cấu hình.' });
+    return;
+  }
+
+  try {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+    const response = await fetchGeminiProxyResponse(
+      geminiUrl,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          generationConfig: normalizeGenerationConfigForRest(generationConfig),
+        })
+      },
+      `proxy/gemini:${model}`
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      res.status(response.status).json({ error: `Gemini API error: ${errText}` });
+      return;
+    }
+
+    const data = await response.json();
+    const rawText = extractGeminiCandidateText(data);
+    if (!rawText) {
+      res.status(502).json({ error: 'Gemini API không trả về nội dung hợp lệ.' });
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(sanitizeJsonText(rawText));
+      completeRequestUsage(db, auth, undefined, true);
+      res.json(parsed);
+    } catch {
+      res.status(502).json({ error: `Gemini API trả về JSON không hợp lệ: ${rawText}` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Lỗi khi gọi proxy Gemini.' });
+  }
+});
+
+// ── POST /api/client/proxy/transcribe ─────────────────────────
+// Proxy cho các cuộc gọi nhận diện giọng nói (Gemini, Groq, OpenAI, AssemblyAI)
+router.post('/proxy/transcribe', async (req: Request, res: Response) => {
+  const { deviceId, provider, fileBase64, fileName, fileType, mode, language, preferredModelId, durationSeconds, context } = req.body;
+  const normalizedMode = typeof mode === 'string' ? mode.toUpperCase() : 'TIMELINE';
+
+  if (!deviceId || !provider || !fileBase64) {
+    res.status(400).json({ error: 'Thiếu thông số bắt buộc (deviceId, provider, fileBase64).' });
+    return;
+  }
+
+  const db = getDb();
+  let auth: RequestAuthResult;
+  try {
+    auth = authorizeAndPrepareRequest(db, deviceId, durationSeconds, context);
+  } catch (err: any) {
+    res.status(402).json({ error: err.message });
+    return;
+  }
+
+  try {
+    const buffer = Buffer.from(fileBase64, 'base64');
+
+    if (provider === 'gemini') {
+      const geminiApiKey = getSystemConfig('admin_gemini_api_key');
+      if (!geminiApiKey) {
+        res.status(500).json({ error: 'Key hệ thống Gemini chưa được cấu hình.' });
+        return;
+      }
+
+      // Check file size, if > 8MB, upload via Files API
+      let filePart: any;
+      if (buffer.length > 8 * 1024 * 1024) {
+        const fileUri = await uploadToGeminiFiles(
+          buffer,
+          fileType || 'audio/wav',
+          fileName || 'audio.wav',
+          geminiApiKey
+        );
+        filePart = {
+          fileData: {
+            fileUri,
+            mimeType: fileType || 'audio/wav'
+          }
+        };
+      } else {
+        filePart = {
+          inlineData: {
+            data: fileBase64,
+            mimeType: fileType || 'audio/wav'
+          }
+        };
+      }
+
+      const prompt = `Vai tro: cong cu speech-to-text.
+Nhiem vu:
+- Chi nghe audio/video va tra ve transcript thuan.
+- Khong tom tat.
+- Khong suy dien.
+- Khong tao decisions, risks, mindmap hay artifact nao khac.
+- Neu khong nghe ro, giu dung phan nghe duoc; khong tu bia.
+- Giu nguyen ngon ngu noi goc trong file, khong dich sang ngon ngu UI.
+
+${normalizedMode === 'TIMELINE' ? 'Transcript phai dung dang tung dong:\n[HH:MM:SS] Noi dung' : 'Transcript phai o dang van ban lien mach, khong co timestamp.'}
+
+Rang buoc:
+- Chi tra ve transcript text, khong JSON, khong markdown fence, khong giai thich them.`;
+
+      const candidateModels = buildGeminiTranscriptionModelCandidates(
+        typeof preferredModelId === 'string' ? preferredModelId : undefined
+      );
+      let lastStatus = 500;
+      let lastError = 'Gemini STT request failed.';
+
+      for (const modelId of candidateModels) {
+        const response = await fetchGeminiProxyResponse(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    filePart,
+                    {
+                      text: prompt
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+              }
+            })
+          },
+          `proxy/transcribe:${modelId}`
+        );
+
+        if (!response.ok) {
+          lastStatus = response.status;
+          lastError = `Gemini STT error (${modelId}): ${await response.text()}`;
+          continue;
+        }
+
+        const data = await response.json();
+        const text = extractGeminiCandidateText(data);
+        const transcript = extractTranscriptFromModelText(text);
+
+        if (transcript.trim()) {
+          completeRequestUsage(db, auth, durationSeconds, false);
+          res.json({ transcript, modelId });
+          return;
+        }
+
+        lastStatus = 502;
+        lastError = `Gemini STT returned empty transcript (${modelId}).`;
+      }
+
+      res.status(lastStatus).json({ error: lastError });
+      return;
+    }
+
+    if (provider === 'groq' || provider === 'openai') {
+      const configKey = provider === 'groq' ? 'admin_groq_api_key' : 'admin_openai_api_key';
+      const apiKey = getSystemConfig(configKey);
+      if (!apiKey) {
+        res.status(500).json({ error: `Key hệ thống ${provider} chưa được cấu hình.` });
+        return;
+      }
+
+      const blob = new Blob([buffer], { type: fileType || 'audio/wav' });
+      const formData = new FormData();
+      formData.append('file', blob, fileName || 'audio.wav');
+      formData.append('model', provider === 'groq' ? 'whisper-large-v3-turbo' : 'whisper-1');
+      formData.append('response_format', 'verbose_json');
+      formData.append('timestamp_granularities[]', 'segment');
+      if (typeof language === 'string' && language.trim()) {
+        formData.append('language', language.trim());
+      }
+
+      const url = provider === 'groq'
+        ? 'https://api.groq.com/openai/v1/audio/transcriptions'
+        : 'https://api.openai.com/v1/audio/transcriptions';
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        res.status(response.status).json({ error: `${provider} STT error: ${errText}` });
+        return;
+      }
+
+      const data = await response.json();
+      let transcript = '';
+      if (data.segments && data.segments.length > 0) {
+        if (normalizedMode === 'PLAIN') {
+          transcript = data.segments.map((seg: any) => seg.text.trim()).filter(Boolean).join(' ');
+        } else {
+          transcript = data.segments.map((seg: any) => {
+            const totalSecs = Math.floor(seg.start);
+            const h = Math.floor(totalSecs / 3600).toString().padStart(2, '0');
+            const m = Math.floor((totalSecs % 3600) / 60).toString().padStart(2, '0');
+            const s = (totalSecs % 60).toString().padStart(2, '0');
+            return `[${h}:${m}:${s}] ${seg.text.trim()}`;
+          }).join('\n');
+        }
+      } else {
+        transcript = data.text || '';
+      }
+
+      completeRequestUsage(db, auth, durationSeconds, false);
+      res.json({ transcript });
+      return;
+    }
+
+    if (provider === 'assemblyai') {
+      const apiKey = getSystemConfig('admin_assemblyai_api_key');
+      if (!apiKey) {
+        res.status(500).json({ error: 'Key hệ thống AssemblyAI chưa được cấu hình.' });
+        return;
+      }
+
+      // Upload audio
+      const uploadRes = await fetch('https://api.assemblyai.com/v2/upload', {
+        method: 'POST',
+        headers: {
+          authorization: apiKey,
+          'content-type': 'application/octet-stream'
+        },
+        body: buffer
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        res.status(uploadRes.status).json({ error: `AssemblyAI upload error: ${errText}` });
+        return;
+      }
+
+      const uploadData = await uploadRes.json();
+      const audioUrl = uploadData.upload_url;
+
+      // Submit job
+      const submitRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+        method: 'POST',
+        headers: {
+          authorization: apiKey,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          audio_url: audioUrl,
+          language_detection: true,
+          speaker_labels: true
+        })
+      });
+
+      if (!submitRes.ok) {
+        const errText = await submitRes.text();
+        res.status(submitRes.status).json({ error: `AssemblyAI submit error: ${errText}` });
+        return;
+      }
+
+      const submitData = await submitRes.json();
+      const transcriptId = submitData.id;
+
+      // Poll until done
+      let status = submitData.status;
+      let transcriptText = '';
+      const startTime = Date.now();
+      const maxTimeMs = 30 * 60 * 1000; // 30 mins
+
+      while (status === 'queued' || status === 'processing') {
+        if (Date.now() - startTime > maxTimeMs) {
+          res.status(504).json({ error: 'AssemblyAI proxy timeout' });
+          return;
+        }
+        await new Promise(r => setTimeout(r, 4000));
+        
+        const pollRes = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+          headers: { authorization: apiKey }
+        });
+        
+        if (!pollRes.ok) {
+          res.status(pollRes.status).json({ error: 'AssemblyAI polling error' });
+          return;
+        }
+
+        const pollData = await pollRes.json();
+        status = pollData.status;
+
+        if (status === 'completed') {
+          if (pollData.utterances && pollData.utterances.length > 0) {
+            transcriptText = pollData.utterances
+              .map((u: any) => `[Speaker ${u.speaker}] ${u.text}`)
+              .join('\n\n');
+          } else {
+            transcriptText = pollData.text || '';
+          }
+          completeRequestUsage(db, auth, durationSeconds, false);
+          res.json({ transcript: transcriptText });
+          return;
+        } else if (status === 'error') {
+          res.status(500).json({ error: `AssemblyAI processing error: ${pollData.error}` });
+          return;
+        }
+      }
+
+      res.json({ transcript: transcriptText });
+      return;
+    }
+
+    res.status(400).json({ error: `Nhà cung cấp không hợp lệ: ${provider}` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Lỗi khi xử lý proxy transcription.' });
+  }
+});
+
+// ── GET /api/client/payment-info ──────────────────────────────
+router.get('/payment-info', (req: Request, res: Response) => {
   res.json({
-    monthlyPrice: parseInt(getVal('monthly_price'), 10) || 69000,
-    lifetimePrice: parseInt(getVal('lifetime_price'), 10) || 999000,
-    sepayEnabled: getVal('sepay_enabled') === 'true',
-    bankAccount: getVal('sepay_bank_account'),
-    bankName: getVal('sepay_bank_name'),
-    accountName: getVal('sepay_account_name'),
-    businessName: getVal('hkd_business_name'),
-    transferFormat: 'TSRECORD <device_id> <MONTHLY|LIFETIME>',
+    sepayEnabled: getSystemConfig('sepay_enabled') === 'true',
+    bankName: getSystemConfig('sepay_bank_name'),
+    accountNumber: getSystemConfig('sepay_bank_account'),
+    accountName: getSystemConfig('sepay_account_name'),
+    stripeEnabled: getSystemConfig('stripe_enabled') === 'true',
+    pricing: {
+      monthly_20: parseInt(getSystemConfig('monthly_20_price') || '39000', 10),
+      monthly_50: parseInt(getSystemConfig('monthly_50_price') || '59000', 10),
+      monthly_100: parseInt(getSystemConfig('monthly_100_price') || '99000', 10),
+      own_key_ads: parseInt(getSystemConfig('own_key_ads_price') || '199000', 10),
+      own_key_no_ads: parseInt(getSystemConfig('own_key_no_ads_price') || '248000', 10),
+      disable_ads: parseInt(getSystemConfig('disable_ads_price') || '49000', 10),
+    },
+    discounts: {
+      '3M': parseInt(getSystemConfig('discount_3m') || '3', 10),
+      '6M': parseInt(getSystemConfig('discount_6m') || '5', 10),
+      '12M': parseInt(getSystemConfig('discount_12m') || '8', 10),
+    }
   });
+});
+
+// ── POST /api/client/payments/create-stripe-session ───────────
+router.post('/payments/create-stripe-session', async (req: Request, res: Response) => {
+  const { deviceId, plan, durationMonths } = req.body;
+  if (!deviceId || !plan) {
+    res.status(400).json({ error: 'Thiếu deviceId hoặc plan.' });
+    return;
+  }
+
+  const secretKey = getSystemConfig('stripe_secret_key');
+  if (!secretKey) {
+    res.status(500).json({ error: 'Thanh toán Stripe chưa được cấu hình.' });
+    return;
+  }
+
+  const stripe = new Stripe(secretKey);
+
+  // Calculate price based on plan and duration
+  const duration = Number(durationMonths) || 1;
+  const priceKey = `${plan}_price`;
+  let basePrice = parseInt(getSystemConfig(priceKey), 10);
+  if (isNaN(basePrice)) {
+    if (plan === 'monthly') basePrice = parseInt(getSystemConfig('monthly_price'), 10);
+    else if (plan === 'lifetime') basePrice = parseInt(getSystemConfig('lifetime_price'), 10);
+    else basePrice = 0;
+  }
+
+  let expectedPrice = basePrice * duration;
+  if (duration === 3) {
+    const discount = parseInt(getSystemConfig('discount_3m') || '3', 10);
+    expectedPrice = Math.round(expectedPrice * (1 - discount / 100));
+  } else if (duration === 6) {
+    const discount = parseInt(getSystemConfig('discount_6m') || '5', 10);
+    expectedPrice = Math.round(expectedPrice * (1 - discount / 100));
+  } else if (duration === 12) {
+    const discount = parseInt(getSystemConfig('discount_12m') || '8', 10);
+    expectedPrice = Math.round(expectedPrice * (1 - discount / 100));
+  }
+
+  // Convert VND to USD rate (e.g. 25000 VND = 1 USD)
+  const usdAmountCents = Math.round((expectedPrice / 25000) * 100);
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `TSrecord - ${plan.toUpperCase()} (${duration}M)`,
+              description: `Thiết bị: ${deviceId}`,
+            },
+            unit_amount: usdAmountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${req.headers.origin || 'http://localhost:3000'}/?payment=success`,
+      cancel_url: `${req.headers.origin || 'http://localhost:3000'}/?payment=cancel`,
+      metadata: {
+        deviceId,
+        plan,
+        durationMonths: String(duration),
+      },
+    });
+
+    res.json({ url: session.url });
+  } catch (err: any) {
+    console.error('[Stripe] Error creating checkout session:', err);
+    res.status(500).json({ error: err.message || 'Lỗi khởi tạo Stripe session.' });
+  }
 });
 
 export default router;

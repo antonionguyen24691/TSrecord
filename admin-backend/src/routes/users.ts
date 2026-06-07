@@ -64,8 +64,9 @@ router.post('/:id/grant', requireAdmin, (req: AuthRequest, res: Response) => {
   const userId = parseInt(req.params.id as string, 10);
   const { plan, durationMonths, note } = req.body;
 
-  if (!['monthly', 'lifetime'].includes(plan)) {
-    res.status(400).json({ error: 'Plan phải là monthly hoặc lifetime.' });
+  const allowedPlans = ['monthly', 'lifetime', 'monthly_20', 'monthly_50', 'monthly_100', 'own_key_ads', 'own_key_no_ads', 'disable_ads', 'promo'];
+  if (!allowedPlans.includes(plan)) {
+    res.status(400).json({ error: 'Mã gói cước không hợp lệ.' });
     return;
   }
 
@@ -75,20 +76,53 @@ router.post('/:id/grant', requireAdmin, (req: AuthRequest, res: Response) => {
   // Cancel existing active subs
   db.prepare("UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'").run(userId);
 
-  const expiresAt = plan === 'monthly'
-    ? new Date(Date.now() + (durationMonths || 1) * 30 * 24 * 60 * 60 * 1000).toISOString()
-    : null;
+  const months = Number(durationMonths) || 1;
+  const expiresAt = (plan.startsWith('own_key') || plan === 'lifetime')
+    ? null
+    : new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  let requestsLimit: number | null = null;
+  let adsEnabled = 1;
+  let ownKeyPurchased = 0;
+
+  if (plan === 'monthly_20') {
+    requestsLimit = 20 * months;
+    adsEnabled = 0;
+  } else if (plan === 'monthly_50') {
+    requestsLimit = 50 * months;
+    adsEnabled = 0;
+  } else if (plan === 'monthly_100') {
+    requestsLimit = 100 * months;
+    adsEnabled = 0;
+  } else if (plan === 'promo') {
+    requestsLimit = 20 * months;
+    adsEnabled = 0;
+  } else if (plan === 'own_key_ads') {
+    ownKeyPurchased = 1;
+    adsEnabled = 1;
+  } else if (plan === 'own_key_no_ads') {
+    ownKeyPurchased = 1;
+    adsEnabled = 0;
+  } else if (plan === 'disable_ads') {
+    adsEnabled = 0;
+  } else if (plan === 'lifetime') {
+    ownKeyPurchased = 1;
+    adsEnabled = 0;
+  } else if (plan === 'monthly') {
+    requestsLimit = 20 * months;
+    adsEnabled = 1;
+  }
 
   const sub = db.prepare(`
-    INSERT INTO subscriptions (user_id, plan, status, expires_at)
-    VALUES (?, ?, 'active', ?)
-  `).run(userId, plan, expiresAt);
+    INSERT INTO subscriptions (user_id, plan, status, expires_at, requests_limit, duration_months, ads_enabled, own_key_purchased)
+    VALUES (?, ?, 'active', ?, ?, ?, ?, ?)
+  `).run(userId, plan, expiresAt, requestsLimit, months, adsEnabled, ownKeyPurchased);
 
   // Log as manual payment with 0 amount
   db.prepare(`
     INSERT INTO payments (user_id, subscription_id, amount, method, status, note, completed_at)
     VALUES (?, ?, 0, 'manual', 'completed', ?, datetime('now'))
-  `).run(userId, sub.lastInsertRowid, note || `Admin grant: ${plan}`);
+  `).run(userId, sub.lastInsertRowid, note || `Admin grant: ${plan} (${months}M)`);
 
   res.json({ ok: true, subscriptionId: sub.lastInsertRowid });
 });

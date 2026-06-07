@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CloudUpload, FileText, X, AlertTriangle } from 'lucide-react';
 
 interface AttachmentManagerProps {
@@ -18,6 +19,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   additionalFiles,
   setAdditionalFiles,
 }) => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -44,7 +46,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
           newFiles.push(file);
         }
       } else {
-        alert(`Tệp "${file.name}" không được hỗ trợ. Chỉ chấp nhận các định dạng tài liệu bổ trợ: PDF, Word, PowerPoint, TXT, MD.`);
+        alert(t('AttachmentManager.unsupportedFileAlert', { name: file.name }));
       }
     }
 
@@ -120,10 +122,10 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-700">
-            Tài liệu đính kèm bổ trợ
+            {t('AttachmentManager.title')}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Đính kèm thêm PDF, Word, PowerPoint hoặc File Text để AI kết hợp phân tích thông minh hơn.
+            {t('AttachmentManager.description')}
           </p>
         </div>
         <button
@@ -132,7 +134,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition-all hover:border-[#0d7c66] hover:text-[#0d7c66]"
         >
           <CloudUpload className="h-3.5 w-3.5" />
-          Thêm tệp
+          {t('AttachmentManager.addFile')}
         </button>
       </div>
 
@@ -172,10 +174,10 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
               <CloudUpload className="h-5 w-5" />
             </div>
             <p className="text-sm font-semibold text-slate-700">
-              Kéo thả tài liệu bổ trợ tại đây hoặc click để duyệt
+              {t('AttachmentManager.emptyTitle')}
             </p>
             <p className="text-[11px] text-slate-400 mt-1">
-              Chấp nhận PDF, DOCX, PPTX, TXT, MD (tối đa 20MB/file)
+              {t('AttachmentManager.emptyHint')}
             </p>
           </div>
         ) : (
@@ -201,7 +203,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                         {file.name}
                         {isLegacy && (
                           <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 text-[9px] font-black text-amber-800">
-                            Cũ
+                            {t('AttachmentManager.legacyBadge')}
                           </span>
                         )}
                       </div>
@@ -218,7 +220,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                       removeFile(index);
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 transition-all hover:border-red-200 hover:text-red-500"
-                    title="Xóa tệp"
+                    title={t('AttachmentManager.removeTitle')}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -234,8 +236,8 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
         <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-xs leading-5 text-amber-900 animate-fade-in">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
           <div>
-            <strong className="font-extrabold block mb-0.5">Chú ý: Định dạng file cũ (.doc, .ppt)</strong>
-            Trình duyệt không thể tự động trích xuất nội dung văn bản trực tiếp từ các file .doc hoặc .ppt cũ. Để kết quả phân tích AI được tối ưu nhất, hãy chuyển đổi các tệp này sang định dạng hiện đại <strong className="font-extrabold">.docx, .pptx</strong> hoặc <strong className="font-extrabold">.pdf</strong> trước khi đính kèm.
+            <strong className="font-extrabold block mb-0.5">{t('AttachmentManager.legacyWarning.title')}</strong>
+            {t('AttachmentManager.legacyWarning.body')}
           </div>
         </div>
       )}

@@ -208,27 +208,65 @@ window.viewUser = async (id) => {
   if (!data) return;
   const u = data.user;
   const main = $('main-content');
+  
+  const activeSub = data.subscriptions.find(s => s.status === 'active');
+  const usageText = activeSub 
+    ? (activeSub.requests_limit !== null
+        ? `${activeSub.requests_used} / ${activeSub.requests_limit} requests (đã dùng ${Math.round(activeSub.seconds_used || 0)} giây)` 
+        : `Không giới hạn (đã dùng ${Math.round(activeSub.seconds_used || 0)} giây)`)
+    : '—';
+  const adsText = activeSub 
+    ? (activeSub.ads_enabled ? 'Đang bật quảng cáo' : 'Đã tắt quảng cáo') 
+    : 'Đang bật quảng cáo (Free)';
+  const ownKeyText = activeSub
+    ? (activeSub.own_key_purchased ? 'Đã mua' : 'Chưa mua')
+    : 'Chưa mua';
+
   main.innerHTML = `
     <div class="fade-in">
       <button onclick="navigate('users')" class="text-sm text-emerald-600 font-semibold mb-4 inline-block">← Quay lại</button>
       <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
         <h2 class="text-xl font-black mb-2">${u.display_name || 'User #' + u.id}</h2>
-        <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="grid grid-cols-2 gap-4 text-sm mb-4">
           <div><span class="text-slate-400">Device ID:</span> <span class="font-mono">${u.device_id || '—'}</span></div>
           <div><span class="text-slate-400">Email:</span> ${u.email || '—'}</div>
           <div><span class="text-slate-400">Ngày tạo:</span> ${formatDate(u.created_at)}</div>
           <div><span class="text-slate-400">Hoạt động cuối:</span> ${formatDate(u.last_active_at)}</div>
+          <div><span class="text-slate-400">Gói hiện tại:</span> <span class="font-bold text-emerald-700">${activeSub ? activeSub.plan : 'Free'}</span></div>
+          <div><span class="text-slate-400">Lượt dùng:</span> ${usageText}</div>
+          <div><span class="text-slate-400">Trạng thái Ads:</span> ${adsText}</div>
+          <div><span class="text-slate-400">Bản quyền Tự điền Key:</span> ${ownKeyText}</div>
         </div>
-        <div class="flex gap-3 mt-4">
-          <button onclick="grantSub(${u.id}, 'monthly')" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Cấp gói tháng</button>
-          <button onclick="grantSub(${u.id}, 'lifetime')" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">Cấp lifetime</button>
-          <button onclick="cancelSub(${u.id})" class="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-bold hover:bg-red-50">Hủy subscription</button>
+        <div class="mt-4 p-4 border border-slate-100 rounded-xl bg-slate-50">
+          <h4 class="text-xs font-bold text-slate-700 mb-2">CẤP GÓI DỊCH VỤ THỦ CÔNG</h4>
+          <div class="flex flex-wrap gap-3 items-center">
+            <select id="grant-plan" class="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white">
+              <option value="monthly_20">Gói Standard (20 requests/tháng)</option>
+              <option value="monthly_50">Gói Advanced (50 requests/tháng)</option>
+              <option value="monthly_100">Gói Professional (100 requests/tháng)</option>
+              <option value="own_key_ads">Tự điền Key - Có quảng cáo (199k)</option>
+              <option value="own_key_no_ads">Tự điền Key - Tắt quảng cáo (248k)</option>
+              <option value="disable_ads">Tắt quảng cáo riêng lẻ (49k)</option>
+              <option value="promo">Promo Code Trial</option>
+              <option value="monthly">Gói Tháng cũ (Legacy)</option>
+              <option value="lifetime">Trọn đời cũ (Legacy)</option>
+            </select>
+            <input id="grant-months" type="number" placeholder="Số tháng" min="1" value="1" class="w-20 px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white" />
+            <button onclick="submitGrantSub(${u.id})" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">Cấp gói</button>
+            <button onclick="cancelSub(${u.id})" class="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-bold hover:bg-red-50">Hủy active sub</button>
+          </div>
         </div>
       </div>
       <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
         <h3 class="text-sm font-bold mb-3">Subscriptions</h3>
         ${data.subscriptions.map(s => `<div class="flex items-center gap-4 py-2 border-b border-slate-50 text-sm">
-          ${statusBadge(s.status)} <span class="font-semibold">${s.plan}</span> <span class="text-slate-400">${formatDate(s.started_at)} → ${s.expires_at ? formatDate(s.expires_at) : 'Trọn đời'}</span>
+          ${statusBadge(s.status)} <span class="font-semibold">${s.plan}</span> 
+          <span class="text-slate-400">
+            ${formatDate(s.started_at)} → ${s.expires_at ? formatDate(s.expires_at) : 'Trọn đời'}
+            | Requests: ${s.requests_limit !== null ? `${s.requests_used}/${s.requests_limit}` : 'Không hạn chế'}
+            | Ads: ${s.ads_enabled ? 'Bật' : 'Tắt'}
+            | OwnKey: ${s.own_key_purchased ? 'Có' : 'Không'}
+          </span>
         </div>`).join('') || '<p class="text-sm text-slate-400">Chưa có.</p>'}
       </div>
       <div class="bg-white rounded-2xl border border-slate-200 p-6">
@@ -238,9 +276,14 @@ window.viewUser = async (id) => {
     </div>`;
 };
 
-window.grantSub = async (userId, plan) => {
-  if (!confirm(`Cấp gói ${plan} cho user #${userId}?`)) return;
-  await jsonApi(`/api/users/${userId}/grant`, { method: 'POST', body: JSON.stringify({ plan }) });
+window.submitGrantSub = async (userId) => {
+  const plan = $('grant-plan').value;
+  const durationMonths = parseInt($('grant-months').value, 10) || 1;
+  if (!confirm(`Cấp gói ${plan} (${durationMonths} tháng) cho user #${userId}?`)) return;
+  await jsonApi(`/api/users/${userId}/grant`, {
+    method: 'POST',
+    body: JSON.stringify({ plan, durationMonths }),
+  });
   window.viewUser(userId);
 };
 
@@ -345,7 +388,12 @@ const renderConfig = async (el) => {
 
   const groups = {
     'Thanh toán SePay': configs.filter(c => c.key.startsWith('sepay_')),
+    'Thanh toán Stripe': configs.filter(c => c.key.startsWith('stripe_')),
     'Giá gói dịch vụ': configs.filter(c => c.key.includes('price')),
+    'Chiết khấu kỳ hạn': configs.filter(c => c.key.startsWith('discount_')),
+    'Google AdMob & Custom Banner': configs.filter(c => c.key.startsWith('admob_') || c.key.startsWith('custom_banner_')),
+    'API Key hệ thống (AI)': configs.filter(c => c.key.startsWith('admin_')),
+    'Google Drive hệ thống': configs.filter(c => c.key.startsWith('system_google_')),
     'Thông tin HKD (Hộ Kinh Doanh)': configs.filter(c => c.key.startsWith('hkd_')),
     'Hóa đơn': configs.filter(c => c.key.startsWith('invoice_')),
     'Webhook': configs.filter(c => c.key.startsWith('webhook_')),

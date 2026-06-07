@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowUpRight,
   BriefcaseBusiness,
@@ -42,23 +43,9 @@ interface WorkspaceLibraryProps {
   onUpdateSessionNote: (sessionId: string, note: string) => void;
 }
 
-const contextMeta: Record<
-  SessionContext,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  [SessionContext.MEETING]: { label: 'Biên bản họp', icon: BriefcaseBusiness },
-  [SessionContext.INTERVIEW]: { label: 'Phỏng vấn', icon: Users },
-  [SessionContext.TRANSCRIPTION]: { label: 'Transcript', icon: FileText },
-};
-
-const sourceMeta: Record<InputSource, string> = {
-  [InputSource.RECORDING]: 'Ghi âm trực tiếp',
-  [InputSource.UPLOAD]: 'Upload file',
-};
-
-const formatDateTime = (value: string) => {
+const formatDateTime = (value: string, locale: string) => {
   try {
-    return new Intl.DateTimeFormat('vi-VN', {
+    return new Intl.DateTimeFormat(locale, {
       hour: '2-digit',
       minute: '2-digit',
       day: '2-digit',
@@ -89,11 +76,31 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
   onRemoveSessionFromProject,
   onUpdateSessionNote,
 }) => {
+  const { t, i18n } = useTranslation();
   const [newProjectName, setNewProjectName] = useState('');
   const [projectNameDraft, setProjectNameDraft] = useState('');
   const [projectNoteDraft, setProjectNoteDraft] = useState('');
   const [sessionNoteDrafts, setSessionNoteDrafts] = useState<Record<string, string>>({});
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const locale = i18n.language.startsWith('vi')
+    ? 'vi-VN'
+    : i18n.language.startsWith('zh')
+      ? 'zh-CN'
+      : i18n.language.startsWith('ko')
+        ? 'ko-KR'
+        : 'en-US';
+  const contextMeta: Record<
+    SessionContext,
+    { label: string; icon: React.ComponentType<{ className?: string }> }
+  > = {
+    [SessionContext.MEETING]: { label: t('WorkspaceLibrary.contexts.meeting'), icon: BriefcaseBusiness },
+    [SessionContext.INTERVIEW]: { label: t('WorkspaceLibrary.contexts.interview'), icon: Users },
+    [SessionContext.TRANSCRIPTION]: { label: t('WorkspaceLibrary.contexts.transcription'), icon: FileText },
+  };
+  const sourceMeta: Record<InputSource, string> = {
+    [InputSource.RECORDING]: t('WorkspaceLibrary.sources.recording'),
+    [InputSource.UPLOAD]: t('WorkspaceLibrary.sources.upload'),
+  };
 
   const activeProject = projects.find((project) => project.id === activeProjectId) || null;
   const sessionProjectMap = useMemo(() => {
@@ -162,31 +169,31 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
             <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(145deg,#f8fffc,#ffffff_52%,#eef7ff)] p-5">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#0d7c66]/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.28em] text-[#0d7c66]">
                 <FolderSearch className="h-4 w-4" />
-                Workspace
+                {t('WorkspaceLibrary.workspaceBadge')}
               </div>
               <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">
-                Dự án & session
+                {t('WorkspaceLibrary.title')}
               </h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Danh sách session được thu gọn. Bấm vào từng dòng để xem chi tiết hoặc mở lại phiên đã xử lý.
+                {t('WorkspaceLibrary.description')}
               </p>
 
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="col-span-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 sm:col-span-1">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Session
+                    {t('WorkspaceLibrary.statsSessions')}
                   </div>
                   <div className="mt-1 text-2xl font-black text-slate-900">{sessions.length}</div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Dự án
+                    {t('WorkspaceLibrary.statsProjects')}
                   </div>
                   <div className="mt-1 text-2xl font-black text-slate-900">{projects.length}</div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Họp
+                    {t('WorkspaceLibrary.statsMeetings')}
                   </div>
                   <div className="mt-1 text-2xl font-black text-slate-900">{meetingCount}</div>
                 </div>
@@ -198,14 +205,14 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 className="mt-4 inline-flex h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-all hover:border-slate-300 hover:-translate-y-0.5"
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Làm mới dữ liệu
+                {t('WorkspaceLibrary.refresh')}
               </button>
             </div>
 
             <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-black uppercase tracking-[0.24em] text-slate-500">
-                  Dự án cũ
+                  {t('WorkspaceLibrary.oldProjects')}
                 </div>
                 <FolderOpen className="h-5 w-5 text-[#0d7c66]" />
               </div>
@@ -220,7 +227,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                       handleCreateProject();
                     }
                   }}
-                  placeholder="Tên dự án mới..."
+                  placeholder={t('WorkspaceLibrary.newProjectPlaceholder')}
                   className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-900 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
                 />
                 <button
@@ -229,7 +236,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0d7c66] px-4 text-sm font-bold text-white shadow-lg shadow-[#0d7c66]/20 transition-all hover:-translate-y-0.5 sm:flex-shrink-0"
                 >
                   <Plus className="h-4 w-4" />
-                  Tạo
+                  {t('WorkspaceLibrary.createProject')}
                 </button>
               </div>
 
@@ -243,13 +250,13 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                       : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
                   }`}
                 >
-                  <div className="text-sm font-bold">Tất cả session</div>
-                  <div className="mt-1 text-xs text-slate-500">Xem toàn bộ thư viện chưa lọc theo dự án.</div>
+                  <div className="text-sm font-bold">{t('WorkspaceLibrary.allSessions')}</div>
+                  <div className="mt-1 text-xs text-slate-500">{t('WorkspaceLibrary.allSessionsDescription')}</div>
                 </button>
 
                 {projects.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                    Chưa có dự án nào. Tạo dự án đầu tiên để nhóm các session liên quan.
+                    {t('WorkspaceLibrary.noProjects')}
                   </div>
                 )}
 
@@ -273,12 +280,12 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                             {project.pinned && <Pin className="h-3.5 w-3.5 text-amber-500" />}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
-                            {project.sessionIds.length} session
-                            {project.note.trim() ? ' • Có note tay' : ''}
+                            {t('WorkspaceLibrary.projectCount', { count: project.sessionIds.length })}
+                            {project.note.trim() ? ` • ${t('WorkspaceLibrary.projectHasNote')}` : ''}
                           </div>
                         </div>
                         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                          {formatDateTime(project.updatedAt)}
+                          {formatDateTime(project.updatedAt, locale)}
                         </div>
                       </div>
                     </button>
@@ -291,7 +298,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
           <div className="min-w-0 space-y-5">
             <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
               <label className="block break-words text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 sm:tracking-[0.28em]">
-                Tìm theo tiêu đề, summary, action items hoặc đường dẫn
+                {t('WorkspaceLibrary.searchLabel')}
               </label>
               <div className="mt-3 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                 <Search className="h-5 w-5 text-slate-400" />
@@ -300,8 +307,8 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                   onChange={(event) => onQueryChange(event.target.value)}
                   placeholder={
                     activeProject
-                      ? `Tìm trong dự án: ${activeProject.name}`
-                      : 'Ví dụ: sprint planning, phỏng vấn, khách hàng A...'
+                      ? t('WorkspaceLibrary.searchInProject', { name: activeProject.name })
+                      : t('WorkspaceLibrary.searchPlaceholder')
                   }
                   className="h-8 w-full border-0 bg-transparent text-base font-medium text-slate-900 outline-none"
                 />
@@ -320,13 +327,13 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="inline-flex items-center gap-2 rounded-full bg-[#0d7c66]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#0d7c66]">
                         <FolderOpen className="h-3.5 w-3.5" />
-                        Dự án đang mở
+                        {t('WorkspaceLibrary.activeProject')}
                       </div>
                       <div className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600">
-                        {activeProject.sessionIds.length} session
+                        {t('WorkspaceLibrary.projectCount', { count: activeProject.sessionIds.length })}
                       </div>
                       <div className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                        {recordingCount} ghi âm trực tiếp
+                        {t('WorkspaceLibrary.recordingCount', { count: recordingCount })}
                       </div>
                     </div>
 
@@ -351,7 +358,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                       className="inline-flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-all hover:border-slate-300 hover:-translate-y-0.5"
                     >
                       {activeProject.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                      {activeProject.pinned ? 'Bỏ ghim' : 'Ghim dự án'}
+                      {activeProject.pinned ? t('WorkspaceLibrary.unpinProject') : t('WorkspaceLibrary.pinProject')}
                     </button>
                     <button
                       type="button"
@@ -359,7 +366,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                       className="inline-flex h-12 items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 transition-all hover:-translate-y-0.5"
                     >
                       <Trash2 className="h-4 w-4" />
-                      Xóa dự án
+                      {t('WorkspaceLibrary.deleteProject')}
                     </button>
                     <button
                       type="button"
@@ -367,7 +374,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                       className="inline-flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-all hover:border-slate-300"
                     >
                       <X className="h-4 w-4" />
-                      Đóng dự án
+                      {t('WorkspaceLibrary.closeProject')}
                     </button>
                   </div>
                 </div>
@@ -375,7 +382,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                 <div className="mt-5 rounded-[24px] border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                     <StickyNote className="h-4 w-4 text-[#0d7c66]" />
-                    Ghi chú tay của dự án
+                    {t('WorkspaceLibrary.projectNoteTitle')}
                   </div>
                   <textarea
                     value={projectNoteDraft}
@@ -386,7 +393,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                       }
                     }}
                     className="mt-3 min-h-[150px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
-                    placeholder="Viết note tay cho dự án này: bối cảnh, việc cần nhớ, quyết định ngoài cuộc họp, prompt riêng cho lần xử lý sau..."
+                    placeholder={t('WorkspaceLibrary.projectNotePlaceholder')}
                   />
                 </div>
               </section>
@@ -395,7 +402,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
             <section className="space-y-3">
               {isLoading && sessions.length === 0 && (
                 <div className="rounded-[28px] border border-slate-200 bg-slate-50 px-5 py-12 text-center text-sm text-slate-500">
-                  Đang tải dữ liệu workspace...
+                  {t('WorkspaceLibrary.loading')}
                 </div>
               )}
 
@@ -405,14 +412,14 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                     <FileSearch className="h-8 w-8" />
                   </div>
                   <h3 className="mt-4 text-xl font-black text-slate-900">
-                    {query.trim() ? 'Không tìm thấy session phù hợp' : 'Chưa có session nào trong phạm vi này'}
+                    {query.trim() ? t('WorkspaceLibrary.emptySearchTitle') : t('WorkspaceLibrary.emptyScopeTitle')}
                   </h3>
                   <p className="mt-2 text-sm leading-7 text-slate-500">
                     {query.trim()
-                      ? 'Thử rút ngắn từ khóa hoặc quay lại chế độ xem tất cả session.'
+                      ? t('WorkspaceLibrary.emptySearchDescription')
                       : activeProject
-                        ? 'Dự án này chưa có session nào. Chọn một session bên dưới và gán vào dự án.'
-                        : 'Sau khi bạn ghi âm hoặc upload file và xử lý AI xong, app sẽ tự lưu session vào đây.'}
+                        ? t('WorkspaceLibrary.emptyProjectDescription')
+                        : t('WorkspaceLibrary.emptyGeneralDescription')}
                   </p>
                 </div>
               )}
@@ -459,11 +466,11 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                             {sourceMeta[session.source]}
                           </span>
                           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-[11px] sm:tracking-[0.2em]">
-                            {formatDateTime(session.createdAt)}
+                            {formatDateTime(session.createdAt, locale)}
                           </span>
                           {session.note.trim() && (
                             <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700 sm:text-[11px] sm:tracking-[0.2em]">
-                              Có session note
+                              {t('WorkspaceLibrary.sessionNoteBadge')}
                             </span>
                           )}
                         </div>
@@ -482,7 +489,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                           }}
                           className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-bold uppercase tracking-[0.16em] text-white transition-all hover:-translate-y-0.5"
                         >
-                          Mở
+                          {t('WorkspaceLibrary.open')}
                           <ArrowUpRight className="h-4 w-4" />
                         </button>
                         <div className="text-slate-400">
@@ -517,26 +524,26 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                         <div className="mt-4 grid gap-3 md:grid-cols-3">
                           <div className="rounded-2xl bg-white px-4 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                              Summary
+                              {t('WorkspaceLibrary.summary')}
                             </div>
                             <div className="mt-2 text-sm leading-6 text-slate-700">
-                              {session.summaryPreview || 'Chưa có summary hoặc đây là session transcript thuần.'}
+                              {session.summaryPreview || t('WorkspaceLibrary.summaryEmpty')}
                             </div>
                           </div>
                           <div className="rounded-2xl bg-white px-4 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                              Transcript
+                              {t('WorkspaceLibrary.transcript')}
                             </div>
                             <div className="mt-2 text-sm leading-6 text-slate-700">
-                              {session.transcriptPreview || 'Chưa có transcript preview.'}
+                              {session.transcriptPreview || t('WorkspaceLibrary.transcriptEmpty')}
                             </div>
                           </div>
                           <div className="rounded-2xl bg-white px-4 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                              Action Items
+                              {t('WorkspaceLibrary.actionItems')}
                             </div>
                             <div className="mt-2 text-sm leading-6 text-slate-700">
-                              {session.actionItemsPreview || 'Chưa có action items hoặc session này không yêu cầu.'}
+                              {session.actionItemsPreview || t('WorkspaceLibrary.actionItemsEmpty')}
                             </div>
                           </div>
                         </div>
@@ -544,7 +551,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                         <div className="mt-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(145deg,#fcfffd,#f8fafc)] p-4">
                           <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                             <StickyNote className="h-4 w-4 text-[#0d7c66]" />
-                            Session note
+                            {t('WorkspaceLibrary.sessionNoteTitle')}
                           </div>
                           <textarea
                             value={sessionNoteDrafts[session.id] ?? session.note ?? ''}
@@ -561,7 +568,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                               }
                             }}
                             className="mt-3 min-h-[118px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition-all focus:border-[#0d7c66]"
-                            placeholder="Ghi chú tay riêng cho session này: đoạn AI nghe sai, việc cần follow-up, lưu ý khi mở lại, hay ý định dùng Word/PPT cho ai..."
+                            placeholder={t('WorkspaceLibrary.sessionNotePlaceholder')}
                           />
                         </div>
 
@@ -580,7 +587,7 @@ export const WorkspaceLibrary: React.FC<WorkspaceLibraryProps> = ({
                                   : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:-translate-y-0.5'
                               }`}
                             >
-                              {isInActiveProject ? 'Bỏ khỏi dự án' : 'Thêm vào dự án'}
+                              {isInActiveProject ? t('WorkspaceLibrary.removeFromProject') : t('WorkspaceLibrary.addToProject')}
                             </button>
                           </div>
                         )}

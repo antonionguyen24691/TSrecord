@@ -1,0 +1,54 @@
+{
+  "name": "tsrecord-vercel-commerce",
+  "summary": "Production workflow for TSrecord Vercel commerce: PostgreSQL devices, SePay and Stripe order fulfillment, entitlements, accounting ledger, and server-controlled ads.",
+  "capabilities": [
+    "vercel",
+    "postgresql",
+    "payments",
+    "sepay",
+    "stripe",
+    "billing",
+    "entitlements",
+    "accounting",
+    "device-management",
+    "advertising"
+  ],
+  "tags": [
+    "tsrecord",
+    "backend",
+    "commerce",
+    "webhook",
+    "idempotency",
+    "vietnam-accounting",
+    "admob",
+    "google-ads"
+  ],
+  "usage": {
+    "whenToUse": [
+      "When changing TSrecord billing, payment webhooks, plans, devices, revenue reports, or ad triggers",
+      "When deploying or debugging the TSrecord admin backend on Vercel",
+      "When extending the PostgreSQL /api/v2 backend"
+    ],
+    "inputs": [
+      "Requested backend capability",
+      "Payment provider documentation",
+      "Current Vietnamese legal and accounting requirements",
+      "Existing PostgreSQL schema and API routes"
+    ],
+    "workflow": [
+      "Apply UTF-8 guard",
+      "Read backend commerce documentation and Graph context",
+      "Model order and idempotency boundaries before editing",
+      "Keep entitlement and ledger writes in one transaction",
+      "Build TypeScript and test provider sandbox webhooks",
+      "Record touched files and verification in Graph"
+    ],
+    "safety": [
+      "Never persist production data in Vercel filesystem",
+      "Never fulfill payment from client redirect",
+      "Never expose provider secrets to clients",
+      "Never hardcode one universal Vietnamese tax rate",
+      "Never process a webhook twice"
+    ]
+  }
+}

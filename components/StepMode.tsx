@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlignLeft,
   ArrowLeft,
@@ -25,9 +26,9 @@ interface StepModeProps {
 }
 
 const getContextLabel = (context: SessionContext) => {
-  if (context === SessionContext.MEETING) return 'Cuộc họp';
-  if (context === SessionContext.INTERVIEW) return 'Phỏng vấn';
-  return 'Trích xuất transcript';
+  if (context === SessionContext.MEETING) return 'StepMode.contextMeeting';
+  if (context === SessionContext.INTERVIEW) return 'StepMode.contextInterview';
+  return 'StepMode.contextTranscription';
 };
 
 export const StepMode: React.FC<StepModeProps> = ({
@@ -43,6 +44,7 @@ export const StepMode: React.FC<StepModeProps> = ({
   isProcessing,
   processingState,
 }) => {
+  const { t } = useTranslation();
   const progressPercent =
     processingState.progressCurrent !== undefined &&
     processingState.progressTotal &&
@@ -56,20 +58,20 @@ export const StepMode: React.FC<StepModeProps> = ({
         <div className="flex flex-col gap-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
-              Bước xử lý
+              {t('StepMode.tag')}
             </p>
             <h2 className="mt-3 text-2xl font-black text-slate-900">
-              Chọn định dạng transcript
+              {t('StepMode.title')}
             </h2>
             <div className="mt-4 flex flex-wrap gap-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-600 border border-slate-200 uppercase tracking-wider">
-                Nguồn: {source === 'RECORDING' ? 'Ghi âm' : 'Tải lên'}
+                {t('StepMode.source')}: {source === 'RECORDING' ? t('StepMode.sourceRecording') : t('StepMode.sourceUpload')}
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-100 uppercase tracking-wider">
-                Module: {module === AppModule.RECORD_NOTES ? 'Ghi âm' : 'Upload'}
+                {t('StepMode.module')}: {module === AppModule.RECORD_NOTES ? t('StepMode.moduleRecording') : t('StepMode.moduleUpload')}
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700 border border-blue-100 uppercase tracking-wider">
-                Ngữ cảnh: {getContextLabel(sessionContext)}
+                {t('StepMode.context')}: {t(getContextLabel(sessionContext))}
               </div>
             </div>
           </div>
@@ -88,7 +90,7 @@ export const StepMode: React.FC<StepModeProps> = ({
               }`}>
                 <Clock className="h-6 w-6" />
               </div>
-              <div className="text-left font-bold text-slate-900">Timeline</div>
+              <div className="text-left font-bold text-slate-900">{t('StepMode.timeline')}</div>
               {mode === ExtractionMode.TIMELINE && (
                 <div className="absolute right-4 top-4 text-[#0d7c66]">
                   <CheckCircle2 className="h-6 w-6" />
@@ -109,7 +111,7 @@ export const StepMode: React.FC<StepModeProps> = ({
               }`}>
                 <AlignLeft className="h-6 w-6" />
               </div>
-              <div className="text-left font-bold text-slate-900">Plain text</div>
+              <div className="text-left font-bold text-slate-900">{t('StepMode.plainText')}</div>
               {mode === ExtractionMode.PLAIN && (
                 <div className="absolute right-4 top-4 text-[#0d7c66]">
                   <CheckCircle2 className="h-6 w-6" />
@@ -124,10 +126,10 @@ export const StepMode: React.FC<StepModeProps> = ({
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
-                  Tiến trình xử lý
+                  {t('StepMode.progressTag')}
                 </div>
                 <div className="mt-2 text-base sm:text-lg font-black text-slate-900 break-words">
-                  {processingState.stageLabel || 'Đang khởi tạo pipeline...'}
+                  {processingState.stageLabel || t('StepMode.initializing')}
                 </div>
                 {processingState.progressLabel && (
                   <div className="mt-2 text-sm text-slate-600">{processingState.progressLabel}</div>
@@ -144,7 +146,7 @@ export const StepMode: React.FC<StepModeProps> = ({
             {progressPercent !== null && (
               <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                  <span>Tiến độ</span>
+                  <span>{t('StepMode.progress')}</span>
                   <span>{progressPercent}%</span>
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-slate-200">
@@ -189,6 +191,24 @@ export const StepMode: React.FC<StepModeProps> = ({
                 ))}
               </div>
             )}
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  {t('StepMode.transcriptPreviewTitle')}
+                </div>
+                {processingState.completedBatchCount !== undefined && (
+                  <div className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+                    {t('StepMode.transcriptPreviewCount', {
+                      count: processingState.completedBatchCount,
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
+                {processingState.transcriptPreview || t('StepMode.transcriptPreviewEmpty')}
+              </div>
+            </div>
           </div>
         )}
 
@@ -200,7 +220,7 @@ export const StepMode: React.FC<StepModeProps> = ({
           >
             <span className="inline-flex items-center gap-2">
               <ArrowLeft className="h-4 w-4" />
-              Quay lại
+              {t('StepMode.back')}
             </span>
           </button>
 
@@ -217,12 +237,12 @@ export const StepMode: React.FC<StepModeProps> = ({
               {isProcessing ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Đang xử lý AI
+                  {t('StepMode.processingAi')}
                 </>
               ) : (
                 <>
                   <Play className="h-5 w-5 fill-current" />
-                  Chạy phân tích
+                  {t('StepMode.runAnalysis')}
                 </>
               )}
             </span>

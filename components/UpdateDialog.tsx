@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Download,
   ExternalLink,
@@ -18,9 +19,9 @@ interface UpdateDialogProps {
   onDismiss: () => void;
 }
 
-const formatDate = (iso: string): string => {
+const formatDate = (iso: string, locale: string): string => {
   try {
-    return new Intl.DateTimeFormat('vi-VN', {
+    return new Intl.DateTimeFormat(locale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -36,6 +37,7 @@ const formatProgress = (downloadedBytes: number, totalBytes: number) => {
 };
 
 export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }) => {
+  const { t, i18n } = useTranslation();
   const [downloadId, setDownloadId] = useState<number | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<
     'idle' | 'pending' | 'running' | 'paused' | 'successful' | 'failed'
@@ -44,6 +46,13 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
   const [totalBytes, setTotalBytes] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const locale = i18n.language.startsWith('vi')
+    ? 'vi-VN'
+    : i18n.language.startsWith('zh')
+      ? 'zh-CN'
+      : i18n.language.startsWith('ko')
+        ? 'ko-KR'
+        : 'en-US';
 
   useEffect(() => {
     if (!downloadId) return undefined;
@@ -56,15 +65,15 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
         setTotalBytes(status.totalBytes);
 
         if (!status.canRequestPackageInstalls) {
-          setStatusMessage('Cần cho phép cài ứng dụng từ nguồn này một lần trong Android Settings.');
+          setStatusMessage(t('UpdateDialog.needInstallPermission'));
         } else if (status.status === 'successful') {
-          setStatusMessage('APK đã tải xong. Android sẽ mở màn hình cài đặt.');
+          setStatusMessage(t('UpdateDialog.downloadDone'));
         } else if (status.status === 'running') {
-          setStatusMessage('Đang tải bản cập nhật...');
+          setStatusMessage(t('UpdateDialog.downloading'));
         } else if (status.status === 'paused') {
-          setStatusMessage('Tải tạm dừng. Android sẽ tiếp tục khi có mạng phù hợp.');
+          setStatusMessage(t('UpdateDialog.paused'));
         } else if (status.status === 'failed') {
-          setStatusMessage(`Tải APK thất bại. Mã lỗi: ${status.reason || 'unknown'}`);
+          setStatusMessage(t('UpdateDialog.downloadFailed', { reason: status.reason || 'unknown' }));
         } else {
           setStatusMessage('');
         }
@@ -74,7 +83,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
         }
       } catch {
         setDownloadStatus('failed');
-        setStatusMessage('Không thể theo dõi tiến độ tải APK.');
+        setStatusMessage(t('UpdateDialog.cannotTrack'));
         window.clearInterval(timer);
       }
     }, 1500);
@@ -82,7 +91,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
     return () => {
       window.clearInterval(timer);
     };
-  }, [downloadId]);
+  }, [downloadId, t]);
 
   const progressText = useMemo(
     () => formatProgress(downloadedBytes, totalBytes),
@@ -102,12 +111,12 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
       setDownloadStatus('pending');
       setStatusMessage(
         result.canRequestPackageInstalls
-          ? 'Đã bắt đầu tải APK...'
-          : 'Android sẽ mở màn cho phép cài ứng dụng từ nguồn này trước.'
+          ? t('UpdateDialog.downloadStarted')
+          : t('UpdateDialog.openPermissionScreen')
       );
     } catch (error: any) {
       setDownloadStatus('failed');
-      setStatusMessage(error?.message || 'Không thể bắt đầu tải bản cập nhật.');
+      setStatusMessage(error?.message || t('UpdateDialog.cannotStart'));
     } finally {
       setIsBusy(false);
     }
@@ -118,7 +127,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
     try {
       await openInstaller();
     } catch (error: any) {
-      setStatusMessage(error?.message || 'Không thể mở màn hình cài đặt.');
+      setStatusMessage(error?.message || t('UpdateDialog.cannotOpenInstaller'));
     } finally {
       setIsBusy(false);
     }
@@ -131,12 +140,12 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
 
   const primaryLabel =
     downloadStatus === 'successful'
-      ? 'Mở cài đặt'
+      ? t('UpdateDialog.openInstaller')
       : downloadStatus === 'running' || downloadStatus === 'pending' || downloadStatus === 'paused'
-        ? `Đang tải ${progressText || ''}`.trim()
+        ? t('UpdateDialog.downloadProgress', { progress: progressText || '' }).trim()
         : release.isAndroid
-          ? 'Tải và cài đặt'
-          : 'Mở trang release';
+          ? t('UpdateDialog.downloadAndInstall')
+          : t('UpdateDialog.openReleasePage');
 
   return (
     <div
@@ -162,7 +171,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white">Có phiên bản mới</h2>
+              <h2 className="text-lg font-black text-white">{t('UpdateDialog.title')}</h2>
               <div className="mt-0.5 flex items-center gap-2">
                 <span className="text-xs text-slate-400 line-through">{release.currentVersion}</span>
                 <span className="text-xs text-slate-500">→</span>
@@ -190,9 +199,9 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
         >
           <ExternalLink className="h-4 w-4 flex-shrink-0" style={{ color: '#0d7c66' }} />
           <div className="flex-1">
-            <p className="text-xs font-semibold text-slate-300">Phát hành ngày {formatDate(release.publishedAt)}</p>
+            <p className="text-xs font-semibold text-slate-300">{t('UpdateDialog.releasedOn', { date: formatDate(release.publishedAt, locale) })}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              {release.isAndroid ? 'APK sẽ được tải trực tiếp và mở màn cài đặt' : 'Release này chưa có file APK đính kèm'}
+              {release.isAndroid ? t('UpdateDialog.androidHint') : t('UpdateDialog.genericHint')}
             </p>
           </div>
           <span
@@ -221,10 +230,10 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
           </div>
         )}
 
-        {release.releaseNotes && release.releaseNotes !== 'Không có ghi chú phiên bản.' && (
+        {release.releaseNotes && release.releaseNotes !== t('UpdateDialog.noReleaseNotes') && (
           <div className="mx-6 mb-5">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Ghi chú phiên bản
+              {t('UpdateDialog.releaseNotes')}
             </p>
             <div
               className="rounded-xl p-4 text-xs text-slate-300 leading-relaxed"
@@ -241,7 +250,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ release, onDismiss }
             className="flex-1 rounded-xl py-3 text-sm font-semibold text-slate-400 transition-all"
             style={{ background: 'rgba(255,255,255,0.06)' }}
           >
-            Để sau
+            {t('UpdateDialog.later')}
           </button>
           <button
             onClick={downloadStatus === 'successful' ? handleOpenInstaller : handleUpdate}

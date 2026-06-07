@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -103,6 +104,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
   setAdditionalFiles,
   onNext,
 }) => {
+  const { t } = useTranslation();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -113,18 +115,18 @@ export const StepRecord: React.FC<StepRecordProps> = ({
   const realtimeModeRef = useRef<RealtimeMode>(DEFAULT_REALTIME_MODE);
   const isRecordingRef = useRef(false);
   const liveMeetingStateRef = useRef<LiveMeetingState>(
-    createEmptyLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.')
+    createEmptyLiveMeetingState(t('StepRecord.status.waitingMeeting'))
   );
 
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [statusMessage, setStatusMessage] = useState(
-    'Chọn ngữ cảnh rồi bắt đầu ghi âm phiên mới.'
+    t('StepRecord.recording.description')
   );
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [liveMeetingState, setLiveMeetingState] = useState<LiveMeetingState>(
-    createEmptyLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.')
+    createEmptyLiveMeetingState(t('StepRecord.status.waitingMeeting'))
   );
 
   useEffect(() => {
@@ -177,7 +179,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         ...current,
         status: isRecordingRef.current ? 'listening' : current.status,
         statusMessage: isRecordingRef.current
-          ? 'Realtime note đang chờ đoạn ghi tiếp theo.'
+          ? t('StepRecord.status.nextChunkWaiting')
           : current.statusMessage,
       }));
       return;
@@ -190,7 +192,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
     setLiveMeetingState((current) => ({
       ...current,
       status: 'processing',
-      statusMessage: `AI đang cập nhật từ đoạn ghi số ${nextIndex}...`,
+      statusMessage: t('StepRecord.status.processingChunk', { index: nextIndex }),
       errorMessage: undefined,
     }));
 
@@ -213,8 +215,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         ...current,
         status: isRecordingRef.current ? 'listening' : 'processing',
         statusMessage: isRecordingRef.current
-          ? `Realtime note đã cập nhật ${nextIndex} đoạn ghi.`
-          : 'Đang hoàn tất các cập nhật AI cuối cùng...',
+          ? t('StepRecord.status.updatedChunks', { count: nextIndex })
+          : t('StepRecord.status.finalizingRealtime'),
         processedChunks: nextIndex,
         transcriptPreview: appendTranscriptChunk(current.transcriptPreview, result.transcriptChunk),
         summaryPreview: result.rollingSummary || current.summaryPreview,
@@ -227,8 +229,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       setLiveMeetingState((current) => ({
         ...current,
         status: 'error',
-        statusMessage: 'Realtime note gặp lỗi, bản ghi chính vẫn có thể xử lý sau khi dừng ghi âm.',
-        errorMessage: error?.message || 'Không thể cập nhật realtime.',
+        statusMessage: t('StepRecord.status.realtimeError'),
+        errorMessage: error?.message || t('StepRecord.status.realtimeUpdateFailed'),
       }));
     } finally {
       liveChunkProcessingRef.current = false;
@@ -251,8 +253,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
     setFile(null);
     setSavedRecording(null);
     setRecordingSeconds(0);
-    setStatusMessage('Đã xoá phiên ghi hiện tại.');
-    resetLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.');
+    setStatusMessage(t('StepRecord.status.cleared'));
+    resetLiveMeetingState(t('StepRecord.status.waitingMeeting'));
     clearPreview();
   };
 
@@ -268,18 +270,18 @@ export const StepRecord: React.FC<StepRecordProps> = ({
 
   useEffect(() => {
     if (sessionContext === SessionContext.INTERVIEW && !isRecording) {
-      resetLiveMeetingState('Phỏng vấn chỉ ghi âm và chép transcript sau khi kết thúc.');
+      resetLiveMeetingState(t('StepRecord.status.waitingInterview'));
     }
 
     if (sessionContext === SessionContext.MEETING && !isRecording && !file) {
-      resetLiveMeetingState('Realtime note đang chờ phiên ghi cuộc họp.');
+      resetLiveMeetingState(t('StepRecord.status.waitingMeeting'));
     }
-  }, [file, isRecording, sessionContext]);
+  }, [file, isRecording, sessionContext, t]);
 
   const handleStartRecording = async () => {
     try {
       clearSelectedRecording();
-      setStatusMessage('Đang xin quyền microphone...');
+      setStatusMessage(t('StepRecord.status.requestingMic'));
       let realtimeEnabled = false;
       let realtimeMode: RealtimeMode = DEFAULT_REALTIME_MODE;
 
@@ -291,11 +293,11 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         resetLiveMeetingState(
           realtimeEnabled
             ? realtimeMode === 'HYBRID'
-              ? 'Realtime đang chạy HYBRID: cập nhật transcript + summary nhanh theo từng chunk.'
-              : 'Realtime đang chạy FULL: cập nhật đầy đủ notes theo từng chunk.'
+              ? t('StepRecord.status.hybridReady')
+              : t('StepRecord.status.fullReady')
             : realtimeMode === 'OFF'
-              ? 'Realtime đang tắt theo cài đặt. App sẽ phân tích 1 lần khi kết thúc phiên.'
-              : 'Chưa có Gemini API Key nên realtime note đang tắt. Bạn vẫn có thể ghi âm và xử lý đầy đủ sau khi kết thúc.'
+              ? t('StepRecord.status.offBySettings')
+              : t('StepRecord.status.missingApiKey')
         );
 
         if (!realtimeEnabled) {
@@ -306,7 +308,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         }
       } else {
         realtimeModeRef.current = DEFAULT_REALTIME_MODE;
-        resetLiveMeetingState('Phỏng vấn chỉ ghi âm và chép transcript sau khi kết thúc.');
+        resetLiveMeetingState(t('StepRecord.status.waitingInterview'));
       }
 
       const { recorder, stream, mimeType } = await startRecordingStream();
@@ -329,7 +331,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         });
 
         if (!blob.size) {
-          setStatusMessage('Không thu được dữ liệu âm thanh. Vui lòng thử lại.');
+          setStatusMessage(t('StepRecord.status.noAudioData'));
           stopActiveStream();
           return;
         }
@@ -345,7 +347,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         setFile(recordedFile);
         clearPreview();
         setAudioPreviewUrl(URL.createObjectURL(blob));
-        setStatusMessage('Đang lưu file ghi âm vào thiết bị...');
+        setStatusMessage(t('StepRecord.status.savingRecording'));
 
         try {
           const savedFile = await saveRecordingToDevice({
@@ -357,13 +359,11 @@ export const StepRecord: React.FC<StepRecordProps> = ({
           });
 
           setSavedRecording(savedFile);
-          setStatusMessage(`Đã lưu ghi âm vào ${savedFile.path}.`);
+          setStatusMessage(t('StepRecord.status.savedRecording', { path: savedFile.path }));
         } catch (error: any) {
           console.error('Save recording failed:', error);
           setSavedRecording(null);
-          setStatusMessage(
-            'Đã ghi âm xong nhưng chưa lưu được file xuống thiết bị. Bạn vẫn có thể tiếp tục xử lý AI.'
-          );
+          setStatusMessage(t('StepRecord.status.saveRecordingFailed'));
         }
 
         if (sessionContext === SessionContext.MEETING) {
@@ -379,8 +379,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               current.status === 'disabled'
                 ? current.statusMessage
                 : liveChunkQueueRef.current.length > 0 || liveChunkProcessingRef.current
-                  ? 'Đang hoàn tất các cập nhật realtime cuối cùng trước khi bạn sang bước AI đầy đủ.'
-                  : 'Realtime note đã cập nhật xong cho phiên ghi hiện tại.',
+                  ? t('StepRecord.status.realtimeFinalPass')
+                  : t('StepRecord.status.realtimeDone'),
           }));
         }
 
@@ -398,7 +398,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       setIsRecording(true);
       isRecordingRef.current = true;
       setIsPaused(false);
-      setStatusMessage('Đang ghi âm trực tiếp...');
+      setStatusMessage(t('StepRecord.status.recordingNow'));
     } catch (error: any) {
       console.error('Recording start failed:', error);
       stopTimer();
@@ -406,8 +406,8 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       isRecordingRef.current = false;
       setIsPaused(false);
       stopActiveStream();
-      setStatusMessage(error.message || 'Không thể khởi động ghi âm.');
-      alert(error.message || 'Không thể khởi động ghi âm.');
+      setStatusMessage(error.message || t('StepRecord.status.startFailed'));
+      alert(error.message || t('StepRecord.status.startFailed'));
     }
   };
 
@@ -419,7 +419,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       recorder.pause();
       stopTimer();
       setIsPaused(true);
-      setStatusMessage('Đã tạm dừng ghi âm.');
+      setStatusMessage(t('StepRecord.status.paused'));
       return;
     }
 
@@ -427,7 +427,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       recorder.resume();
       startTimer();
       setIsPaused(false);
-      setStatusMessage('Đã tiếp tục ghi âm.');
+      setStatusMessage(t('StepRecord.status.resumed'));
     }
   };
 
@@ -439,23 +439,21 @@ export const StepRecord: React.FC<StepRecordProps> = ({
     setIsRecording(false);
     isRecordingRef.current = false;
     setIsPaused(false);
-    setStatusMessage('Đang hoàn tất file ghi âm...');
+    setStatusMessage(t('StepRecord.status.finalizingRecording'));
     recorder.stop();
   };
 
   const contextCards = [
     {
       id: SessionContext.MEETING,
-      title: 'Cuộc họp',
-      description:
-        'Ghi âm rồi sinh transcript, tóm tắt, decisions, risks, action items, folder tree và mindmap.',
+      title: t('StepRecord.contexts.meetingTitle'),
+      description: t('StepRecord.contexts.meetingDescription'),
       icon: BriefcaseBusiness,
     },
     {
       id: SessionContext.INTERVIEW,
-      title: 'Phỏng vấn',
-      description:
-        'Ghi âm rồi chỉ chép lại nội dung phỏng vấn, không tự tạo mindmap hay ghi chú họp.',
+      title: t('StepRecord.contexts.interviewTitle'),
+      description: t('StepRecord.contexts.interviewDescription'),
       icon: Users,
     },
   ];
@@ -467,13 +465,13 @@ export const StepRecord: React.FC<StepRecordProps> = ({
       <div className="w-full max-w-6xl grid grid-cols-1 xl:grid-cols-[0.92fr_1.08fr] gap-6">
         <aside className="rounded-[32px] border border-white/60 bg-slate-950 p-6 md:p-8 text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#7af2d1]">
-            Phân hệ ghi âm
+            {t('StepRecord.tag')}
           </p>
           <h2 className="mt-3 text-2xl font-black leading-tight md:text-3xl">
-            Chọn loại phiên ghi
+            {t('StepRecord.title')}
           </h2>
           <p className="mt-3 hidden text-sm leading-7 text-white/68 md:block">
-            Cuộc họp sẽ có realtime note, phỏng vấn chỉ ghi và chép transcript.
+            {t('StepRecord.description')}
           </p>
 
           <div className="mt-8 space-y-4">
@@ -516,12 +514,11 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               <div className="flex items-center gap-3 text-[#7af2d1]">
                 <Sparkles className="h-5 w-5" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.28em]">
-                  Live meeting notes
+                  {t('StepRecord.liveCard.title')}
                 </span>
               </div>
               <p className="mt-3 hidden text-sm leading-6 text-white/68 md:block">
-                Realtime chạy theo từng chunk khoảng 15 giây. Ở mode Hybrid, phần realtime chỉ cập nhật
-                transcript + summary nhanh; sau khi dừng ghi, bước AI đầy đủ vẫn chạy lại trên toàn bộ file.
+                {t('StepRecord.liveCard.description')}
               </p>
               <div className="mt-4 rounded-2xl bg-white/[0.06] px-4 py-4 text-sm leading-6 text-white/75">
                 {liveMeetingState.statusMessage}
@@ -537,20 +534,21 @@ export const StepRecord: React.FC<StepRecordProps> = ({
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
-                Ghi âm trực tiếp
+                {t('StepRecord.recording.tag')}
               </p>
               <h3 className="mt-3 text-2xl font-black text-slate-900 md:text-3xl">
-                {isRecording ? 'Đang thu âm phiên làm việc' : 'Micro sẵn sàng'}
+                {isRecording
+                  ? t('StepRecord.recording.activeTitle')
+                  : t('StepRecord.recording.idleTitle')}
               </h3>
               <p className="mt-3 hidden max-w-2xl text-sm leading-7 text-slate-500 md:block">
-                Sau khi kết thúc, app tạo file audio mới, lưu xuống thiết bị rồi chuyển sang bước
-                xử lý AI cho đúng loại phiên đã chọn.
+                {t('StepRecord.recording.description')}
               </p>
             </div>
 
             <div className="rounded-[24px] bg-slate-950 px-5 py-4 text-center text-white shadow-xl shadow-slate-950/15">
               <div className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-                Thời lượng
+                {t('StepRecord.recording.duration')}
               </div>
               <div className="mt-1 text-3xl font-black tabular-nums">
                 {formatDuration(recordingSeconds)}
@@ -570,7 +568,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               }`}
             >
               <Mic className="h-5 w-5" />
-              Bắt đầu ghi âm
+              {t('StepRecord.recording.start')}
             </button>
 
             <button
@@ -584,7 +582,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               }`}
             >
               {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
-              {isPaused ? 'Tiếp tục' : 'Tạm dừng'}
+              {isPaused ? t('StepRecord.recording.resume') : t('StepRecord.recording.pause')}
             </button>
 
             <button
@@ -598,7 +596,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               }`}
             >
               <Square className="h-4 w-4 fill-current" />
-              Kết thúc
+              {t('StepRecord.recording.stop')}
             </button>
           </div>
 
@@ -608,7 +606,9 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                 <Waves className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-sm font-semibold text-slate-900">Trạng thái phiên ghi</div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {t('StepRecord.recording.statusTitle')}
+                </div>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{statusMessage}</p>
                 {savedRecording?.path && (
                   <p className="mt-2 break-all rounded-xl bg-white px-3 py-2 font-mono text-xs text-slate-600">
@@ -624,44 +624,44 @@ export const StepRecord: React.FC<StepRecordProps> = ({
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
-                    Realtime meeting note
+                    {t('StepRecord.livePanel.title')}
                   </div>
                   <div className="mt-2 text-xl font-black text-slate-900">
-                    Transcript và ghi chú đang cập nhật dần
+                    {t('StepRecord.livePanel.subtitle')}
                   </div>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white">
                   <Sparkles className="h-4 w-4 text-[#7af2d1]" />
-                  {liveMeetingState.processedChunks} đoạn đã xử lý
+                  {t('StepRecord.livePanel.processedChunks', { count: liveMeetingState.processedChunks })}
                 </div>
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <div className="rounded-[22px] border border-slate-200 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Transcript preview</div>
+                  <div className="text-sm font-bold text-slate-900">{t('StepRecord.livePanel.transcriptPreview')}</div>
                   <div className="mt-3 max-h-64 overflow-auto rounded-2xl bg-slate-50 px-4 py-4 font-mono text-xs leading-6 text-slate-700">
-                    {liveMeetingState.transcriptPreview || 'Chưa có transcript realtime.'}
+                    {liveMeetingState.transcriptPreview || t('StepRecord.livePanel.emptyTranscript')}
                   </div>
                 </div>
 
                 <div className="rounded-[22px] border border-slate-200 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Rolling summary</div>
+                  <div className="text-sm font-bold text-slate-900">{t('StepRecord.livePanel.summaryPreview')}</div>
                   <div className="mt-3 max-h-64 overflow-auto rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
-                    {liveMeetingState.summaryPreview || 'Chưa có tóm tắt realtime.'}
+                    {liveMeetingState.summaryPreview || t('StepRecord.livePanel.emptySummary')}
                   </div>
                 </div>
 
                 <div className="rounded-[22px] border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                     <ListChecks className="h-4 w-4 text-[#0d7c66]" />
-                    Decisions & action items
+                    {t('StepRecord.livePanel.decisionsActionItems')}
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-3">
                     <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
-                      {liveMeetingState.decisionsPreview || 'Chưa có quyết định nào được tách riêng.'}
+                      {liveMeetingState.decisionsPreview || t('StepRecord.livePanel.emptyDecisions')}
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
-                      {liveMeetingState.actionItemsPreview || 'Chưa có action item realtime.'}
+                      {liveMeetingState.actionItemsPreview || t('StepRecord.livePanel.emptyActionItems')}
                     </div>
                   </div>
                 </div>
@@ -669,10 +669,10 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                 <div className="rounded-[22px] border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                     <ShieldAlert className="h-4 w-4 text-amber-600" />
-                    Risks / blockers
+                    {t('StepRecord.livePanel.risks')}
                   </div>
                   <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 whitespace-pre-wrap">
-                    {liveMeetingState.risksPreview || 'Chưa có rủi ro hoặc blocker nào được phát hiện.'}
+                    {liveMeetingState.risksPreview || t('StepRecord.livePanel.emptyRisks')}
                   </div>
                 </div>
               </div>
@@ -698,13 +698,13 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                   className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <X className="h-4 w-4" />
-                  Ghi lại
+                  {t('StepRecord.recording.recordAgain')}
                 </button>
               </div>
 
               {audioPreviewUrl && (
                 <audio controls src={audioPreviewUrl} className="mt-4 w-full">
-                  Trình duyệt không hỗ trợ audio preview.
+                  {t('StepRecord.recording.audioPreviewUnsupported')}
                 </audio>
               )}
             </div>
@@ -728,7 +728,7 @@ export const StepRecord: React.FC<StepRecordProps> = ({
                 : 'cursor-not-allowed bg-slate-200 text-slate-400'
             }`}
           >
-            Cấu hình AI
+            {t('StepRecord.recording.aiSettings')}
             <ArrowRight className="h-5 w-5" />
           </button>
         </div>

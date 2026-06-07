@@ -1,0 +1,753 @@
+{
+  "common": {
+    "home": "Trang chủ",
+    "settings": "Cài đặt",
+    "offline_warning": "Mất kết nối mạng — các tính năng AI sẽ không hoạt động cho đến khi có mạng trở lại."
+  },
+  "ModuleHome": {
+    "tag": "TSrecord",
+    "heroTitle": "Ghi âm hoặc tải file lên tạo biên bản họp",
+    "heroDesc": "Hỗ trợ ghi âm thiết bị, tải lên audio/video, tạo biên bản kèm mindmap và xuất Word/PPT.",
+    "features": {
+      "directRecord": "Ghi âm trực tiếp",
+      "upload": "Upload file",
+      "mindmap": "Biên bản + mindmap",
+      "export": "Xuất Word/PPT"
+    },
+    "modules": {
+      "transcribe": {
+        "title": "Trích xuất",
+        "desc": "Upload file có sẵn"
+      },
+      "record": {
+        "title": "Ghi âm",
+        "desc": "Ghi trực tiếp trên thiết bị"
+      },
+      "editor": {
+        "title": "Audio editor",
+        "desc": "Cắt audio rồi chuyển thẳng sang trích xuất"
+      }
+    },
+    "workspace": {
+      "badge": "Workspace",
+      "title": "Tìm lại session đã xử lý",
+      "descEmpty": "Sessions tự động lưu tại đây để mở lại và tìm kiếm.",
+      "descWithCount": "{{count}} session đã được lưu. {{recentSessionTitle}}",
+      "recentPrefix": "Mới nhất: "
+    }
+  },
+  "App": {
+    "title": "TSrecord",
+    "titleTranscribe": "Trích xuất transcript",
+    "titleRecord": "Ghi âm & ghi chú",
+    "titleAudioEditor": "Audio editor",
+    "titleWorkspace": "Thư viện session & tìm kiếm",
+    "subtitle": "AI RECORDING & TRANSCRIPT STUDIO",
+    "subtitleTranscribe": "MODULE TRÍCH XUẤT GHI ÂM",
+    "subtitleRecord": "MODULE GHI ÂM & GHI CHÚ",
+    "subtitleAudioEditor": "MODULE CHỈNH SỬA AUDIO",
+    "workspaceLoadError": "Không thể tải thư viện session.",
+    "processing_meeting": "AI đang tạo transcript, summary, decisions, risks, folder tree và mindmap...",
+    "processing_interview": "AI đang chép lại nội dung phỏng vấn...",
+    "processing_general": "AI đang tạo transcript...",
+    "processing_done": "Transcript và phân tích đã xong, đang mở kết quả...",
+    "deleteProjectConfirm": "Xóa dự án \"{{name}}\"? Các session gốc vẫn được giữ lại trong workspace.",
+    "toast": {
+      "sessionLoadError": "Không thể mở lại session này. Vui lòng thử lưu package lại ở phiên mới hơn.",
+      "backgroundResumeTriggered": "App vừa khôi phục một job transcript từ background scheduler. Workspace đã được làm mới."
+    },
+    "errors": {
+      "processFile": "Đã xảy ra lỗi khi xử lý file.",
+      "reanalyzeTranscript": "Không thể phân tích lại transcript đã lưu.",
+      "resumeTranscription": "Không thể tiếp tục job transcript đang dang dở.",
+      "createProject": "Không thể tạo dự án mới."
+    },
+    "resumeTranscription": {
+      "stageLabel": "Đang tiếp tục job transcript từ checkpoint đã lưu...",
+      "progressLabel": "App sẽ bỏ qua các batch đã lưu và chạy tiếp phần còn thiếu"
+    },
+    "reanalyze": {
+      "stageLabel": "Đang phân tích lại từ transcript đã lưu...",
+      "progressLabel": "Không cần bóc chữ lại từ đầu"
+    },
+    "skeleton": {
+      "workspace": "Đang tải workspace",
+      "upload": "Đang tải trình upload",
+      "record": "Đang tải phân hệ ghi âm",
+      "audioEditor": "Đang tải audio editor",
+      "mode": "Đang tải cấu hình AI",
+      "result": "Đang tải kết quả AI",
+      "export": "Đang tải màn hình xuất file"
+    }
+  },
+  "ScreenSkeleton": {
+    "workspace": "Đang tải workspace",
+    "record": "Đang tải phân hệ ghi âm",
+    "audioEditor": "Đang tải audio editor",
+    "mode": "Đang tải cấu hình AI",
+    "result": "Đang tải kết quả AI",
+    "export": "Đang tải màn hình xuất file",
+    "default": "Đang tải màn hình"
+  },
+  "UpdateDialog": {
+    "title": "Có phiên bản mới",
+    "releasedOn": "Phát hành ngày {{date}}",
+    "androidHint": "APK sẽ được tải trực tiếp và mở màn cài đặt",
+    "genericHint": "Release này chưa có file APK đính kèm",
+    "needInstallPermission": "Cần cho phép cài ứng dụng từ nguồn này một lần trong Android Settings.",
+    "downloadDone": "APK đã tải xong. Android sẽ mở màn hình cài đặt.",
+    "downloading": "Đang tải bản cập nhật...",
+    "paused": "Tải tạm dừng. Android sẽ tiếp tục khi có mạng phù hợp.",
+    "downloadFailed": "Tải APK thất bại. Mã lỗi: {{reason}}",
+    "cannotTrack": "Không thể theo dõi tiến độ tải APK.",
+    "downloadStarted": "Đã bắt đầu tải APK...",
+    "openPermissionScreen": "Android sẽ mở màn cho phép cài ứng dụng từ nguồn này trước.",
+    "cannotStart": "Không thể bắt đầu tải bản cập nhật.",
+    "cannotOpenInstaller": "Không thể mở màn hình cài đặt.",
+    "openInstaller": "Mở cài đặt",
+    "downloadProgress": "Đang tải {{progress}}",
+    "downloadAndInstall": "Tải và cài đặt",
+    "openReleasePage": "Mở trang release",
+    "releaseNotes": "Ghi chú phiên bản",
+    "later": "Để sau",
+    "noReleaseNotes": "Không có ghi chú phiên bản."
+  },
+  "SettingsModal": {
+    "title": "Cài đặt AI",
+    "tabs": {
+      "provider": "Nguồn STT",
+      "models": "Model AI",
+      "chunking": "File dài",
+      "realtime": "Realtime",
+      "recording": "Thu âm",
+      "storage": "Bộ nhớ",
+      "googleDrive": "Google Drive",
+      "license": "Gói dịch vụ"
+    },
+    "common": {
+      "show": "Hiện",
+      "hide": "Ẩn",
+      "copy": "Copy",
+      "copied": "Đã copy"
+    },
+    "provider": {
+      "useAdminKey": {
+        "title": "Sử dụng API Key của hệ thống (Admin)",
+        "description": "Dùng API Key của hệ thống (yêu cầu gói dịch vụ)."
+      },
+      "sourceLabel": "Nguồn nhận diện giọng nói (STT)",
+      "adminEnabled": {
+        "title": "Đã bật API Key hệ thống",
+        "description": "Đang dùng API Key hệ thống. Yêu cầu gói dịch vụ hoạt động ở tab {{planTab}}."
+      },
+      "keyLabel": "API Key — {{provider}}",
+      "keyStoredLocally": "Key được lưu cục bộ trên thiết bị.",
+      "getKeyHere": "Lấy key tại đây →",
+      "geminiAnalysisKey": {
+        "title": "Gemini API Key (bắt buộc cho phân tích)",
+        "description": "Gemini dùng để phân tích summary, mindmap, decisions, risks, action items.",
+        "link": "Lấy Gemini Key tại đây →"
+      },
+      "options": {
+        "gemini": {
+          "name": "Google Gemini",
+          "badge": "MIỄN PHÍ",
+          "description": "Multimodal, xử lý audio trực tiếp, hỗ trợ file lớn tới 300MB. Phù hợp cho hầu hết trường hợp.",
+          "keyPlaceholder": "AIza...",
+          "limit": "1500 request/ngày miễn phí"
+        },
+        "assemblyai": {
+          "name": "AssemblyAI",
+          "badge": "$50 FREE",
+          "description": "Chuyên biệt cho STT với speaker diarization, không giới hạn dung lượng file. Hợp cho cuộc họp có nhiều người nói.",
+          "keyPlaceholder": "Nhập AssemblyAI API Key...",
+          "limit": "Khoảng 333 giờ audio miễn phí"
+        },
+        "groq": {
+          "name": "Groq Whisper",
+          "badge": "MIỄN PHÍ",
+          "description": "Tốc độ rất cao, nhanh hơn thời gian thực. Giới hạn file 25MB, hợp cho file nhỏ cần xử lý nhanh.",
+          "keyPlaceholder": "gsk_...",
+          "limit": "Giới hạn RPM, file tối đa 25MB"
+        },
+        "openai": {
+          "name": "OpenAI Whisper",
+          "badge": "TRẢ PHÍ",
+          "description": "Độ chính xác cao, không có free tier, chi phí 0.006 USD/phút audio. Giới hạn file 25MB.",
+          "keyPlaceholder": "sk-...",
+          "limit": "0.006 USD/phút, file tối đa 25MB"
+        }
+      }
+    },
+    "models": {
+      "realtimeLabel": "Model cho realtime ghi âm",
+      "analysisLabel": "Model cho phân tích cuối",
+      "realtimeHintPrefix": "Khuyến nghị dùng",
+      "realtimeHintMiddle": "nếu cần tốc độ và chất lượng cao hơn. Muốn tiết kiệm nhất thì dùng",
+      "analysisHintPrefix": "Khuyến nghị dùng",
+      "analysisHintMiddle": "cho các buổi họp dài hoặc phân tích sâu. Muốn cân bằng thì chọn",
+      "options": {
+        "gemini-3-flash-preview": "Gemini 3 Flash Preview (trả phí, nhanh hơn 2.5 Flash)",
+        "gemini-3-pro-preview": "Gemini 3 Pro Preview (trả phí, suy luận sâu nhất)",
+        "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
+        "gemini-2.5-flash": "Gemini 2.5 Flash (khuyên dùng, cân bằng)",
+        "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite (tiết kiệm chi phí nhất)",
+        "gemini-2.5-pro": "Gemini 2.5 Pro (phân tích sâu nhất)"
+      }
+    },
+    "chunking": {
+      "title": "Xử lý file dài",
+      "description": "Tự động chia nhỏ file tại điểm im lặng để xử lý song song và tránh lỗi.",
+      "durationLabel": "Phút / phần",
+      "durationHint": "Mặc định 8 phút. Giá trị nhỏ hơn giúp giảm timeout nhưng làm tăng số request.",
+      "macroBatchLabel": "Phút / batch API",
+      "macroBatchHint": "Batch API nên lớn hơn micro-chunk. Gemini free sẽ tự ưu tiên ngưỡng an toàn hơn để giảm lỗi request.",
+      "staggerLabel": "Delay khởi động / phần",
+      "staggerHint": "Mặc định 2 giây. Dùng để giãn nhẹ các request song song nhằm giảm nguy cơ đụng rate limit.",
+      "concurrencyLabel": "Luồng song song",
+      "concurrencyHint": "Luồng xử lý production hiện khóa ở 1 worker để tránh spike RAM, nóng máy và crash trên mobile."
+    },
+    "realtime": {
+      "title": "Chế độ realtime",
+      "note": "* Realtime luôn dùng Google Gemini, không phụ thuộc nguồn transcript ở tab trên.",
+      "options": {
+        "HYBRID": {
+          "name": "Hybrid (khuyên dùng)",
+          "description": "Realtime chỉ cập nhật transcript và summary ngắn. Decisions, risks và action items sẽ được chạy đầy đủ ở bước cuối."
+        },
+        "FULL": {
+          "name": "Full Realtime",
+          "description": "Mỗi chunk đều gọi AI để cập nhật đầy đủ. Tiện hơn nhưng tốn nhiều request hơn."
+        },
+        "OFF": {
+          "name": "Tắt realtime",
+          "description": "Không gọi AI khi đang ghi âm. Chỉ phân tích một lần sau khi dừng ghi."
+        }
+      }
+    },
+    "recording": {
+      "profiles": {
+        "title": "Profile thu âm",
+        "options": {
+          "BALANCED": {
+            "name": "Cân bằng",
+            "description": "Mặc định cho đa số tình huống. Giữ rõ giọng nói và xử lý ồn ở mức vừa phải."
+          },
+          "VOICE_FOCUS": {
+            "name": "Tập trung giọng nói",
+            "description": "Ưu tiên giọng gần micro. Hợp cho họp, phỏng vấn hoặc thu một người nói."
+          },
+          "NOISY_ENV": {
+            "name": "Môi trường ồn",
+            "description": "Tăng mạnh lọc ồn, echo và gain khi ghi ngoài trời hoặc phòng tạp âm."
+          },
+          "RAW": {
+            "name": "Thu mộc",
+            "description": "Tắt xử lý tự động. Hợp khi dùng micro rời hoặc muốn hậu kỳ bên ngoài."
+          },
+          "CUSTOM": {
+            "name": "Tùy chỉnh",
+            "description": "Tự chọn từng mức noise, echo, gain, sample rate và số kênh."
+          }
+        }
+      },
+      "advanced": {
+        "title": "Tinh chỉnh nâng cao",
+        "description": "Cài đặt phụ thuộc vào microphone và phần cứng thiết bị hỗ trợ thực tế.",
+        "noiseLabel": "Noise suppression",
+        "echoLabel": "Echo cancellation",
+        "gainLabel": "Auto gain",
+        "sampleRateLabel": "Sample rate",
+        "channelLabel": "Channel",
+        "processingLevels": {
+          "OFF": "Tắt",
+          "LOW": "Thấp",
+          "MEDIUM": "Vừa",
+          "HIGH": "Cao"
+        }
+      }
+    },
+    "storage": {
+      "localPathTitle": "Vị trí lưu trữ cục bộ",
+      "localPathDescription": "Lưu trữ cục bộ trong ứng dụng. Chỉ lưu ra ngoài khi xuất bản.",
+      "dangerTitle": "Khu vực nguy hiểm",
+      "dangerDescription": "Xóa vĩnh viễn dữ liệu app trong {{appStorage}} (không thể hoàn tác).",
+      "confirmDeleteAll": "CẢNH BÁO: Bạn có chắc chắn muốn xóa toàn bộ dữ liệu ứng dụng gồm file ghi âm và transcript không? Hành động này không thể hoàn tác.",
+      "deleteSuccess": "Đã xóa toàn bộ dữ liệu thành công.",
+      "deleteError": "Lỗi khi xóa dữ liệu: {{message}}",
+      "deleteAll": "Xóa toàn bộ dữ liệu"
+    },
+    "googleDrive": {
+      "title": "Kết nối Google Drive",
+      "description": "Đăng nhập Google bằng tài khoản của chính bạn để chọn file âm thanh hoặc video trực tiếp từ Google Drive.",
+      "apiKeyLabel": "Developer API Key",
+      "apiKeyPlaceholder": "Nhập API Key Google Cloud...",
+      "note": "Ứng dụng chỉ dùng cấu hình OAuth của app để mở đăng nhập. Drive được kết nối và file được chọn luôn là của tài khoản Google mà bạn vừa đăng nhập."
+    },
+    "license": {
+      "status": {
+        "title": "Trạng thái bản quyền",
+        "activated": "Đã kích hoạt",
+        "notActivated": "Chưa kích hoạt",
+        "planLabel": "Gói dịch vụ",
+        "expiresLabel": "Hạn dùng",
+        "planPromo": "Khuyến mãi / Dùng thử",
+        "planFree": "Bản miễn phí / Trial",
+        "unlimited": "Không giới hạn / Trọn đời",
+        "deviceIdLabel": "Mã định danh thiết bị",
+        "loadingDeviceId": "Đang tải...",
+        "copyDeviceId": "Sao chép Device ID"
+      },
+      "promo": {
+        "title": "Kích hoạt bằng Promo Code",
+        "placeholder": "Nhập mã code khuyến mại...",
+        "success": "Kích hoạt thành công!",
+        "invalid": "Mã code không hợp lệ.",
+        "error": "Có lỗi xảy ra.",
+        "submitting": "Đang gửi...",
+        "activate": "Kích hoạt"
+      },
+      "plans": {
+        "title": "Mua gói dùng Key hệ thống",
+        "copiedSyntax": "Đã copy cú pháp",
+        "title": "Mua gói",
+        "copiedSyntax": "Đã copy",
+        "copyTransferSyntax": "Copy cú pháp chuyển khoản",
+        "monthly": {
+          "name": "Gói 01 tháng",
+          "price": "29.000đ",
+          "period": "/tháng",
+          "description": "Dùng không giới hạn API hệ thống."
+        },
+        "lifetime": {
+          "name": "Gói trọn đời",
+          "badge": "Tiết kiệm",
+          "price": "199.000đ",
+          "period": "/vĩnh viễn",
+          "description": "Mua 1 lần, vĩnh viễn."
+        }
+      },
+      "paymentInfo": {
+        "title": "Thông tin chuyển khoản:",
+        "bankLabel": "Ngân hàng:",
+        "defaultBankName": "MB BANK",
+        "accountNumberLabel": "Số TK:",
+        "accountNameLabel": "Chủ TK:",
+        "notice": "* QUAN TRỌNG: Vui lòng chuyển đúng cú pháp để tự động kích hoạt."
+      }
+    },
+    "clearGeminiKey": "Xóa key Gemini",
+    "close": "Đóng",
+    "saving": "Đang lưu...",
+    "save": "Lưu cài đặt"
+  },
+  "AttachmentManager": {
+    "title": "Tài liệu đính kèm bổ trợ",
+    "description": "Đính kèm PDF, Word, PPT, TXT để AI kết hợp phân tích.",
+    "addFile": "Thêm tệp",
+    "emptyTitle": "Kéo thả hoặc bấm để thêm tài liệu",
+    "emptyHint": "PDF, DOCX, PPTX, TXT, MD (tối đa 20MB)",
+    "legacyBadge": "Cũ",
+    "removeTitle": "Xóa tệp",
+    "unsupportedFileAlert": "Tệp \"{{name}}\" không được hỗ trợ. Chỉ chấp nhận các định dạng tài liệu bổ trợ: PDF, Word, PowerPoint, TXT, MD.",
+    "legacyWarning": {
+      "title": "Chú ý: Định dạng file cũ (.doc, .ppt)",
+      "body": "Không hỗ trợ file .doc, .ppt cũ. Hãy chuyển đổi sang .docx, .pptx hoặc .pdf."
+    }
+  },
+  "StepUpload": {
+    "tag": "Phân hệ trích xuất",
+    "title": "Upload file để lấy transcript hoặc biên bản họp",
+    "description": "Chọn audio hoặc video có sẵn, sau đó app sẽ dựng transcript, biên bản họp hoàn chỉnh, mindmap và sẵn sàng xuất ra Word hoặc PPT.",
+    "context": {
+      "transcription": "Transcript",
+      "meeting": "Biên bản họp",
+      "interview": "Phỏng vấn"
+    },
+    "buttons": {
+      "googleDrive": "Google Drive",
+      "connecting": "Đang kết nối...",
+      "chooseFile": "Chọn file",
+      "importDrive": "Nhập từ Google Drive",
+      "connectingDrive": "Đang kết nối Drive...",
+      "removeFile": "Bỏ file",
+      "next": "Chọn định dạng"
+    },
+    "dropzone": {
+      "title": "Kéo thả hoặc bấm để chọn file",
+      "description": "Hỗ trợ MP3, WAV, M4A, MP4 và các định dạng ghi âm/video phổ biến."
+    },
+    "alerts": {
+      "unsupportedFormat": "Định dạng không hỗ trợ. Vui lòng chọn file audio hoặc video.",
+      "missingGoogleConfig": "Google Drive chưa được cấu hình xong trên ứng dụng. Hãy thử lại sau hoặc liên hệ quản trị viên ứng dụng.",
+      "sdkNotReady": "Google SDK chưa được tải hoàn toàn. Vui lòng kiểm tra lại kết nối mạng.",
+      "pickerLoadFailed": "Không thể tải Google Picker SDK.",
+      "googleLoginFailed": "Đăng nhập Google thất bại: {{error}}",
+      "missingAccessToken": "Không lấy được mã Access Token Google OAuth2.",
+      "driveDownloadError": "Lỗi tải dữ liệu từ Google Drive: {{status}}",
+      "driveDownloadProcessError": "Lỗi trong quá trình tải tệp từ Google Drive.",
+      "sdkConfigError": "Lỗi kết nối hoặc cấu hình Google SDK."
+    }
+  },
+  "StepRecord": {
+    "tag": "Phân hệ ghi âm",
+    "title": "Chọn loại phiên ghi",
+    "description": "Cuộc họp có realtime note. Phỏng vấn chỉ ghi âm và chép transcript.",
+    "contexts": {
+      "meetingTitle": "Cuộc họp",
+      "meetingDescription": "Tạo transcript, tóm tắt, quyết định, rủi ro, checklist và mindmap.",
+      "interviewTitle": "Phỏng vấn",
+      "interviewDescription": "Chỉ chép lại phỏng vấn, không tạo mindmap/ghi chú."
+    },
+    "liveCard": {
+      "title": "Ghi chú họp realtime",
+      "description": "Chạy realtime mỗi 15s. Hybrid: transcript + tóm tắt nhanh; AI đầy đủ sẽ chạy sau khi dừng ghi."
+    },
+    "recording": {
+      "tag": "Ghi âm trực tiếp",
+      "activeTitle": "Đang thu âm phiên làm việc",
+      "idleTitle": "Micro sẵn sàng",
+      "description": "Lưu file ghi âm mới cục bộ và chuyển sang bước xử lý AI.",
+      "duration": "Thời lượng",
+      "start": "Bắt đầu ghi âm",
+      "resume": "Tiếp tục",
+      "pause": "Tạm dừng",
+      "stop": "Kết thúc",
+      "statusTitle": "Trạng thái phiên ghi",
+      "recordAgain": "Ghi lại",
+      "aiSettings": "Cấu hình AI",
+      "audioPreviewUnsupported": "Trình duyệt không hỗ trợ audio preview."
+    },
+    "livePanel": {
+      "title": "Realtime meeting note",
+      "subtitle": "Transcript và ghi chú đang cập nhật dần",
+      "processedChunks": "{{count}} đoạn đã xử lý",
+      "transcriptPreview": "Transcript preview",
+      "summaryPreview": "Rolling summary",
+      "decisionsActionItems": "Decisions & action items",
+      "risks": "Risks / blockers",
+      "emptyTranscript": "Chưa có transcript realtime.",
+      "emptySummary": "Chưa có tóm tắt realtime.",
+      "emptyDecisions": "Chưa có quyết định nào được tách riêng.",
+      "emptyActionItems": "Chưa có action item realtime.",
+      "emptyRisks": "Chưa có rủi ro hoặc blocker nào được phát hiện."
+    },
+    "status": {
+      "waitingMeeting": "Realtime note đang chờ phiên ghi cuộc họp.",
+      "waitingInterview": "Phỏng vấn chỉ ghi âm và chép transcript sau khi kết thúc.",
+      "nextChunkWaiting": "Realtime note đang chờ đoạn ghi tiếp theo.",
+      "processingChunk": "AI đang cập nhật từ đoạn ghi số {{index}}...",
+      "updatedChunks": "Realtime note đã cập nhật {{count}} đoạn ghi.",
+      "finalizingRealtime": "Đang hoàn tất các cập nhật AI cuối cùng...",
+      "realtimeError": "Realtime note gặp lỗi, bản ghi chính vẫn có thể xử lý sau khi dừng ghi âm.",
+      "realtimeUpdateFailed": "Không thể cập nhật realtime.",
+      "cleared": "Đã xoá phiên ghi hiện tại.",
+      "requestingMic": "Đang xin quyền microphone...",
+      "hybridReady": "Realtime đang chạy HYBRID: cập nhật transcript + summary nhanh theo từng chunk.",
+      "fullReady": "Realtime đang chạy FULL: cập nhật đầy đủ notes theo từng chunk.",
+      "offBySettings": "Realtime đang tắt theo cài đặt. App sẽ phân tích 1 lần khi kết thúc phiên.",
+      "missingApiKey": "Chưa có Gemini API Key nên realtime note đang tắt. Bạn vẫn có thể ghi âm và xử lý đầy đủ sau khi kết thúc.",
+      "noAudioData": "Không thu được dữ liệu âm thanh. Vui lòng thử lại.",
+      "savingRecording": "Đang lưu file ghi âm vào thiết bị...",
+      "savedRecording": "Đã lưu ghi âm vào {{path}}.",
+      "saveRecordingFailed": "Đã ghi âm xong nhưng chưa lưu được file xuống thiết bị. Bạn vẫn có thể tiếp tục xử lý AI.",
+      "finalizingRecording": "Đang hoàn tất file ghi âm...",
+      "realtimeFinalPass": "Đang hoàn tất các cập nhật realtime cuối cùng trước khi bạn sang bước AI đầy đủ.",
+      "realtimeDone": "Realtime note đã cập nhật xong cho phiên ghi hiện tại.",
+      "recordingNow": "Đang ghi âm trực tiếp...",
+      "startFailed": "Không thể khởi động ghi âm.",
+      "paused": "Đã tạm dừng ghi âm.",
+      "resumed": "Đã tiếp tục ghi âm."
+    }
+  },
+  "StepMode": {
+    "tag": "Bước xử lý",
+    "title": "Chọn định dạng transcript",
+    "source": "Nguồn",
+    "sourceRecording": "Ghi âm",
+    "sourceUpload": "Tải lên",
+    "module": "Phân hệ",
+    "moduleRecording": "Ghi âm",
+    "moduleUpload": "Upload",
+    "context": "Ngữ cảnh",
+    "contextMeeting": "Cuộc họp",
+    "contextInterview": "Phỏng vấn",
+    "contextTranscription": "Trích xuất transcript",
+    "timeline": "Timeline",
+    "plainText": "Plain text",
+    "progressTag": "Tiến trình xử lý",
+    "initializing": "Đang khởi tạo pipeline...",
+    "progress": "Tiến độ",
+    "transcriptPreviewTitle": "Transcript đang xuất hiện dần",
+    "transcriptPreviewCount": "{{count}} batch đã lưu",
+    "transcriptPreviewEmpty": "Chưa có transcript batch nào được lưu.",
+    "back": "Quay lại",
+    "processingAi": "Đang xử lý AI",
+    "runAnalysis": "Chạy phân tích"
+  },
+  "StepResult": {
+    "resultTag": "Kết quả AI",
+    "savedBadge": "ĐÃ TỰ ĐỘNG LƯU VÀO MÁY",
+    "description": "Chuyển đổi giữa dạng hiển thị chuẩn và chế độ sửa text gốc.",
+    "draftNotice": "Đã lưu bản nháp transcript. Có thể sửa và phân tích tiếp.",
+    "resumeNotice": "Tiếp tục transcript từ checkpoint đã lưu.",
+    "context": "Ngữ cảnh",
+    "source": "Nguồn",
+    "sourceRecording": "Ghi âm",
+    "sourceUpload": "Upload",
+    "artifacts": "Artifacts",
+    "browserTitle": "Artifact browser",
+    "previewMode": "Xem dạng chuẩn",
+    "editMode": "Sửa text",
+    "copied": "Đã sao chép",
+    "copySection": "Sao chép phần này",
+    "textareaPlaceholder": "Nội dung sẽ hiển thị tại đây...",
+    "reanalyzing": "Đang phân tích lại",
+    "resumingTranscription": "Đang tiếp tục transcript",
+    "resumeTranscription": "Tiếp tục transcript",
+    "reanalyzeFromTranscript": "Phân tích tiếp từ transcript",
+    "reanalyzeArtifacts": "Phân tích lại artifact",
+    "next": "Sang bước xuất",
+    "checkpoint": {
+      "title": "Trạng thái checkpoint",
+      "status": "Trạng thái job",
+      "progress": "Batch đã lưu",
+      "progressValue": "{{saved}} / {{total}} batch",
+      "currentBatch": "Tiến độ hiện tại",
+      "currentBatchValue": "Đang ở batch {{current}} / {{total}}",
+      "failedBatch": "Batch lỗi gần nhất",
+      "failedBatchValue": "Batch {{index}}",
+      "failedBatchFallback": "{{count}} batch lỗi",
+      "lastError": "Lỗi gần nhất:",
+      "statusValues": {
+        "pending": "Đang chờ",
+        "processing": "Đang xử lý",
+        "paused": "Tạm dừng",
+        "complete": "Hoàn tất",
+        "failed": "Thất bại"
+      }
+    },
+    "contextValueMeeting": "Meeting",
+    "contextValueInterview": "Interview",
+    "contextValueTranscription": "Transcription",
+    "artifactLabels": {
+      "transcript": "Transcript",
+      "summary": "Summary",
+      "decisions": "Decisions",
+      "risks": "Risks",
+      "folderTree": "Folder tree",
+      "mindmap": "Mindmap",
+      "actionItems": "Action items"
+    },
+    "artifactDescriptions": {
+      "transcript": "Bản chép lời chính.",
+      "summary": "Tóm tắt cuộc họp.",
+      "decisions": "Các quyết định đã chốt.",
+      "risks": "Rủi ro và điểm còn mở.",
+      "folderTree": "Cây thư mục đề xuất.",
+      "mindmap": "Mindmap hệ thống.",
+      "actionItems": "Checklist công việc."
+    },
+    "previewCards": {
+      "folderTreeTitle": "Cây thư mục đề xuất",
+      "folderTreeSubtitle": "Hiển thị dạng cây thư mục.",
+      "mindmapSubtitle": "Sơ đồ mindmap tương tác.",
+      "nodeOutline": "Node Outline"
+    },
+    "emptyArtifact": "Artifact này hiện chưa có dữ liệu.",
+    "mindmapEmpty": "Không có dữ liệu mindmap để render.",
+    "mindmapZoomIn": "Phóng to",
+    "mindmapZoomOut": "Thu nhỏ",
+    "mindmapReset": "Khôi phục mặc định",
+    "mindmapResetShort": "Mặc định",
+    "mindmapAutoFit": "Căn lại sơ đồ",
+    "mindmapAutoFitShort": "Fit",
+    "mindmapHint": "Hỗ trợ kéo thả và zoom đa điểm",
+    "mindmapAria": "Hiển thị mindmap",
+    "mindmapStatus": "Zoom {{scale}}% · Double click để reset · Kéo để di chuyển/sắp xếp",
+    "timelineEditor": {
+      "title": "Timeline editor",
+      "description": "Chỉnh sửa transcript theo từng mốc thời gian trước khi xuất file.",
+      "addBlock": "Thêm block",
+      "segmentPlaceholder": "Nội dung transcript cho mốc thời gian này...",
+      "removeBlock": "Xóa block {{index}}"
+    }
+  },
+  "StepAudioEditor": {
+    "badge": "Audio Editor Pro",
+    "title": "Cắt audio trước khi đưa vào AI",
+    "description": "Chọn vùng, nghe thử và lưu file mới hoặc chuyển sang Trích xuất.",
+    "waveLane": "Wave lane (Sóng âm thực tế)",
+    "noFile": "Chưa có tệp",
+    "chooseFileToViewWave": "Chọn file audio để hiển thị biểu đồ sóng âm",
+    "rangeStart": "Bắt đầu",
+    "rangeEnd": "Kết thúc",
+    "rangeLength": "Độ dài",
+    "currentPosition": "Vị trí hiện tại",
+    "totalDuration": "Tổng thời lượng",
+    "sourceTag": "File nguồn",
+    "sourceTitle": "Chọn file và xác định vùng cắt",
+    "chooseAudio": "Chọn audio",
+    "emptyTitle": "Audio editor cho file nguồn",
+    "emptyDescription": "Hiển thị biểu đồ sóng âm. Chọn khoảng và nghe thử trước khi cắt.",
+    "previewSelection": "Nghe đoạn chọn",
+    "trimmedReady": "Đoạn audio đã dựng xong",
+    "savedAt": "Đã lưu tại: {{path}}",
+    "saveEdited": "Lưu audio đã edit",
+    "saving": "Đang lưu...",
+    "buildingFile": "Đang dựng file...",
+    "buildingSegment": "Đang dựng đoạn cắt...",
+    "sendToTranscribe": "Chuyển sang Trích xuất",
+    "unsupportedPreview": "Trình duyệt không hỗ trợ audio preview.",
+    "errors": {
+      "unsupportedAudio": "Audio editor hiện chỉ hỗ trợ file audio.",
+      "openAudioFailed": "Không thể mở file audio.",
+      "buildSegmentFailed": "Không thể dựng đoạn audio đã cắt.",
+      "saveSegmentFailed": "Không thể lưu file audio đã cắt."
+    }
+  },
+  "WorkspaceLibrary": {
+    "workspaceBadge": "Workspace",
+    "title": "Dự án & session",
+    "description": "Bấm vào từng dòng để xem chi tiết hoặc mở lại session.",
+    "statsSessions": "Session",
+    "statsProjects": "Dự án",
+    "statsMeetings": "Họp",
+    "refresh": "Làm mới dữ liệu",
+    "oldProjects": "Dự án cũ",
+    "newProjectPlaceholder": "Tên dự án mới...",
+    "createProject": "Tạo",
+    "allSessions": "Tất cả session",
+    "allSessionsDescription": "Xem toàn bộ thư viện session.",
+    "noProjects": "Chưa có dự án nào. Tạo dự án đầu tiên để nhóm các session liên quan.",
+    "projectCount": "{{count}} session",
+    "projectHasNote": "Có note tay",
+    "searchLabel": "Tìm theo tiêu đề, summary, action items hoặc đường dẫn",
+    "searchInProject": "Tìm trong dự án: {{name}}",
+    "searchPlaceholder": "Ví dụ: sprint planning, phỏng vấn, khách hàng A...",
+    "activeProject": "Dự án đang mở",
+    "recordingCount": "{{count}} ghi âm trực tiếp",
+    "unpinProject": "Bỏ ghim",
+    "pinProject": "Ghim dự án",
+    "deleteProject": "Xóa dự án",
+    "closeProject": "Đóng dự án",
+    "projectNoteTitle": "Ghi chú tay của dự án",
+    "projectNotePlaceholder": "Viết note tay cho dự án này: bối cảnh, việc cần nhớ, quyết định ngoài cuộc họp, prompt riêng cho lần xử lý sau...",
+    "loading": "Đang tải dữ liệu workspace...",
+    "emptySearchTitle": "Không tìm thấy session phù hợp",
+    "emptyScopeTitle": "Chưa có session nào trong phạm vi này",
+    "emptySearchDescription": "Hãy thử rút ngắn từ khóa.",
+    "emptyProjectDescription": "Dự án chưa có session. Hãy gán session bên dưới vào dự án.",
+    "emptyGeneralDescription": "Session tự động lưu tại đây sau khi xử lý AI xong.",
+    "sessionNoteBadge": "Có session note",
+    "open": "Mở",
+    "summary": "Summary",
+    "summaryEmpty": "Chưa có summary hoặc đây là session transcript thuần.",
+    "transcript": "Transcript",
+    "transcriptEmpty": "Chưa có transcript preview.",
+    "actionItems": "Action Items",
+    "actionItemsEmpty": "Chưa có action items hoặc session này không yêu cầu.",
+    "sessionNoteTitle": "Session note",
+    "sessionNotePlaceholder": "Ghi chú tay riêng cho session này: đoạn AI nghe sai, việc cần follow-up, lưu ý khi mở lại, hay ý định dùng Word/PPT cho ai...",
+    "removeFromProject": "Bỏ khỏi dự án",
+    "addToProject": "Thêm vào dự án",
+    "contexts": {
+      "meeting": "Biên bản họp",
+      "interview": "Phỏng vấn",
+      "transcription": "Transcript"
+    },
+    "sources": {
+      "recording": "Ghi âm trực tiếp",
+      "upload": "Upload file"
+    }
+  },
+  "ServiceMessages": {
+    "languages": {
+      "vi": "tiếng Việt",
+      "en": "tiếng Anh",
+      "zh": "tiếng Trung giản thể",
+      "ko": "tiếng Hàn"
+    },
+    "timeout": {
+      "default": "Yêu cầu đã hết thời gian chờ. Vui lòng thử lại."
+    },
+    "gemini": {
+      "errors": {
+        "invalidApiKeyOrModel": "Gemini API Key không hợp lệ hoặc model hiện tại không khả dụng.",
+        "unauthorizedModel": "Gemini API Key không có quyền truy cập model này.",
+        "fileTooLarge": "File quá lớn so với giới hạn của AI.",
+        "timeout": "Gemini xử lý quá lâu. Vui lòng thử lại với file ngắn hơn hoặc provider khác.",
+        "quota": "Gemini đang bị giới hạn lượt gọi hoặc quota. Vui lòng đợi một lúc rồi thử lại.",
+        "temporary": "Gemini đang gặp lỗi tạm thời. Vui lòng thử lại sau.",
+        "unavailable": "Gemini đang quá tải hoặc chưa sẵn sàng. Vui lòng thử lại sau.",
+        "network": "Lỗi kết nối mạng. Vui lòng kiểm tra internet.",
+        "retryHint": "Có thể thử lại."
+      },
+      "general": {
+        "fileTooLargeForUpload": "File quá lớn. Vui lòng chọn file dưới {{limit}}MB để tránh treo ứng dụng.",
+        "cannotParseJson": "Không thể đọc JSON từ AI. Hệ thống giữ lại phần text thô hiện có.",
+        "transcriptMissing": "AI không trả về transcript.",
+        "enterApiKey": "Vui lòng nhập Gemini API Key trong phần Cài đặt trên thiết bị này.",
+        "cannotUpdateRealtimeNotes": "Không thể cập nhật ghi chú realtime.",
+        "emptyTranscriptResult": "Kết quả transcript đang rỗng.",
+        "invalidTranscriptResponse": "Gemini không trả transcript hợp lệ.",
+        "cannotTranscribe": "Không thể transcript audio bằng Gemini.",
+        "cannotAnalyzeProxy": "Đã xảy ra lỗi khi phân tích transcript qua proxy.",
+        "emptyResult": "Kết quả AI đang rỗng.",
+        "cannotAnalyze": "Đã xảy ra lỗi khi phân tích transcript.",
+        "cannotProcessFile": "Đã xảy ra lỗi khi xử lý file."
+      },
+      "prompts": {
+        "outputLanguageInstruction": "Các trường dành cho người dùng như title, summary, decisions, risks, actionItems, folderTree và mindmap phải được viết bằng {{language}}. Riêng transcript phải giữ nguyên ngôn ngữ nói trong file."
+      }
+    },
+    "providers": {
+      "openai": {
+        "missingApiKey": "Chưa cấu hình OpenAI API Key. Vui lòng vào Cài đặt để nhập key.",
+        "fileTooLarge": "File của bạn ({{size}}MB) vượt quá giới hạn {{limit}}MB của OpenAI Whisper. Vui lòng dùng Google Gemini hoặc AssemblyAI cho file lớn hơn.",
+        "invalidApiKey": "OpenAI API Key không hợp lệ hoặc đã hết hạn.",
+        "outOfCredit": "Tài khoản OpenAI đã hết tín dụng. Vui lòng nạp thêm tiền."
+      },
+      "groq": {
+        "missingApiKey": "Chưa cấu hình Groq API Key. Vui lòng vào Cài đặt để nhập key.",
+        "fileTooLarge": "File của bạn ({{size}}MB) vượt quá giới hạn {{limit}}MB của Groq Whisper. Vui lòng dùng Google Gemini hoặc AssemblyAI cho file lớn hơn."
+      }
+    },
+    "orchestrator": {
+      "providerTimeout": "{{provider}} xử lý transcript quá lâu. Vui lòng thử lại hoặc chọn provider khác.",
+      "chunkPreparing": "Đang chuẩn bị chia file dài cho {{provider}}...",
+      "chunkPreparingDetails": "Đọc metadata và cắt audio gần điểm im lặng",
+      "fileLongSplitting": "File dài {{minutes}} phút. Đang chia thành các phần khoảng {{chunkMinutes}} phút để tránh lỗi 503...",
+      "chunkLabel": "Phần {{index}}/{{total}}",
+      "chunkProgress": "{{completed}}/{{total}} phần hoàn tất",
+      "chunkSplitComplete": "Đã cắt thành {{count}} phần, transcript tối đa {{concurrency}} luồng song song...",
+      "chunkWaitingBeforeSend": "Chờ {{seconds}} giây trước khi gửi",
+      "chunkRetry": "Lỗi mạng, thử lại ({{attempt}}/{{maxRetries}}) sau 3 giây...",
+      "chunkProcessing": "Đang xử lý {{index}}/{{total}} với tối đa {{concurrency}} luồng...",
+      "chunkStarting": "Khởi động phần {{index}}/{{total}} ({{start}} - {{end}})...",
+      "chunkDone": "Xong đoạn {{start}} - {{end}}",
+      "chunkCompleteMerging": "Đã transcript xong tất cả các phần, đang ghép transcript cuối...",
+      "chunkFallbackDirect": "Chunking gặp lỗi, hệ thống sẽ fallback về transcript trực tiếp...",
+      "preparingPipeline": "Đang chuẩn bị pipeline xử lý audio...",
+      "currentProvider": "Provider hiện tại: {{provider}}",
+      "providerUploading": "Đang upload lên {{provider}}...",
+      "providerQueued": "File đang trong hàng đợi {{provider}}...",
+      "providerProcessingSpeech": "{{provider}} đang nhận diện giọng nói...",
+      "providerProcessingDone": "Đã hoàn tất nhận diện giọng nói.",
+      "androidVideoPrepFailed": "Video này cần tách audio track trước khi transcript trên Android, nhưng bước chuẩn bị audio đã thất bại.",
+      "directTranscript": "{{provider}} đang transcript trực tiếp từ file upload...",
+      "directTranscriptShortFile": "File ngắn nên đi theo luồng trực tiếp",
+      "providerNoTranscript": "{{provider}} không trả về transcript. Vui lòng thử lại.",
+      "transcriptDone": "Hoàn tất transcript.",
+      "done": "Hoàn tất!",
+      "extractingAttachments": "Đang trích xuất nội dung tài liệu đính kèm...",
+      "readingSupportingFiles": "Đọc file bổ trợ",
+      "extractingAttachmentFailed": "Lỗi khi trích xuất tài liệu {{fileName}}:",
+      "geminiInterviewAnalysis": "Gemini đang tạo tiêu đề và hoàn thiện transcript phỏng vấn...",
+      "geminiMeetingAnalysis": "Gemini đang phân tích nội dung họp...",
+      "geminiInterviewProgress": "Tạo tiêu đề và chuẩn hóa transcript phỏng vấn",
+      "geminiMeetingProgress": "Tạo summary, decisions, risks, folder tree, mindmap",
+      "geminiAnalysisTimeout": "Gemini phân tích nội dung quá lâu. Vui lòng thử lại."
+    }
+  }
+}

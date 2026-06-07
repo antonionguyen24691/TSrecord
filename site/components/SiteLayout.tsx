@@ -17,7 +17,7 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [window.location.pathname]);
+  }, []);
 
   return (
     <div className="site-shell">

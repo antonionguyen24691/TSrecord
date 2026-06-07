@@ -19,8 +19,12 @@ const AUTO_GAIN_LEVEL_KEY = 'auto_gain_level';
 const PREFERRED_SAMPLE_RATE_KEY = 'preferred_sample_rate';
 const PREFERRED_CHANNEL_COUNT_KEY = 'preferred_channel_count';
 const CHUNK_DURATION_MINUTES_KEY = 'chunk_duration_minutes';
+const MACRO_BATCH_MINUTES_KEY = 'macro_batch_minutes';
 const CHUNK_STAGGER_SECONDS_KEY = 'chunk_stagger_seconds';
 const CHUNK_CONCURRENCY_KEY = 'chunk_concurrency';
+const USE_ADMIN_KEY_KEY = 'use_admin_key';
+const GOOGLE_CLIENT_ID_KEY = 'google_client_id';
+const GOOGLE_API_KEY_KEY = 'google_api_key';
 
 const SECURE_KEYSTORE_SUPPORTED = Capacitor.getPlatform() === 'android';
 
@@ -50,9 +54,11 @@ export const DEFAULT_ECHO_CANCELLATION_LEVEL: ProcessingStrength = 'MEDIUM';
 export const DEFAULT_AUTO_GAIN_LEVEL: ProcessingStrength = 'LOW';
 export const DEFAULT_PREFERRED_SAMPLE_RATE: PreferredSampleRate = 48000;
 export const DEFAULT_PREFERRED_CHANNEL_COUNT: PreferredChannelCount = 1;
-export const DEFAULT_CHUNK_DURATION_MINUTES = 10;
+export const DEFAULT_CHUNK_DURATION_MINUTES = 8;
+export const DEFAULT_MACRO_BATCH_MINUTES = 20;
 export const DEFAULT_CHUNK_STAGGER_SECONDS = 2;
-export const DEFAULT_CHUNK_CONCURRENCY = 2;
+export const DEFAULT_CHUNK_CONCURRENCY = 1;
+export const DEFAULT_USE_ADMIN_KEY = false;
 
 // --- Interfaces ---
 export interface AiSettings {
@@ -73,8 +79,12 @@ export interface AiSettings {
   preferredSampleRate: PreferredSampleRate;
   preferredChannelCount: PreferredChannelCount;
   chunkDurationMinutes: number;
+  macroBatchMinutes: number;
   chunkStaggerSeconds: number;
   chunkConcurrency: number;
+  useAdminKey: boolean;
+  googleClientId: string;
+  googleApiKey: string;
 }
 
 const VALID_PROCESSING_STRENGTHS: ProcessingStrength[] = ['OFF', 'LOW', 'MEDIUM', 'HIGH'];
@@ -141,8 +151,12 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     preferredSampleRateResult,
     preferredChannelCountResult,
     chunkDurationMinutesResult,
+    macroBatchMinutesResult,
     chunkStaggerSecondsResult,
-    chunkConcurrencyResult,
+    _chunkConcurrencyResult,
+    useAdminKeyResult,
+    googleClientIdResult,
+    googleApiKeyResult,
   ] = await Promise.all([
     getStoredValue(API_KEY_KEY),
     getStoredValue(MODEL_ID_KEY),
@@ -160,8 +174,12 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
     getStoredValue(PREFERRED_SAMPLE_RATE_KEY),
     getStoredValue(PREFERRED_CHANNEL_COUNT_KEY),
     getStoredValue(CHUNK_DURATION_MINUTES_KEY),
+    getStoredValue(MACRO_BATCH_MINUTES_KEY),
     getStoredValue(CHUNK_STAGGER_SECONDS_KEY),
     getStoredValue(CHUNK_CONCURRENCY_KEY),
+    getStoredValue(USE_ADMIN_KEY_KEY),
+    getStoredValue(GOOGLE_CLIENT_ID_KEY),
+    getStoredValue(GOOGLE_API_KEY_KEY),
   ]);
 
   const fallbackModel = legacyModelIdResult || DEFAULT_MODEL_ID;
@@ -191,8 +209,8 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
   const sampleRate = Number(preferredSampleRateResult);
   const channelCount = Number(preferredChannelCountResult);
   const chunkDurationMinutes = Number(chunkDurationMinutesResult);
+  const macroBatchMinutes = Number(macroBatchMinutesResult);
   const chunkStaggerSeconds = Number(chunkStaggerSecondsResult);
-  const chunkConcurrency = Number(chunkConcurrencyResult);
 
   const settings: AiSettings = {
     apiKey: apiKeyResult,
@@ -232,14 +250,19 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
       Number.isFinite(chunkDurationMinutes) && chunkDurationMinutes >= 1 && chunkDurationMinutes <= 30
         ? Math.round(chunkDurationMinutes)
         : DEFAULT_CHUNK_DURATION_MINUTES,
+    macroBatchMinutes:
+      Number.isFinite(macroBatchMinutes) && macroBatchMinutes >= 5 && macroBatchMinutes <= 30
+        ? Math.round(macroBatchMinutes)
+        : DEFAULT_MACRO_BATCH_MINUTES,
     chunkStaggerSeconds:
       Number.isFinite(chunkStaggerSeconds) && chunkStaggerSeconds >= 0 && chunkStaggerSeconds <= 60
         ? Math.round(chunkStaggerSeconds)
         : DEFAULT_CHUNK_STAGGER_SECONDS,
     chunkConcurrency:
-      Number.isFinite(chunkConcurrency) && chunkConcurrency >= 1 && chunkConcurrency <= 4
-        ? Math.round(chunkConcurrency)
-        : DEFAULT_CHUNK_CONCURRENCY,
+      1,
+    useAdminKey: useAdminKeyResult === 'true',
+    googleClientId: googleClientIdResult || import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    googleApiKey: googleApiKeyResult || import.meta.env.VITE_GOOGLE_API_KEY || '',
   };
 
   _cachedSettings = settings;
@@ -262,8 +285,12 @@ export const saveAiSettings = async ({
   preferredSampleRate,
   preferredChannelCount,
   chunkDurationMinutes,
+  macroBatchMinutes,
   chunkStaggerSeconds,
-  chunkConcurrency,
+  chunkConcurrency: _chunkConcurrency,
+  useAdminKey,
+  googleClientId,
+  googleApiKey,
 }: AiSettings) => {
   invalidateSettingsCache();
 
@@ -292,6 +319,14 @@ export const saveAiSettings = async ({
       )
     ),
     setStoredValue(
+      MACRO_BATCH_MINUTES_KEY,
+      String(
+        Number.isFinite(macroBatchMinutes) && macroBatchMinutes >= 5 && macroBatchMinutes <= 30
+          ? Math.round(macroBatchMinutes)
+          : DEFAULT_MACRO_BATCH_MINUTES
+      )
+    ),
+    setStoredValue(
       CHUNK_STAGGER_SECONDS_KEY,
       String(
         Number.isFinite(chunkStaggerSeconds) && chunkStaggerSeconds >= 0 && chunkStaggerSeconds <= 60
@@ -301,15 +336,125 @@ export const saveAiSettings = async ({
     ),
     setStoredValue(
       CHUNK_CONCURRENCY_KEY,
-      String(
-        Number.isFinite(chunkConcurrency) && chunkConcurrency >= 1 && chunkConcurrency <= 4
-          ? Math.round(chunkConcurrency)
-          : DEFAULT_CHUNK_CONCURRENCY
-      )
+      String(1)
     ),
+    setStoredValue(USE_ADMIN_KEY_KEY, String(useAdminKey)),
+    setStoredValue(GOOGLE_CLIENT_ID_KEY, googleClientId.trim()),
+    setStoredValue(GOOGLE_API_KEY_KEY, googleApiKey.trim()),
   ]);
 };
 
 export const clearAiApiKey = async () => {
   await removeStoredValue(API_KEY_KEY);
+};
+
+export const getDeviceId = async (): Promise<string> => {
+  const key = 'device_id';
+  if (SECURE_KEYSTORE_SUPPORTED) {
+    const result = await SecureKeyStore.get({ key });
+    if (result.value) return result.value.trim();
+  }
+  const result = await Preferences.get({ key });
+  if (result.value) return result.value.trim();
+  
+  // Generate random device ID
+  const newId = 'dev-' + Math.random().toString(36).slice(2, 11) + '-' + Date.now().toString(36);
+  if (SECURE_KEYSTORE_SUPPORTED) {
+    await SecureKeyStore.set({ key, value: newId });
+  } else {
+    await Preferences.set({ key, value: newId });
+  }
+  return newId;
+};
+
+export interface LicenseInfo {
+  valid: boolean;
+  plan: string | null;
+  expiresAt: string | null;
+  features: string[];
+  requestsLimit?: number | null;
+  requestsUsed?: number;
+  adsEnabled?: number;
+  ownKeyPurchased?: number;
+  error?: string;
+}
+
+export interface RuntimeConfig {
+  features: string[];
+  googleClientId: string;
+  googleApiKey: string;
+  error?: string;
+  requestsLimit?: number;
+  requestsUsed?: number;
+  adsEnabled?: boolean;
+  ownKeyPurchased?: boolean;
+  admobAppId?: string;
+  admobBannerId?: string;
+  admobRewardedId?: string;
+  customBannerHtml?: string;
+  customBannerEnabled?: boolean;
+}
+
+export const checkLicenseStatus = async (): Promise<LicenseInfo> => {
+  try {
+    const deviceId = await getDeviceId();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const response = await fetch(`${backendUrl}/api/client/license?device_id=${deviceId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Check license status failed:', error);
+    return { valid: false, plan: null, expiresAt: null, features: [], error: String(error) };
+  }
+};
+
+export const getRuntimeConfig = async (): Promise<RuntimeConfig> => {
+  try {
+    const deviceId = await getDeviceId();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const response = await fetch(`${backendUrl}/api/client/runtime-config?device_id=${deviceId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Get runtime config failed:', error);
+    return { features: [], googleClientId: '', googleApiKey: '', error: String(error) };
+  }
+};
+
+export const redeemPromoCode = async (code: string): Promise<{ ok: boolean; plan?: string; expiresAt?: string; message?: string; error?: string }> => {
+  try {
+    const deviceId = await getDeviceId();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const response = await fetch(`${backendUrl}/api/client/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, code })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Redeem code failed');
+    }
+    return data;
+  } catch (error: any) {
+    console.error('Redeem code failed:', error);
+    return { ok: false, error: error.message || 'Lỗi khi kích hoạt promo code.' };
+  }
+};
+
+export const getPaymentInfo = async (): Promise<any> => {
+  try {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const response = await fetch(`${backendUrl}/api/client/payment-info`);
+    if (!response.ok) {
+      throw new Error('Get payment info failed');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Get payment info failed:', error);
+    return null;
+  }
 };

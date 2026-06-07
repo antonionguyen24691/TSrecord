@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { X, Save, Key, Bot, Sparkles, Zap, ChevronDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { X, Save, Key, Bot, Sparkles, Zap, ChevronDown, CreditCard, ShieldCheck, Ticket, Copy, Check } from 'lucide-react';
 import {
   DEFAULT_AUTO_GAIN_LEVEL,
   DEFAULT_ANALYSIS_MODEL_ID,
   DEFAULT_CHUNK_DURATION_MINUTES,
+  DEFAULT_MACRO_BATCH_MINUTES,
   DEFAULT_CHUNK_CONCURRENCY,
   DEFAULT_CHUNK_STAGGER_SECONDS,
   DEFAULT_ECHO_CANCELLATION_LEVEL,
@@ -14,6 +16,7 @@ import {
   DEFAULT_REALTIME_MODEL_ID,
   DEFAULT_RECORDING_PROFILE,
   DEFAULT_TRANSCRIPTION_PROVIDER,
+  DEFAULT_USE_ADMIN_KEY,
   PreferredChannelCount,
   PreferredSampleRate,
   ProcessingStrength,
@@ -23,6 +26,11 @@ import {
   clearAiApiKey,
   loadAiSettings,
   saveAiSettings,
+  getDeviceId,
+  checkLicenseStatus,
+  redeemPromoCode,
+  getPaymentInfo,
+  LicenseInfo,
 } from '../services/aiSettingsService';
 import { clearAppStorage } from '../services/sessionPackageService';
 import { getAppStorageLabel, getLegacyStorageLabel } from '../services/storagePaths';
@@ -35,70 +43,35 @@ interface SettingsModalProps {
 }
 
 const AVAILABLE_GEMINI_MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Trả phí, nhanh hơn 2.5 Flash)' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview (Trả phí, suy luận sâu nhất)' },
-  { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite Preview' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Khuyên dùng — Cân bằng)' },
-  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (Tiết kiệm chi phí nhất)' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Phân tích sâu nhất)' },
+  { id: 'gemini-3-flash-preview' },
+  { id: 'gemini-3-pro-preview' },
+  { id: 'gemini-3.1-flash-lite-preview' },
+  { id: 'gemini-2.5-flash' },
+  { id: 'gemini-2.5-flash-lite' },
+  { id: 'gemini-2.5-pro' },
 ];
 
-const REALTIME_MODES: Array<{ id: RealtimeMode; name: string; description: string }> = [
-  {
-    id: 'HYBRID',
-    name: 'Hybrid (Khuyên dùng)',
-    description:
-      'Realtime chỉ cập nhật transcript và summary ngắn. Decisions/risks/action items chạy đầy đủ ở bước cuối.',
-  },
-  {
-    id: 'FULL',
-    name: 'Full Realtime',
-    description: 'Mỗi chunk đều gọi AI cập nhật đầy đủ. Tiện lợi nhưng tốn nhiều request hơn.',
-  },
-  {
-    id: 'OFF',
-    name: 'Tắt Realtime',
-    description: 'Không gọi AI khi đang ghi âm. Chỉ phân tích 1 lần sau khi dừng ghi.',
-  },
+const REALTIME_MODES: Array<{ id: RealtimeMode }> = [
+  { id: 'HYBRID' },
+  { id: 'FULL' },
+  { id: 'OFF' },
 ];
 
 const RECORDING_PROFILES: Array<{
   id: RecordingProfile;
-  name: string;
-  description: string;
 }> = [
-  {
-    id: 'BALANCED',
-    name: 'Can bang',
-    description: 'Mac dinh cho da so tinh huong. Giu chat giong noi va xu ly on vua phai.',
-  },
-  {
-    id: 'VOICE_FOCUS',
-    name: 'Tap trung giong noi',
-    description: 'Uu tien giong noi gan mic. Hop cho hop, phong van, doc mot nguoi.',
-  },
-  {
-    id: 'NOISY_ENV',
-    name: 'Moi truong on',
-    description: 'Day manh loc on, echo va gain khi ghi ngoai troi hoac phong tap.',
-  },
-  {
-    id: 'RAW',
-    name: 'Thu moc',
-    description: 'Tat xu ly tu dong. Hop khi dung mic roi hoac xu ly hau ky ben ngoai.',
-  },
-  {
-    id: 'CUSTOM',
-    name: 'Tuy chinh',
-    description: 'Tu chon tung muc noise, echo, gain, sample rate va so kenh.',
-  },
+  { id: 'BALANCED' },
+  { id: 'VOICE_FOCUS' },
+  { id: 'NOISY_ENV' },
+  { id: 'RAW' },
+  { id: 'CUSTOM' },
 ];
 
-const PROCESSING_LEVELS: Array<{ id: ProcessingStrength; name: string }> = [
-  { id: 'OFF', name: 'Tat' },
-  { id: 'LOW', name: 'Thap' },
-  { id: 'MEDIUM', name: 'Vua' },
-  { id: 'HIGH', name: 'Cao' },
+const PROCESSING_LEVELS: Array<{ id: ProcessingStrength }> = [
+  { id: 'OFF' },
+  { id: 'LOW' },
+  { id: 'MEDIUM' },
+  { id: 'HIGH' },
 ];
 
 const SAMPLE_RATE_OPTIONS: Array<{ id: PreferredSampleRate; name: string }> = [
@@ -155,59 +128,34 @@ const RECORDING_PROFILE_PRESETS: Record<
 
 interface ProviderInfo {
   id: TranscriptionProvider;
-  name: string;
-  badge: string;
   badgeColor: string;
-  description: string;
   keyUrl?: string;
-  keyPlaceholder: string;
-  limit?: string;
 }
 
 const PROVIDERS: ProviderInfo[] = [
   {
     id: 'gemini',
-    name: 'Google Gemini',
-    badge: 'MIỄN PHÍ',
     badgeColor: '#16a34a',
-    description: 'Multimodal — Xử lý audio trực tiếp, không giới hạn kích thước file (đến 300MB). Khuyến nghị cho hầu hết trường hợp.',
     keyUrl: 'https://aistudio.google.com/app/apikey',
-    keyPlaceholder: 'AIza...',
-    limit: '1500 req/ngày miễn phí',
   },
   {
     id: 'assemblyai',
-    name: 'AssemblyAI',
-    badge: '$50 FREE',
     badgeColor: '#2563eb',
-    description: 'Chuyên biệt STT — speaker diarization, không giới hạn file. Tốt cho phân biệt nhiều người nói.',
     keyUrl: 'https://www.assemblyai.com/dashboard/signup',
-    keyPlaceholder: 'Nhập AssemblyAI API Key...',
-    limit: '≈333 giờ audio miễn phí',
   },
   {
     id: 'groq',
-    name: 'Groq Whisper',
-    badge: 'MIỄN PHÍ',
     badgeColor: '#0d7c66',
-    description: 'Siêu tốc — nhanh hơn thời gian thực. Giới hạn file 25MB. Phù hợp cho file nhỏ, cần tốc độ.',
     keyUrl: 'https://console.groq.com/keys',
-    keyPlaceholder: 'gsk_...',
-    limit: 'Giới hạn RPM, file ≤25MB',
   },
   {
     id: 'openai',
-    name: 'OpenAI Whisper',
-    badge: 'TRẢ PHÍ',
     badgeColor: '#dc2626',
-    description: 'Chuẩn vàng ngành — độ chính xác cao. Không có free tier, $0.006/phút audio. File ≤25MB.',
     keyUrl: 'https://platform.openai.com/api-keys',
-    keyPlaceholder: 'sk-...',
-    limit: '$0.006/phút, file ≤25MB',
   },
 ];
 
-/** Helper: lấy giá trị key của provider đang chọn */
+/** Helper: get the stored key for the active provider. */
 const getProviderKey = (
   provider: TranscriptionProvider,
   geminiKey: string,
@@ -240,6 +188,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onStorageCleared,
 }) => {
+  const { t, i18n } = useTranslation();
   const [apiKey, setApiKey] = useState('');
   const [assemblyaiApiKey, setAssemblyaiApiKey] = useState('');
   const [groqApiKey, setGroqApiKey] = useState('');
@@ -262,15 +211,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     DEFAULT_PREFERRED_CHANNEL_COUNT
   );
   const [chunkDurationMinutes, setChunkDurationMinutes] = useState(DEFAULT_CHUNK_DURATION_MINUTES);
+  const [macroBatchMinutes, setMacroBatchMinutes] = useState(DEFAULT_MACRO_BATCH_MINUTES);
   const [chunkStaggerSeconds, setChunkStaggerSeconds] = useState(DEFAULT_CHUNK_STAGGER_SECONDS);
   const [chunkConcurrency, setChunkConcurrency] = useState(DEFAULT_CHUNK_CONCURRENCY);
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>(
     DEFAULT_TRANSCRIPTION_PROVIDER
   );
+  const [useAdminKey, setUseAdminKey] = useState(DEFAULT_USE_ADMIN_KEY);
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [googleApiKey, setGoogleApiKey] = useState('');
+  
+  // Licensing & Payment States
+  const [deviceId, setDeviceIdState] = useState('');
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
+  const [promoCode, setPromoCode] = useState('');
+  const [paymentInfo, setPaymentInfo] = useState<any>(null);
+  const [promoMessage, setPromoMessage] = useState('');
+  const [promoError, setPromoError] = useState('');
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const [pricingMode, setPricingMode] = useState<'adminKey' | 'ownKey'>('adminKey');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly_20' | 'monthly_50' | 'monthly_100'>('monthly_20');
+  const [selectedOwnKeyPlan, setSelectedOwnKeyPlan] = useState<'own_key_ads' | 'own_key_no_ads' | 'disable_ads'>('own_key_ads');
+  const [selectedDuration, setSelectedDuration] = useState<1 | 3 | 6 | 12>(1);
+  const [paymentGateway, setPaymentGateway] = useState<'vietqr' | 'stripe'>('vietqr');
+  const [stripeLoading, setStripeLoading] = useState(false);
+
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    'provider' | 'gemini' | 'chunking' | 'realtime' | 'recording' | 'storage'
+    'provider' | 'gemini' | 'chunking' | 'realtime' | 'recording' | 'storage' | 'license' | 'google-drive'
   >('provider');
 
   useEffect(() => {
@@ -292,14 +263,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setPreferredSampleRate(settings.preferredSampleRate);
         setPreferredChannelCount(settings.preferredChannelCount);
         setChunkDurationMinutes(settings.chunkDurationMinutes);
+        setMacroBatchMinutes(settings.macroBatchMinutes);
         setChunkStaggerSeconds(settings.chunkStaggerSeconds);
         setChunkConcurrency(settings.chunkConcurrency);
         setTranscriptionProvider(settings.transcriptionProvider);
+        setUseAdminKey(settings.useAdminKey);
+        setGoogleClientId(settings.googleClientId || '');
+        setGoogleApiKey(settings.googleApiKey || '');
+      });
+
+      getDeviceId().then((id) => {
+        if (active) setDeviceIdState(id);
+      });
+      checkLicenseStatus().then((status) => {
+        if (active) setLicenseInfo(status);
+      });
+      getPaymentInfo().then((info) => {
+        if (active) setPaymentInfo(info);
       });
     }
     return () => { active = false; };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (licenseInfo && !licenseInfo.features.includes('system_api_key') && useAdminKey) {
+      setUseAdminKey(false);
+    }
+  }, [licenseInfo, useAdminKey]);
+
+  const canUseAdminKey = licenseInfo?.features.includes('system_api_key') ?? false;
   const handleSave = async () => {
     setIsSaving(true);
     await saveAiSettings({
@@ -318,8 +310,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       preferredSampleRate,
       preferredChannelCount,
       chunkDurationMinutes,
+      macroBatchMinutes,
       chunkStaggerSeconds,
       chunkConcurrency,
+      useAdminKey: canUseAdminKey ? useAdminKey : false,
+      googleClientId,
+      googleApiKey,
     });
     setIsSaving(false);
     onClose();
@@ -334,7 +330,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const selectedProvider = PROVIDERS.find((p) => p.id === transcriptionProvider)!;
+  const language = i18n.resolvedLanguage || i18n.language;
+  const dateLocale =
+    language.startsWith('zh') ? 'zh-CN' : language.startsWith('ko') ? 'ko-KR' : language.startsWith('en') ? 'en-US' : 'vi-VN';
+
+  const geminiModels = AVAILABLE_GEMINI_MODELS.map((model) => ({
+    ...model,
+    name: t(`SettingsModal.models.options.${model.id}`),
+  }));
+  const realtimeModes = REALTIME_MODES.map((mode) => ({
+    ...mode,
+    name: t(`SettingsModal.realtime.options.${mode.id}.name`),
+    description: t(`SettingsModal.realtime.options.${mode.id}.description`),
+  }));
+  const recordingProfiles = RECORDING_PROFILES.map((profile) => ({
+    ...profile,
+    name: t(`SettingsModal.recording.profiles.options.${profile.id}.name`),
+    description: t(`SettingsModal.recording.profiles.options.${profile.id}.description`),
+  }));
+  const processingLevels = PROCESSING_LEVELS.map((level) => ({
+    ...level,
+    name: t(`SettingsModal.recording.advanced.processingLevels.${level.id}`),
+  }));
+  const providers = PROVIDERS.map((provider) => ({
+    ...provider,
+    name: t(`SettingsModal.provider.options.${provider.id}.name`),
+    badge: t(`SettingsModal.provider.options.${provider.id}.badge`),
+    description: t(`SettingsModal.provider.options.${provider.id}.description`),
+    keyPlaceholder: t(`SettingsModal.provider.options.${provider.id}.keyPlaceholder`),
+    limit: t(`SettingsModal.provider.options.${provider.id}.limit`),
+  }));
+
+  const selectedProvider = providers.find((p) => p.id === transcriptionProvider)!;
   const currentKey = getProviderKey(
     transcriptionProvider,
     apiKey,
@@ -366,6 +393,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setRecordingProfile('CUSTOM');
   };
 
+  const licensePlanLabel = licenseInfo?.valid
+    ? licenseInfo.plan === 'promo'
+      ? t('SettingsModal.license.status.planPromo')
+      : licenseInfo.plan
+    : t('SettingsModal.license.status.planFree');
+
+  const licenseExpiresLabel = licenseInfo?.expiresAt
+    ? new Date(licenseInfo.expiresAt).toLocaleDateString(dateLocale)
+    : t('SettingsModal.license.status.unlimited');
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-lg overflow-hidden rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh] sm:max-h-[92vh]">
@@ -376,7 +413,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-[#006b68] text-white">
               <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
-            Cài đặt AI
+            {t('SettingsModal.title')}
           </h2>
           <button onClick={onClose} className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-200">
             <X className="h-5 w-5" />
@@ -388,22 +425,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="thin-scrollbar px-4 sm:px-6 pt-3 sm:pt-4 pb-2">
             <div className="flex min-w-max gap-1">
               <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
-                Nguồn STT
+                {t('SettingsModal.tabs.provider')}
               </button>
               <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
-                Model AI
+                {t('SettingsModal.tabs.models')}
               </button>
               <button className={tabBtnCls('chunking')} onClick={() => setActiveTab('chunking')}>
-                File dài
+                {t('SettingsModal.tabs.chunking')}
               </button>
               <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
-                Realtime
+                {t('SettingsModal.tabs.realtime')}
               </button>
               <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
-                Thu âm
+                {t('SettingsModal.tabs.recording')}
               </button>
               <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
-                Bộ nhớ
+                {t('SettingsModal.tabs.storage')}
+              </button>
+              <button className={tabBtnCls('license')} onClick={() => setActiveTab('license')}>
+                {t('SettingsModal.tabs.license')}
               </button>
             </div>
           </div>
@@ -415,13 +455,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ─── Tab: Provider ──────────────────────────────────────── */}
           {activeTab === 'provider' && (
             <>
+              <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-4 transition-all hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  id="useAdminKeyCheckbox"
+                  checked={useAdminKey}
+                  disabled={!canUseAdminKey}
+                  onChange={(e) => setUseAdminKey(e.target.checked)}
+                  className="h-4.5 w-4.5 rounded border-gray-300 text-[#006b68] focus:ring-[#006b68]"
+                />
+                <div className="flex-1">
+                  <label htmlFor="useAdminKeyCheckbox" className="text-sm font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-[#006b68]" />
+                    {t('SettingsModal.provider.useAdminKey.title')}
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    {t('SettingsModal.provider.useAdminKey.description')}
+                  </p>
+                  {!canUseAdminKey && (
+                    <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                      Thiết bị này chưa có gói hợp lệ nên chưa thể bật key admin.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <Zap className="h-4 w-4 text-[#006b68]" />
-                  Nguồn nhận diện giọng nói (STT)
+                  {t('SettingsModal.provider.sourceLabel')}
                 </label>
                 <div className="grid grid-cols-1 gap-2">
-                  {PROVIDERS.map((p) => (
+                  {providers.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => setTranscriptionProvider(p.id)}
@@ -460,98 +525,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* Key input cho provider đang chọn */}
-              <div className="space-y-2 rounded-xl bg-gray-50 p-4">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Key className="h-4 w-4 text-[#006b68]" />
-                  API Key — {selectedProvider.name}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showKey ? 'text' : 'password'}
-                    value={currentKey}
-                    onChange={(e) =>
-                      setProviderKey(
-                        transcriptionProvider,
-                        e.target.value,
-                        setApiKey,
-                        setAssemblyaiApiKey,
-                        setGroqApiKey,
-                        setOpenaiApiKey
-                      )
-                    }
-                    placeholder={selectedProvider.keyPlaceholder}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 pr-12 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500 hover:text-[#006b68]"
-                  >
-                    {showKey ? 'Ẩn' : 'Hiện'}
-                  </button>
-                </div>
-                {selectedProvider.keyUrl && (
-                  <p className="text-xs text-gray-500">
-                    Key được lưu cục bộ trên thiết bị.{' '}
-                    <a
-                      href={selectedProvider.keyUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[#006b68] hover:underline font-medium"
-                    >
-                      Lấy key tại đây →
-                    </a>
-                  </p>
-                )}
-              </div>
-
-              {/* Gemini Key luôn cần thiết (dùng cho Bước 2 phân tích) */}
-              {transcriptionProvider !== 'gemini' && (
-                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-                    <Bot className="h-4 w-4" />
-                    Gemini API Key (bắt buộc cho phân tích)
-                  </label>
-                  <p className="text-xs text-amber-700">
-                    Dù dùng provider nào để nhận diện giọng nói, Gemini vẫn được dùng để phân tích nội dung (Summary, Mindmap, v.v.). Vui lòng nhập Gemini API Key nếu chưa có.
-                  </p>
-                  <div className="relative">
-                    <input
-                      type={showKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="AIza..."
-                      className="w-full rounded-lg border border-amber-300 bg-white px-4 py-3 pr-12 text-sm outline-none transition-all focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey(!showKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-amber-600 hover:text-amber-800"
-                    >
-                      {showKey ? 'Ẩn' : 'Hiện'}
-                    </button>
+              {useAdminKey ? (
+                <div className="space-y-2 rounded-xl border border-[#006b68]/20 bg-[#006b68]/5 p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-[#006b68]">
+                    <ShieldCheck className="h-4.5 w-4.5" />
+                    {t('SettingsModal.provider.adminEnabled.title')}
                   </div>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block text-xs font-medium text-amber-700 hover:underline"
-                  >
-                    Lấy Gemini Key tại đây →
-                  </a>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    {t('SettingsModal.provider.adminEnabled.description', {
+                      provider: selectedProvider.name,
+                      planTab: t('SettingsModal.tabs.license'),
+                    })}
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <div className="space-y-2 rounded-xl bg-gray-50 p-4">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <Key className="h-4 w-4 text-[#006b68]" />
+                      {t('SettingsModal.provider.keyLabel', { provider: selectedProvider.name })}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKey ? 'text' : 'password'}
+                        value={currentKey}
+                        onChange={(e) =>
+                          setProviderKey(
+                            transcriptionProvider,
+                            e.target.value,
+                            setApiKey,
+                            setAssemblyaiApiKey,
+                            setGroqApiKey,
+                            setOpenaiApiKey
+                          )
+                        }
+                        placeholder={selectedProvider.keyPlaceholder}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 pr-12 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKey(!showKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500 hover:text-[#006b68]"
+                      >
+                        {showKey ? t('SettingsModal.common.hide') : t('SettingsModal.common.show')}
+                      </button>
+                    </div>
+                    {selectedProvider.keyUrl && (
+                      <p className="text-xs text-gray-500">
+                        {t('SettingsModal.provider.keyStoredLocally')}{' '}
+                        <a
+                          href={selectedProvider.keyUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#006b68] hover:underline font-medium"
+                        >
+                          {t('SettingsModal.provider.getKeyHere')}
+                        </a>
+                      </p>
+                    )}
+                  </div>
+
+                  {transcriptionProvider !== 'gemini' && (
+                    <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+                        <Bot className="h-4 w-4" />
+                        {t('SettingsModal.provider.geminiAnalysisKey.title')}
+                      </label>
+                      <p className="text-xs text-amber-700">
+                        {t('SettingsModal.provider.geminiAnalysisKey.description')}
+                      </p>
+                      <div className="relative">
+                        <input
+                          type={showKey ? 'text' : 'password'}
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="AIza..."
+                          className="w-full rounded-lg border border-amber-300 bg-white px-4 py-3 pr-12 text-sm outline-none transition-all focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowKey(!showKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-amber-600 hover:text-amber-800"
+                        >
+                          {showKey ? t('SettingsModal.common.hide') : t('SettingsModal.common.show')}
+                        </button>
+                      </div>
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block text-xs font-medium text-amber-700 hover:underline"
+                      >
+                        {t('SettingsModal.provider.geminiAnalysisKey.link')}
+                      </a>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
 
-          {/* ─── Tab: Mô hình Gemini ────────────────────────────────── */}
           {activeTab === 'gemini' && (
             <>
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <Bot className="h-4 w-4 text-[#006b68]" />
-                  Model cho Realtime ghi âm
+                  {t('SettingsModal.models.realtimeLabel')}
                 </label>
                 <div className="relative">
                   <select
@@ -559,7 +638,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onChange={(e) => setRealtimeModelId(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
                   >
-                    {AVAILABLE_GEMINI_MODELS.map((model) => (
+                    {geminiModels.map((model) => (
                       <option key={model.id} value={model.id}>{model.name}</option>
                     ))}
                   </select>
@@ -568,15 +647,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Khuyến nghị: <b>Gemini 3 Flash Preview</b> nếu cần tốc độ và chất lượng cao hơn.
-                  Muốn tiết kiệm nhất thì dùng <b>Gemini 2.5 Flash-Lite</b>.
+                  {t('SettingsModal.models.realtimeHintPrefix')} <b>Gemini 3 Flash Preview</b>{' '}
+                  {t('SettingsModal.models.realtimeHintMiddle')} <b>Gemini 2.5 Flash-Lite</b>.
                 </p>
               </div>
 
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <Bot className="h-4 w-4 text-[#006b68]" />
-                  Model cho Phân tích cuối
+                  {t('SettingsModal.models.analysisLabel')}
                 </label>
                 <div className="relative">
                   <select
@@ -584,7 +663,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onChange={(e) => setAnalysisModelId(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
                   >
-                    {AVAILABLE_GEMINI_MODELS.map((model) => (
+                    {geminiModels.map((model) => (
                       <option key={model.id} value={model.id}>{model.name}</option>
                     ))}
                   </select>
@@ -593,8 +672,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Khuyến nghị: <b>Gemini 3 Pro Preview</b> cho các buổi họp dài hoặc phân tích sâu.
-                  Muốn cân bằng thì chọn <b>Gemini 2.5 Flash</b>.
+                  {t('SettingsModal.models.analysisHintPrefix')} <b>Gemini 3 Pro Preview</b>{' '}
+                  {t('SettingsModal.models.analysisHintMiddle')} <b>Gemini 2.5 Flash</b>.
                 </p>
               </div>
             </>
@@ -603,16 +682,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'chunking' && (
             <div className="space-y-4">
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <div className="text-sm font-semibold text-gray-800">Xử lý file dài</div>
+                <div className="text-sm font-semibold text-gray-800">{t('SettingsModal.chunking.title')}</div>
                 <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                  Khi audio dài hơn mốc này, app sẽ tự chia thành nhiều phần, cắt gần điểm im lặng
-                  để tránh đứt câu, rồi transcript các phần song song trước khi ghép transcript cuối.
+                  {t('SettingsModal.chunking.description')}
                 </p>
 
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Phút / phần
+                      {t('SettingsModal.chunking.durationLabel')}
                     </label>
                     <input
                       type="number"
@@ -627,13 +705,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
                     />
                     <p className="text-xs text-gray-500">
-                      Mặc định 10 phút. Giá trị nhỏ hơn giúp giảm timeout nhưng tăng số request.
+                      {t('SettingsModal.chunking.durationHint')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Delay khởi động / phần
+                      {t('SettingsModal.chunking.macroBatchLabel')}
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={30}
+                      value={macroBatchMinutes}
+                      onChange={(event) =>
+                        setMacroBatchMinutes(
+                          Math.min(30, Math.max(5, Number(event.target.value) || DEFAULT_MACRO_BATCH_MINUTES))
+                        )
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {t('SettingsModal.chunking.macroBatchHint')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      {t('SettingsModal.chunking.staggerLabel')}
                     </label>
                     <input
                       type="number"
@@ -648,28 +747,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
                     />
                     <p className="text-xs text-gray-500">
-                      Mặc định 2 giây. Dùng để stagger nhẹ các request song song, giảm khả năng đụng rate limit mà không làm chậm quá nhiều.
+                      {t('SettingsModal.chunking.staggerHint')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Luồng song song
+                      {t('SettingsModal.chunking.concurrencyLabel')}
                     </label>
                     <input
                       type="number"
                       min={1}
-                      max={4}
+                      max={1}
                       value={chunkConcurrency}
-                      onChange={(event) =>
-                        setChunkConcurrency(
-                          Math.min(4, Math.max(1, Number(event.target.value) || DEFAULT_CHUNK_CONCURRENCY))
-                        )
-                      }
+                      onChange={() => setChunkConcurrency(1)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                      disabled
                     />
                     <p className="text-xs text-gray-500">
-                      Mặc định 2 luồng. Khuyên dùng 2-3 để tránh bắn quá nhiều request cùng lúc.
+                      {t('SettingsModal.chunking.concurrencyHint')}
                     </p>
                   </div>
                 </div>
@@ -682,10 +778,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <Sparkles className="h-4 w-4 text-[#006b68]" />
-                Chế độ Realtime
+                {t('SettingsModal.realtime.title')}
               </label>
               <div className="grid grid-cols-1 gap-2">
-                {REALTIME_MODES.map((mode) => (
+                {realtimeModes.map((mode) => (
                   <button
                     key={mode.id}
                     onClick={() => setRealtimeMode(mode.id)}
@@ -710,21 +806,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ))}
               </div>
               <p className="text-xs text-gray-400 pt-1">
-                * Chế độ Realtime chỉ dùng Google Gemini bất kể cài đặt nguồn transcript ở trên.
+                {t('SettingsModal.realtime.note')}
               </p>
             </div>
           )}
 
-          {/* ─── Tab: Thu âm ─────────────────────────────────────────── */}
           {activeTab === 'recording' && (
             <div className="space-y-5">
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <Sparkles className="h-4 w-4 text-[#006b68]" />
-                  Profile thu âm
+                  {t('SettingsModal.recording.profiles.title')}
                 </label>
                 <div className="grid grid-cols-1 gap-2">
-                  {RECORDING_PROFILES.map((profile) => (
+                  {recordingProfiles.map((profile) => (
                     <button
                       key={profile.id}
                       onClick={() => applyRecordingProfile(profile.id)}
@@ -753,19 +848,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <div className="text-sm font-semibold text-gray-800">Tinh chỉnh nâng cao</div>
+                <div className="text-sm font-semibold text-gray-800">{t('SettingsModal.recording.advanced.title')}</div>
                 <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                  Cac muc duoi day duoc dua vao constraint cua microphone tren thiet bi.
-                  Trinh duyet va Android se ap dung trong pham vi phan cung ho tro.
+                  {t('SettingsModal.recording.advanced.description')}
                 </p>
 
                 <div className="mt-4 grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Noise suppression
+                      {t('SettingsModal.recording.advanced.noiseLabel')}
                     </label>
                     <div className="grid grid-cols-4 gap-2">
-                      {PROCESSING_LEVELS.map((level) => (
+                      {processingLevels.map((level) => (
                         <button
                           key={`noise-${level.id}`}
                           onClick={() => handleManualRecordingChange(setNoiseSuppressionLevel, level.id)}
@@ -783,10 +877,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Echo cancellation
+                      {t('SettingsModal.recording.advanced.echoLabel')}
                     </label>
                     <div className="grid grid-cols-4 gap-2">
-                      {PROCESSING_LEVELS.map((level) => (
+                      {processingLevels.map((level) => (
                         <button
                           key={`echo-${level.id}`}
                           onClick={() => handleManualRecordingChange(setEchoCancellationLevel, level.id)}
@@ -804,10 +898,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Auto gain
+                      {t('SettingsModal.recording.advanced.gainLabel')}
                     </label>
                     <div className="grid grid-cols-4 gap-2">
-                      {PROCESSING_LEVELS.map((level) => (
+                      {processingLevels.map((level) => (
                         <button
                           key={`gain-${level.id}`}
                           onClick={() => handleManualRecordingChange(setAutoGainLevel, level.id)}
@@ -826,7 +920,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                        Sample rate
+                        {t('SettingsModal.recording.advanced.sampleRateLabel')}
                       </label>
                       <div className="relative">
                         <select
@@ -853,7 +947,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <div className="space-y-2">
                       <label className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                        Channel
+                        {t('SettingsModal.recording.advanced.channelLabel')}
                       </label>
                       <div className="relative">
                         <select
@@ -883,13 +977,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* ─── Tab: Bộ nhớ ────────────────────────────────────────── */}
           {activeTab === 'storage' && (
             <div className="space-y-6">
               <div className="space-y-3 rounded-xl bg-gray-50 p-5">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <HardDrive className="h-4 w-4 text-[#006b68]" />
-                  Vị trí lưu trữ cục bộ
+                  {t('SettingsModal.storage.localPathTitle')}
                 </label>
                 <div className="rounded-lg border border-gray-200 bg-white p-3">
                   <code className="text-xs font-mono text-gray-600 break-all">
@@ -897,31 +990,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </code>
                 </div>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  File ghi âm, transcript và dữ liệu làm việc hiện được lưu trong bộ nhớ nội bộ của ứng dụng để thao tác xóa và phục hồi ổn định hơn. Chỉ các file export hoặc file chia sẻ thủ công mới được ghi ra thư mục công khai mà bạn có thể mở bằng ứng dụng quản lý file.
+                  {t('SettingsModal.storage.localPathDescription')}
                 </p>
               </div>
 
               <div className="space-y-3 rounded-xl border border-rose-100 bg-rose-50/50 p-5">
                 <label className="flex items-center gap-2 text-sm font-semibold text-rose-800">
                   <Trash2 className="h-4 w-4" />
-                  Khu vực nguy hiểm
+                  {t('SettingsModal.storage.dangerTitle')}
                 </label>
                 <p className="text-xs text-rose-700">
-                  Hành động này sẽ xóa vĩnh viễn toàn bộ dữ liệu nội bộ của ứng dụng trong <b>{getAppStorageLabel()}</b>. Ứng dụng cũng sẽ cố gắng dọn dữ liệu cũ còn nằm ở <b>{getLegacyStorageLabel()}</b> nếu có. Hành động này không thể hoàn tác.
+                  {t('SettingsModal.storage.dangerDescription', {
+                    appStorage: getAppStorageLabel(),
+                    legacyStorage: getLegacyStorageLabel(),
+                  })}
                 </p>
                 <button
                   onClick={async () => {
                     const ok = window.confirm(
-                      'CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu ứng dụng (file ghi âm, transcript...) không? Hành động này không thể hoàn tác.'
+                      t('SettingsModal.storage.confirmDeleteAll')
                     );
                     if (ok) {
                       setIsSaving(true);
                       try {
                         await clearAppStorage();
                         await onStorageCleared?.();
-                        alert('Đã xóa toàn bộ dữ liệu thành công.');
+                        alert(t('SettingsModal.storage.deleteSuccess'));
                       } catch (err: any) {
-                        alert('Lỗi khi xóa dữ liệu: ' + err.message);
+                        alert(t('SettingsModal.storage.deleteError', { message: err.message }));
                       } finally {
                         setIsSaving(false);
                       }
@@ -931,11 +1027,445 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98] disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Xóa toàn bộ dữ liệu
+                  {t('SettingsModal.storage.deleteAll')}
                 </button>
               </div>
             </div>
           )}
+
+          {activeTab === 'license' && (() => {
+            const defaultPricing = {
+              monthly_20: 39000,
+              monthly_50: 59000,
+              monthly_100: 99000,
+              own_key_ads: 199000,
+              own_key_no_ads: 248000,
+              disable_ads: 49000,
+            };
+            const defaultDiscounts = {
+              '3M': 3,
+              '6M': 5,
+              '12M': 8,
+            };
+            const pricing = paymentInfo?.pricing || defaultPricing;
+            const discounts = paymentInfo?.discounts || defaultDiscounts;
+
+            let basePrice: number;
+            let planKey = '';
+            if (pricingMode === 'adminKey') {
+              basePrice = pricing[selectedPlan] || 0;
+              planKey = selectedPlan;
+            } else {
+              basePrice = pricing[selectedOwnKeyPlan] || 0;
+              planKey = selectedOwnKeyPlan;
+            }
+            const duration = pricingMode === 'adminKey' ? selectedDuration : 1;
+            const rawPrice = basePrice * duration;
+            let discountPercent = 0;
+            if (pricingMode === 'adminKey') {
+              if (duration === 3) discountPercent = discounts['3M'] || 3;
+              else if (duration === 6) discountPercent = discounts['6M'] || 5;
+              else if (duration === 12) discountPercent = discounts['12M'] || 8;
+            }
+            const finalPrice = Math.round(rawPrice * (1 - discountPercent / 100));
+            const syntax = `TSRECORD ${deviceId} ${planKey.toUpperCase()} ${duration}M`;
+
+            const handleStripeCheckout = async () => {
+              setStripeLoading(true);
+              try {
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+                const response = await fetch(`${backendUrl}/api/client/payments/create-stripe-session`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    deviceId,
+                    plan: planKey,
+                    durationMonths: duration,
+                  }),
+                });
+                if (!response.ok) {
+                  throw new Error('Không thể khởi tạo Stripe session.');
+                }
+                const data = await response.json();
+                if (data.url) {
+                  window.open(data.url, '_blank');
+                }
+              } catch (err: any) {
+                alert(err.message || 'Lỗi thanh toán Stripe.');
+              } finally {
+                setStripeLoading(false);
+              }
+            };
+
+            return (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                {/* Status card */}
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                      <ShieldCheck className="h-5 w-5 text-[#006b68]" />
+                      {t('SettingsModal.license.status.title')}
+                    </div>
+                    <div>
+                      {licenseInfo?.valid ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                          {t('SettingsModal.license.status.activated')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600 border border-gray-200">
+                          {t('SettingsModal.license.status.notActivated')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <span className="text-gray-500 block">{t('SettingsModal.license.status.planLabel')}</span>
+                      <span className="font-bold text-gray-800 mt-0.5 block capitalize font-semibold">
+                        {licensePlanLabel}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">{t('SettingsModal.license.status.expiresLabel')}</span>
+                      <span className="font-bold text-gray-800 mt-0.5 block font-semibold">
+                        {licenseExpiresLabel}
+                      </span>
+                    </div>
+                    {licenseInfo && typeof licenseInfo.requestsLimit === 'number' && (
+                      <div className="col-span-2 border-t border-gray-100 pt-2 flex items-center justify-between">
+                        <div>
+                          <span className="text-gray-500 block font-semibold">Lượt xử lý (Requests):</span>
+                          <span className="font-extrabold text-[#006b68] mt-0.5 block">
+                            {licenseInfo.requestsUsed || 0} / {licenseInfo.requestsLimit}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block text-right font-semibold">Biển quảng cáo:</span>
+                          <span className="font-extrabold text-gray-800 mt-0.5 block text-right">
+                            {licenseInfo.adsEnabled ? 'Đang bật' : 'Đã tắt'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg bg-white border border-gray-200 p-2.5 flex items-center justify-between gap-3 text-xs mt-2 shadow-sm">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-gray-500 block text-[10px] uppercase font-bold tracking-wider">{t('SettingsModal.license.status.deviceIdLabel')}</span>
+                      <span className="font-mono text-gray-700 break-all select-all font-bold block mt-0.5">{deviceId || t('SettingsModal.license.status.loadingDeviceId')}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(deviceId);
+                        setCopiedField('device_id');
+                        setTimeout(() => setCopiedField(null), 2000);
+                      }}
+                      className="p-2 text-gray-500 hover:text-[#006b68] hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                      title={t('SettingsModal.license.status.copyDeviceId')}
+                    >
+                      {copiedField === 'device_id' ? <Check className="h-4 w-4 text-emerald-600 animate-scale" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Promo Code */}
+                <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                    <Ticket className="h-5 w-5 text-[#006b68]" />
+                    {t('SettingsModal.license.promo.title')}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      placeholder={t('SettingsModal.license.promo.placeholder')}
+                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold outline-none uppercase tracking-wider focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]/20"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!promoCode.trim()) return;
+                        setIsRedeeming(true);
+                        setPromoMessage('');
+                        setPromoError('');
+                        try {
+                          const res = await redeemPromoCode(promoCode);
+                          if (res.ok) {
+                            setPromoMessage(res.message || t('SettingsModal.license.promo.success'));
+                            setPromoCode('');
+                            const status = await checkLicenseStatus();
+                            setLicenseInfo(status);
+                          } else {
+                            setPromoError(res.error || t('SettingsModal.license.promo.invalid'));
+                          }
+                        } catch (err: any) {
+                          setPromoError(err.message || t('SettingsModal.license.promo.error'));
+                        } finally {
+                          setIsRedeeming(false);
+                        }
+                      }}
+                      disabled={isRedeeming || !promoCode.trim()}
+                      className="rounded-lg bg-[#006b68] px-4 py-2 text-xs font-bold text-white transition-all hover:bg-[#005553] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isRedeeming ? t('SettingsModal.license.promo.submitting') : t('SettingsModal.license.promo.activate')}
+                    </button>
+                  </div>
+                  {promoMessage && <p className="text-xs text-emerald-600 font-semibold">{promoMessage}</p>}
+                  {promoError && <p className="text-xs text-rose-600 font-semibold">{promoError}</p>}
+                </div>
+
+                {/* Pricing Plans & Gateways */}
+                <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-gray-800 border-b border-gray-100 pb-2">
+                    <CreditCard className="h-5 w-5 text-[#006b68]" />
+                    Đăng ký & Nâng cấp Gói dịch vụ
+                  </div>
+
+                  <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setPricingMode('adminKey')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        pricingMode === 'adminKey'
+                          ? 'bg-white text-gray-800 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      🚀 Sử dụng Key Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPricingMode('ownKey')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        pricingMode === 'ownKey'
+                          ? 'bg-white text-gray-800 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      🔑 API Key cá nhân
+                    </button>
+                  </div>
+
+                  {pricingMode === 'adminKey' ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Sử dụng key AI hệ thống (không cần API Key riêng). Gói cước đã bao gồm tính năng tắt quảng cáo. <i>1 request = tối đa 30 phút audio</i>.
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'monthly_20' as const, name: 'Standard', limit: '20 req/tháng', priceVal: pricing.monthly_20 },
+                          { id: 'monthly_50' as const, name: 'Advanced', limit: '50 req/tháng', priceVal: pricing.monthly_50 },
+                          { id: 'monthly_100' as const, name: 'Pro', limit: '100 req/tháng', priceVal: pricing.monthly_100 },
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelectedPlan(item.id)}
+                            className={`flex flex-col items-center p-2 rounded-xl border-2 transition-all text-center bg-white ${
+                              selectedPlan === item.id
+                                ? 'border-[#006b68] bg-[#006b68]/5 text-[#006b68] border-[#006b68]'
+                                : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                            }`}
+                          >
+                            <span className="text-xs font-bold">{item.name}</span>
+                            <span className="text-[9px] text-gray-400 mt-0.5">{item.limit}</span>
+                            <span className="text-xs font-extrabold mt-1 text-gray-850">
+                              {new Intl.NumberFormat('vi-VN').format(item.priceVal)}đ
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider block">Kỳ hạn thanh toán</label>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[
+                            { id: 1 as const, name: '1 tháng', desc: 'Gốc' },
+                            { id: 3 as const, name: '3 tháng', desc: `-${discounts['3M']}%` },
+                            { id: 6 as const, name: '6 tháng', desc: `-${discounts['6M']}%` },
+                            { id: 12 as const, name: '12 tháng', desc: `-${discounts['12M']}%` },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => setSelectedDuration(item.id)}
+                              className={`flex flex-col items-center py-1 rounded-lg border text-center transition-all ${
+                                selectedDuration === item.id
+                                  ? 'border-[#006b68] bg-[#006b68]/5 text-[#006b68] font-bold border-2'
+                                  : 'border-gray-250 bg-white text-gray-500'
+                              }`}
+                            >
+                              <span className="text-[10px] block">{item.name}</span>
+                              <span className="text-[8px] font-bold block text-emerald-600">{item.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Sử dụng API Key cá nhân của bạn (Gemini, Groq, OpenAI, AssemblyAI).
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {[
+                          { id: 'own_key_ads' as const, name: '🔑 Mở bản quyền tự điền Key', desc: 'Sử dụng key cá nhân, app hiển thị quảng cáo banner dưới đáy.', priceVal: pricing.own_key_ads, badge: 'TRỌN ĐỜI' },
+                          { id: 'own_key_no_ads' as const, name: '✨ Bản quyền Tự điền Key + Tắt Ads', desc: 'Sử dụng key cá nhân và tắt hoàn toàn tất cả quảng cáo.', priceVal: pricing.own_key_no_ads, badge: 'TRỌN ĐỜI' },
+                          { id: 'disable_ads' as const, name: '🚫 Gói Tắt quảng cáo riêng lẻ', desc: 'Chỉ tắt quảng cáo banner dưới đáy (cho user đã có bản quyền điền key).', priceVal: pricing.disable_ads, badge: 'TẬN HƯỞNG' },
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelectedOwnKeyPlan(item.id)}
+                            className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all bg-white ${
+                              selectedOwnKeyPlan === item.id
+                                ? 'border-[#006b68] bg-[#006b68]/5 border-[#006b68]'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-800">{item.name}</span>
+                                <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">{item.badge}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">{item.desc}</p>
+                            </div>
+                            <span className="text-xs font-extrabold text-gray-800 whitespace-nowrap self-center">
+                              {new Intl.NumberFormat('vi-VN').format(item.priceVal)}đ
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary Card */}
+                  <div className="border border-gray-200 bg-white rounded-xl p-3 space-y-3 shadow-inner">
+                    <div className="flex justify-between items-center text-xs">
+                      <div>
+                        <span className="text-gray-450 font-bold block">TỔNG THANH TOÁN:</span>
+                        <span className="text-[9px] text-gray-450 block italic">
+                          {pricingMode === 'adminKey' 
+                            ? `${selectedPlan.toUpperCase()} × ${selectedDuration} tháng`
+                            : `${selectedOwnKeyPlan.toUpperCase()}`
+                          }
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        {discountPercent > 0 && (
+                          <span className="text-[9px] font-bold text-emerald-600 line-through block opacity-60">
+                            {new Intl.NumberFormat('vi-VN').format(rawPrice)}đ
+                          </span>
+                        )}
+                        <span className="text-base font-black text-[#006b68]">
+                          {new Intl.NumberFormat('vi-VN').format(finalPrice)}đ
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Gateway selection */}
+                    <div className="grid grid-cols-2 gap-2 border-t border-gray-100 pt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentGateway('vietqr')}
+                        className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                          paymentGateway === 'vietqr'
+                            ? 'border-[#006b68] bg-[#006b68]/5 text-[#006b68] border-[#006b68]'
+                            : 'border-gray-200 text-gray-500 hover:text-gray-700 bg-gray-50'
+                        }`}
+                      >
+                        🏦 Chuyển khoản VietQR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentGateway('stripe')}
+                        className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                          paymentGateway === 'stripe'
+                            ? 'border-[#006b68] bg-[#006b68]/5 text-[#006b68] border-[#006b68]'
+                            : 'border-gray-200 text-gray-500 hover:text-gray-700 bg-gray-50'
+                        }`}
+                      >
+                        💳 Thẻ quốc tế (Stripe)
+                      </button>
+                    </div>
+
+                    {/* QR code / Stripe instructions */}
+                    <div className="border-t border-gray-100 pt-2.5">
+                      {paymentGateway === 'vietqr' ? (
+                        <div className="flex flex-col sm:flex-row gap-3 items-center">
+                          <div className="w-24 h-24 bg-white border border-gray-200 rounded-lg p-1 flex flex-col items-center justify-center relative shadow-sm shrink-0">
+                            <img
+                              src={`https://img.vietqr.io/image/${paymentInfo?.bankName || 'MB'}-${paymentInfo?.accountNumber || '3457777878'}-compact.png?amount=${finalPrice}&addInfo=${encodeURIComponent(syntax)}&accountName=${encodeURIComponent(paymentInfo?.accountName || 'NGUYEN HOANG HUYNH')}`}
+                              alt="VietQR Payment Code"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <div className="flex-1 w-full space-y-1 text-xs text-gray-600">
+                            <div className="grid grid-cols-3 gap-0.5">
+                              <span className="text-gray-400">Ngân hàng:</span>
+                              <span className="col-span-2 font-bold text-gray-800">{paymentInfo?.bankName || 'MB BANK'}</span>
+
+                              <span className="text-gray-400">Số tài khoản:</span>
+                              <span className="col-span-2 font-bold text-gray-800 flex items-center gap-1">
+                                {paymentInfo?.accountNumber || '3457777878'}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(paymentInfo?.accountNumber || '3457777878');
+                                    setCopiedField('bank_acc');
+                                    setTimeout(() => setCopiedField(null), 2000);
+                                  }}
+                                  className="text-[#006b68] hover:underline"
+                                >
+                                  {copiedField === 'bank_acc' ? 'Đã chép' : 'Copy'}
+                                </button>
+                              </span>
+
+                              <span className="text-gray-400">Cú pháp CK:</span>
+                              <span className="col-span-2 font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 flex items-center justify-between gap-1">
+                                <span className="font-mono text-[9px] break-all select-all">
+                                  {syntax}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(syntax);
+                                    setCopiedField('memo_ck');
+                                    setTimeout(() => setCopiedField(null), 2000);
+                                  }}
+                                  className="text-[#006b68] text-[9px] hover:underline flex-shrink-0"
+                                >
+                                  {copiedField === 'memo_ck' ? 'Đã chép' : 'Copy'}
+                                </button>
+                              </span>
+                            </div>
+                            <p className="text-[9px] text-amber-600 bg-amber-50 p-1.5 rounded leading-normal mt-1 font-semibold">
+                              ⚠️ Vui lòng chuyển khoản đúng số tiền và ghi chính xác cú pháp chuyển khoản ở trên để kích hoạt tự động.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center py-2 space-y-2 text-center">
+                          <p className="text-xs text-gray-500">
+                            Thanh toán qua Stripe hỗ trợ thẻ tín dụng quốc tế (Visa, Mastercard, JCB).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleStripeCheckout}
+                            disabled={stripeLoading}
+                            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white text-xs shadow-md transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50"
+                          >
+                            {stripeLoading ? 'Đang tạo link thanh toán...' : '💳 MỞ TRANG THANH TOÁN STRIPE'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Footer */}
@@ -946,7 +1476,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               disabled={isSaving || !apiKey.trim()}
               className="rounded-lg px-4 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
             >
-              Xóa key Gemini
+              {t('SettingsModal.clearGeminiKey')}
             </button>
           )}
           <button
@@ -954,7 +1484,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             disabled={isSaving}
             className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
           >
-            Đóng
+            {t('SettingsModal.close')}
           </button>
           <button
             onClick={handleSave}
@@ -962,7 +1492,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             className="flex items-center gap-2 rounded-lg bg-[#006b68] px-6 py-2 text-sm font-bold text-white shadow-md transition-all hover:bg-[#005553] hover:shadow-lg disabled:cursor-wait disabled:bg-[#7ca89f]"
           >
             <Save className="h-4 w-4" />
-            {isSaving ? 'Đang lưu...' : 'Lưu cài đặt'}
+            {isSaving ? t('SettingsModal.saving') : t('SettingsModal.save')}
           </button>
         </div>
       </div>

@@ -15,7 +15,8 @@
     "strictNullChecks": true,
     "noImplicitThis": true,
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,

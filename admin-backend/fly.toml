@@ -1,0 +1,37 @@
+# fly.toml app configuration file
+#
+# See https://fly.io/docs/reference/configuration/ for information
+
+app = "tsrecord-admin" # LƯU Ý: Đổi tên này thành duy nhất trên hệ thống Fly.io (Ví dụ: tsrecord-admin-huy)
+primary_region = "hkg" # Chọn region Hong Kong (hkg) hoặc Singapore (sin) để kết nối từ VN nhanh nhất
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4000"
+  NODE_ENV = "production"
+  DB_PATH = "/data/tsrecord-admin.db"
+
+[[mounts]]
+  source = "tsrecord_db_volume"
+  destination = "/data"
+
+[[services]]
+  internal_port = 4000
+  processes = ["app"]
+  protocol = "tcp"
+
+  [[services.ports]]
+    force_https = true
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.concurrency]]
+    hard_limit = 25
+    soft_limit = 20
+    type = "connections"

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { requireAdmin, type AuthRequest } from '../auth.js';
-import { getDb, generateInvoiceNumber, updateRevenueSummary } from '../database.js';
+import { getDb, updateRevenueSummary } from '../database.js';
 
 const router = Router();
 

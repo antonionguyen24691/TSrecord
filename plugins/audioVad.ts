@@ -19,6 +19,11 @@ export interface AudioVadChunkResult {
   }>;
 }
 
+export interface AudioVadMergedFileResult {
+  fileUri: string;
+  fileName: string;
+}
+
 interface AudioVadPlugin {
   detectSpeechBoundaries(options: {
     fileUri: string;
@@ -28,7 +33,15 @@ interface AudioVadPlugin {
     fileUri: string;
     fileName: string;
     chunkDurationSeconds: number;
+    speechOnlyUpload?: boolean;
   }): Promise<AudioVadChunkResult>;
+  mergeWavFiles(options: {
+    fileUris: string[];
+    outputFileName: string;
+  }): Promise<AudioVadMergedFileResult>;
+  deleteTempFiles(options: {
+    fileUris: string[];
+  }): Promise<void>;
 }
 
 export const AudioVad = registerPlugin<AudioVadPlugin>('AudioVad');

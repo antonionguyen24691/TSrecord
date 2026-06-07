@@ -28,7 +28,7 @@ const readDocxFile = async (file: File): Promise<string> => {
         const arrayBuffer = reader.result as ArrayBuffer;
         const result = await mammoth.extractRawText({ arrayBuffer });
         resolve(result.value || '');
-      } catch (error) {
+      } catch {
         reject(new Error(`Không thể trích xuất text từ file DOCX: ${file.name}. Vui lòng thử lại.`));
       }
     };
@@ -88,7 +88,7 @@ const readPptxFile = async (file: File): Promise<string> => {
         }
 
         resolve(slidesText.join('\n\n'));
-      } catch (error) {
+      } catch {
         reject(new Error(`Không thể trích xuất text từ file PPTX: ${file.name}. Vui lòng thử lại.`));
       }
     };

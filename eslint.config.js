@@ -8,7 +8,9 @@ export default tseslint.config(
   {
     ignores: [
       'android/**',
+      'ios/**',
       'dist/**',
+      '**/dist/**',
       'node_modules/**',
       '.codex-temp/**',
       '.agent/**',

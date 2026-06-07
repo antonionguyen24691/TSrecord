@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Encoding, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
 import {
   ExtractionMode,
@@ -10,6 +10,12 @@ import {
   WorkspaceProject,
   WorkspaceSessionSummary,
 } from '../types';
+import {
+  loadTranscriptProcessingJob,
+  readCombinedTranscriptText,
+  readTranscriptAppendOnlyBatches,
+  summarizeTranscriptProcessingProgress,
+} from './transcriptionJobStore';
 import {
   getAppStorageDirectory,
   getAppStorageLabel,
@@ -48,6 +54,21 @@ const trimPreview = (value: string, limit = 220) => {
 const buildSessionId = (workspacePath: string, createdAt: string) =>
   `${workspacePath}::${createdAt}`;
 
+const deriveAnalysisStatus = (analysis: Pick<SessionAnalysis, 'context' | 'artifacts' | 'analysisStatus'>) => {
+  if (analysis.analysisStatus) return analysis.analysisStatus;
+  if (analysis.context !== SessionContext.MEETING) return 'complete';
+
+  const { summary, decisions, risks, folderTree, mindmap, actionItems } = analysis.artifacts;
+  return summary.trim() ||
+    decisions.trim() ||
+    risks.trim() ||
+    folderTree.trim() ||
+    mindmap.trim() ||
+    actionItems.trim()
+    ? 'complete'
+    : 'draft_transcript';
+};
+
 const normalizeAnalysis = (
   analysis: SessionAnalysis,
   workspacePath: string,
@@ -58,6 +79,7 @@ const normalizeAnalysis = (
     ...emptyArtifacts(),
     ...analysis.artifacts,
   },
+  analysisStatus: deriveAnalysisStatus(analysis),
   workspacePath,
   createdAt: analysis.createdAt || fallbackCreatedAt || new Date().toISOString(),
 });
@@ -76,6 +98,7 @@ const toSummary = (
     context: analysis.context,
     source: analysis.source,
     mode: analysis.mode,
+    analysisStatus: deriveAnalysisStatus(analysis),
     createdAt,
     workspacePath,
     transcriptPreview: trimPreview(analysis.artifacts.transcript),
@@ -214,12 +237,66 @@ const loadNativeWorkspaceSession = async (workspacePath: string): Promise<Sessio
     }
   }
 
+  const processingJob = await loadTranscriptProcessingJob(workspacePath);
+  if (processingJob) {
+    const transcript = await readCombinedTranscriptText(workspacePath);
+    const transcriptBatches = await readTranscriptAppendOnlyBatches(workspacePath);
+    const progressSummary = await summarizeTranscriptProcessingProgress(workspacePath);
+    const createdAt = processingJob.createdAt || new Date().toISOString();
+
+    return normalizeAnalysis(
+      {
+        title:
+          processingJob.sourceAudioFileName.replace(/\.[^.]+$/, '') || 'Phiên đang xử lý',
+        source: processingJob.source,
+        context: processingJob.context,
+        mode: processingJob.mode,
+        analysisStatus: processingJob.status === 'complete' ? 'complete' : 'draft_transcript',
+        suggestedFolderName: workspacePath.split('/').pop() || 'session',
+        artifacts: {
+          transcript,
+          summary: '',
+          decisions: '',
+          risks: '',
+          folderTree: '',
+          mindmap: '',
+          actionItems: '',
+        },
+        savedRecording: processingJob.sourceAudioPath
+          ? {
+              fileName:
+                processingJob.sourceAudioPath.split('/').pop() || processingJob.sourceAudioFileName,
+              path: processingJob.sourceAudioPath,
+              uri: '',
+              workspacePath,
+              directoryLabel: getAppStorageLabel(),
+            }
+          : null,
+        originalFileName: processingJob.sourceAudioFileName,
+        createdAt,
+        workspacePath,
+        processingJobId: processingJob.id,
+        processingJobStatus: processingJob.status,
+        processingJobCurrentBatch: processingJob.currentBatch,
+        processingJobTotalBatches: processingJob.totalBatches,
+        processingSavedBatchCount: progressSummary.savedBatchCount,
+        processingFailedBatchCount: progressSummary.failedBatchCount,
+        processingLastFailedBatchIndex: progressSummary.lastFailedBatchIndex,
+        processingLastErrorMessage: progressSummary.lastErrorMessage,
+        transcriptBatches,
+      },
+      workspacePath,
+      createdAt
+    );
+  }
+
   const metadataText = await readTextFile(`${workspacePath}/analysis/metadata.json`);
   const metadata = readJson<{
     title?: string;
     source?: InputSource;
     context?: SessionContext;
     mode?: ExtractionMode;
+    analysisStatus?: SessionAnalysis['analysisStatus'];
     createdAt?: string;
     originalFileName?: string;
     recordingPath?: string | null;
@@ -262,6 +339,16 @@ const loadNativeWorkspaceSession = async (workspacePath: string): Promise<Sessio
       source: metadata.source || InputSource.UPLOAD,
       context,
       mode: metadata.mode || ExtractionMode.TIMELINE,
+      analysisStatus: metadata.analysisStatus ||
+        context === SessionContext.MEETING &&
+        !artifacts.summary.trim() &&
+        !artifacts.decisions.trim() &&
+        !artifacts.risks.trim() &&
+        !artifacts.folderTree.trim() &&
+        !artifacts.mindmap.trim() &&
+        !artifacts.actionItems.trim()
+          ? 'draft_transcript'
+          : 'complete',
       suggestedFolderName: workspacePath.split('/').pop() || 'session',
       artifacts,
       savedRecording: metadata.recordingPath

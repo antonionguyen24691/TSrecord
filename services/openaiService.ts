@@ -6,6 +6,10 @@
  */
 
 import { ExtractionMode } from '../types';
+import {
+  getSpeechRecognitionLanguage,
+  translateServiceMessage,
+} from './utils/serviceMessages';
 
 const OPENAI_BASE = 'https://api.openai.com/v1';
 const MAX_FILE_SIZE_MB = 25;
@@ -18,14 +22,16 @@ export const transcribeWithOpenAI = async (
   mode: ExtractionMode = ExtractionMode.TIMELINE
 ): Promise<string> => {
   if (!apiKey) {
-    throw new Error('Chưa cấu hình OpenAI API Key. Vui lòng vào Cài đặt để nhập key.');
+    throw new Error(translateServiceMessage('providers.openai.missingApiKey'));
   }
 
   const fileSizeMB = file.size / (1024 * 1024);
   if (fileSizeMB > MAX_FILE_SIZE_MB) {
     throw new Error(
-      `File của bạn (${fileSizeMB.toFixed(1)}MB) vượt quá giới hạn 25MB của OpenAI Whisper. ` +
-        `Vui lòng dùng Google Gemini hoặc AssemblyAI cho file lớn hơn.`
+      translateServiceMessage('providers.openai.fileTooLarge', {
+        size: fileSizeMB.toFixed(1),
+        limit: MAX_FILE_SIZE_MB,
+      })
     );
   }
 
@@ -36,7 +42,7 @@ export const transcribeWithOpenAI = async (
   formData.append('model', 'whisper-1');
   formData.append('response_format', 'verbose_json');
   formData.append('timestamp_granularities[]', 'segment');
-  formData.append('language', 'vi');
+  formData.append('language', getSpeechRecognitionLanguage());
 
   const response = await fetch(`${OPENAI_BASE}/audio/transcriptions`, {
     method: 'POST',
@@ -57,9 +63,9 @@ export const transcribeWithOpenAI = async (
     }
 
     if (response.status === 401) {
-      errMsg = 'OpenAI API Key không hợp lệ hoặc đã hết hạn.';
+      errMsg = translateServiceMessage('providers.openai.invalidApiKey');
     } else if (response.status === 402) {
-      errMsg = 'Tài khoản OpenAI hết tín dụng. Vui lòng nạp thêm tiền.';
+      errMsg = translateServiceMessage('providers.openai.outOfCredit');
     }
 
     throw new Error(errMsg);

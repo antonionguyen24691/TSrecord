@@ -1,0 +1,751 @@
+{
+  "common": {
+    "home": "首页",
+    "settings": "设置",
+    "offline_warning": "网络连接已断开 — 在恢复网络之前，AI 功能将无法使用。"
+  },
+  "ModuleHome": {
+    "tag": "TSrecord",
+    "heroTitle": "直接录音或上传文件，生成完整的会议纪要",
+    "heroDesc": "TSrecord 专注于 4 项核心任务：设备端录音、接收现有音视频文件、生成带思维导图的会议纪要，并在需要分享时立即导出为 Word 或 PPT。",
+    "features": {
+      "directRecord": "直接录音",
+      "upload": "上传文件",
+      "mindmap": "纪要 + 思维导图",
+      "export": "导出 Word/PPT"
+    },
+    "modules": {
+      "transcribe": {
+        "title": "语音转文字",
+        "desc": "上传现有文件"
+      },
+      "record": {
+        "title": "录音笔记",
+        "desc": "在设备上直接录音"
+      },
+      "editor": {
+        "title": "音频编辑器",
+        "desc": "裁剪音频后直接发送到转写模块"
+      }
+    },
+    "workspace": {
+      "badge": "Workspace",
+      "title": "查找已处理的会话",
+      "descEmpty": "所有处理完成的会话都会自动出现在资料库中，方便你重新打开和搜索。",
+      "descWithCount": "已保存 {{count}} 个会话。{{recentSessionTitle}}",
+      "recentPrefix": "最新："
+    }
+  },
+  "App": {
+    "title": "TSrecord",
+    "titleTranscribe": "提取转写",
+    "titleRecord": "录音与笔记",
+    "titleAudioEditor": "音频编辑器",
+    "titleWorkspace": "会话资料库与搜索",
+    "subtitle": "AI 录音与转写工作台",
+    "subtitleTranscribe": "音频转写模块",
+    "subtitleRecord": "录音与笔记模块",
+    "subtitleAudioEditor": "音频编辑模块",
+    "workspaceLoadError": "无法加载会话资料库。",
+    "processing_meeting": "AI 正在生成转写、摘要、决策、风险、文件夹树和思维导图...",
+    "processing_interview": "AI 正在转写访谈内容...",
+    "processing_general": "AI 正在转写...",
+    "processing_done": "转写和分析已完成，正在打开结果...",
+    "deleteProjectConfirm": "确定删除项目 \"{{name}}\" 吗？原始会话仍会保留在工作区中。",
+    "toast": {
+      "sessionLoadError": "无法重新打开该会话。请尝试在较新版本中重新保存包。",
+      "backgroundResumeTriggered": "应用刚刚通过后台调度器恢复了一个转写任务，工作区已刷新。"
+    },
+    "errors": {
+      "processFile": "处理文件时发生错误。",
+      "reanalyzeTranscript": "无法重新分析已保存的转写。",
+      "resumeTranscription": "无法继续未完成的转写任务。",
+      "createProject": "无法创建新项目。"
+    },
+    "resumeTranscription": {
+      "stageLabel": "正在从已保存的 checkpoint 继续转写任务...",
+      "progressLabel": "应用会跳过已保存的 batch，只继续处理缺失部分"
+    },
+    "reanalyze": {
+      "stageLabel": "正在根据已保存的转写重新分析...",
+      "progressLabel": "无需从头重新转写"
+    },
+    "skeleton": {
+      "workspace": "正在加载工作区",
+      "upload": "正在加载上传界面",
+      "record": "正在加载录音模块",
+      "audioEditor": "正在加载音频编辑器",
+      "mode": "正在加载 AI 设置",
+      "result": "正在加载 AI 结果",
+      "export": "正在加载导出界面"
+    }
+  },
+  "ScreenSkeleton": {
+    "workspace": "正在加载工作区",
+    "record": "正在加载录音模块",
+    "audioEditor": "正在加载音频编辑器",
+    "mode": "正在加载 AI 设置",
+    "result": "正在加载 AI 结果",
+    "export": "正在加载导出界面",
+    "default": "正在加载页面"
+  },
+  "UpdateDialog": {
+    "title": "有新版本可用",
+    "releasedOn": "发布日期 {{date}}",
+    "androidHint": "APK 将直接下载并打开安装界面",
+    "genericHint": "此版本未附带 APK 文件",
+    "needInstallPermission": "你需要先在 Android 设置中允许从此来源安装一次应用。",
+    "downloadDone": "APK 下载完成。Android 将打开安装界面。",
+    "downloading": "正在下载更新...",
+    "paused": "下载已暂停。网络合适时 Android 会继续下载。",
+    "downloadFailed": "APK 下载失败。错误代码：{{reason}}",
+    "cannotTrack": "无法跟踪 APK 下载进度。",
+    "downloadStarted": "已开始下载 APK...",
+    "openPermissionScreen": "Android 将先打开允许从此来源安装应用的权限页面。",
+    "cannotStart": "无法开始下载更新。",
+    "cannotOpenInstaller": "无法打开安装界面。",
+    "openInstaller": "打开安装界面",
+    "downloadProgress": "正在下载 {{progress}}",
+    "downloadAndInstall": "下载并安装",
+    "openReleasePage": "打开发布页面",
+    "releaseNotes": "版本说明",
+    "later": "稍后再说",
+    "noReleaseNotes": "没有版本说明。"
+  },
+  "SettingsModal": {
+    "title": "AI 设置",
+    "tabs": {
+      "provider": "STT 来源",
+      "models": "AI 模型",
+      "chunking": "长文件",
+      "realtime": "实时",
+      "recording": "录音",
+      "storage": "存储",
+      "googleDrive": "Google Drive",
+      "license": "服务方案"
+    },
+    "common": {
+      "show": "显示",
+      "hide": "隐藏",
+      "copy": "复制",
+      "copied": "已复制"
+    },
+    "provider": {
+      "useAdminKey": {
+        "title": "使用系统 API Key（管理员）",
+        "description": "开启后无需填写个人 API Key。你需要有有效服务方案才能使用。"
+      },
+      "sourceLabel": "语音转文字来源",
+      "adminEnabled": {
+        "title": "已启用系统 API Key",
+        "description": "当前设备正在使用系统提供的 API Key 来进行语音识别（{{provider}}）和分析。个人 Key 输入框已隐藏，请确保设备在 {{planTab}} 标签中有有效方案。"
+      },
+      "keyLabel": "API Key — {{provider}}",
+      "keyStoredLocally": "该 Key 仅保存在当前设备本地。",
+      "getKeyHere": "前往获取 Key →",
+      "geminiAnalysisKey": {
+        "title": "Gemini API Key（分析必填）",
+        "description": "无论你选择哪个语音识别 provider，Gemini 仍会用于 summary、mindmap 和 action items 等分析。如果还没有，请先填写 Gemini API Key。",
+        "link": "前往获取 Gemini Key →"
+      },
+      "options": {
+        "gemini": {
+          "name": "Google Gemini",
+          "badge": "免费",
+          "description": "多模态，支持直接处理音频，文件最高可到 300MB。适合大多数场景。",
+          "keyPlaceholder": "AIza...",
+          "limit": "每天 1500 次免费请求"
+        },
+        "assemblyai": {
+          "name": "AssemblyAI",
+          "badge": "$50 免费",
+          "description": "专注 STT，支持说话人分离且不限文件大小，适合多人会议。",
+          "keyPlaceholder": "输入 AssemblyAI API Key...",
+          "limit": "约 333 小时免费音频"
+        },
+        "groq": {
+          "name": "Groq Whisper",
+          "badge": "免费",
+          "description": "速度非常快，快于实时。单文件上限 25MB，适合小文件快速处理。",
+          "keyPlaceholder": "gsk_...",
+          "limit": "受 RPM 限制，文件不超过 25MB"
+        },
+        "openai": {
+          "name": "OpenAI Whisper",
+          "badge": "付费",
+          "description": "准确率高，无免费额度，费用为每分钟 0.006 美元。单文件上限 25MB。",
+          "keyPlaceholder": "sk-...",
+          "limit": "0.006 美元/分钟，文件不超过 25MB"
+        }
+      }
+    },
+    "models": {
+      "realtimeLabel": "实时录音模型",
+      "analysisLabel": "最终分析模型",
+      "realtimeHintPrefix": "推荐使用",
+      "realtimeHintMiddle": "来获得更好的速度和质量。若最看重成本，可使用",
+      "analysisHintPrefix": "推荐使用",
+      "analysisHintMiddle": "来处理长会议或深度分析。若想更均衡，可选择",
+      "options": {
+        "gemini-3-flash-preview": "Gemini 3 Flash Preview（付费，比 2.5 Flash 更快）",
+        "gemini-3-pro-preview": "Gemini 3 Pro Preview（付费，推理最强）",
+        "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
+        "gemini-2.5-flash": "Gemini 2.5 Flash（推荐，平衡）",
+        "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite（成本最低）",
+        "gemini-2.5-pro": "Gemini 2.5 Pro（分析最深）"
+      }
+    },
+    "chunking": {
+      "title": "长文件处理",
+      "description": "当音频超过该阈值时，应用会自动拆分为多个部分，在静音附近切分以避免断句，并行转写后再合并最终 transcript。",
+      "durationLabel": "每段分钟数",
+      "durationHint": "默认 8 分钟。更小的值可降低超时风险，但会增加请求次数。",
+      "macroBatchLabel": "每个 API 批次的分钟数",
+      "macroBatchHint": "API 批次应大于 micro-chunk。Gemini free 会自动采用更安全的上限，以减少 request 失败。",
+      "staggerLabel": "每段启动延迟",
+      "staggerHint": "默认 2 秒。用于稍微错开并行请求，以减少触发 rate limit 的概率。",
+      "concurrencyLabel": "并行数量",
+      "concurrencyHint": "生产模式当前固定为 1 个 worker，以避免 RAM 突增、设备过热和移动端崩溃。"
+    },
+    "realtime": {
+      "title": "实时模式",
+      "note": "* 实时模式始终使用 Google Gemini，不受上方 transcript 来源设置影响。",
+      "options": {
+        "HYBRID": {
+          "name": "Hybrid（推荐）",
+          "description": "实时阶段只更新 transcript 和短摘要。decisions、risks 与 action items 会在最后一步完整生成。"
+        },
+        "FULL": {
+          "name": "Full Realtime",
+          "description": "每个 chunk 都执行完整 AI 更新，更方便，但请求量更高。"
+        },
+        "OFF": {
+          "name": "关闭实时",
+          "description": "录音过程中不调用 AI，只在录音结束后分析一次。"
+        }
+      }
+    },
+    "recording": {
+      "profiles": {
+        "title": "录音配置",
+        "options": {
+          "BALANCED": {
+            "name": "平衡",
+            "description": "适合大多数场景，兼顾人声清晰度与适度降噪。"
+          },
+          "VOICE_FOCUS": {
+            "name": "人声优先",
+            "description": "优先保留靠近麦克风的人声，适合会议、访谈或单人收音。"
+          },
+          "NOISY_ENV": {
+            "name": "嘈杂环境",
+            "description": "更强的降噪、回声和增益处理，适合户外或回声较重的空间。"
+          },
+          "RAW": {
+            "name": "原始录音",
+            "description": "关闭自动处理，适合外接麦克风或后期另行处理。"
+          },
+          "CUSTOM": {
+            "name": "自定义",
+            "description": "手动设置 noise、echo、gain、sample rate 和声道数。"
+          }
+        }
+      },
+      "advanced": {
+        "title": "高级微调",
+        "description": "以下等级会受到设备麦克风与硬件能力限制。浏览器和 Android 只会在支持的范围内应用。",
+        "noiseLabel": "Noise suppression",
+        "echoLabel": "Echo cancellation",
+        "gainLabel": "Auto gain",
+        "sampleRateLabel": "Sample rate",
+        "channelLabel": "Channel",
+        "processingLevels": {
+          "OFF": "关闭",
+          "LOW": "低",
+          "MEDIUM": "中",
+          "HIGH": "高"
+        }
+      }
+    },
+    "storage": {
+      "localPathTitle": "本地存储位置",
+      "localPathDescription": "录音文件、transcript 和工作数据会优先存储在应用内部空间，以便更稳定地清理和恢复。只有导出文件或手动分享的文件才会写入公共目录。",
+      "dangerTitle": "危险区域",
+      "dangerDescription": "此操作会永久删除 {{appStorage}} 中的全部应用内部数据。应用也会尝试清理 {{legacyStorage}} 中的旧数据（如果存在）。此操作不可撤销。",
+      "confirmDeleteAll": "警告：确定要删除所有应用数据（包括录音和 transcript）吗？此操作不可撤销。",
+      "deleteSuccess": "已成功删除全部数据。",
+      "deleteError": "删除数据时出错：{{message}}",
+      "deleteAll": "删除全部数据"
+    },
+    "googleDrive": {
+      "title": "连接 Google Drive",
+      "description": "使用你自己的 Google 账号登录，直接从你的 Google Drive 选择音频或视频文件。",
+      "apiKeyLabel": "Developer API Key",
+      "apiKeyPlaceholder": "输入 Google Cloud API Key...",
+      "note": "应用只使用自身的 OAuth 配置来打开 Google 登录。真正连接的 Drive 和你选择的文件，始终属于你登录的那个 Google 账号。"
+    },
+    "license": {
+      "status": {
+        "title": "授权状态",
+        "activated": "已激活",
+        "notActivated": "未激活",
+        "planLabel": "服务方案",
+        "expiresLabel": "到期时间",
+        "planPromo": "优惠 / 试用",
+        "planFree": "免费 / 试用",
+        "unlimited": "无限制 / 终身",
+        "deviceIdLabel": "设备 ID",
+        "loadingDeviceId": "加载中...",
+        "copyDeviceId": "复制 Device ID"
+      },
+      "promo": {
+        "title": "使用 Promo Code 激活",
+        "placeholder": "输入优惠码...",
+        "success": "激活成功！",
+        "invalid": "优惠码无效。",
+        "error": "发生错误。",
+        "submitting": "提交中...",
+        "activate": "激活"
+      },
+      "plans": {
+        "title": "购买系统 Key 服务方案",
+        "copiedSyntax": "已复制转账备注",
+        "copyTransferSyntax": "复制转账备注",
+        "monthly": {
+          "name": "1 个月方案",
+          "price": "29.000đ",
+          "period": "/月",
+          "description": "可不限量使用系统 API Key 来完成 transcript 和会议分析。"
+        },
+        "lifetime": {
+          "name": "终身方案",
+          "badge": "更划算",
+          "price": "199.000đ",
+          "period": "/永久",
+          "description": "一次购买，永久使用全部功能与系统 API Key，无维护费用。"
+        }
+      },
+      "paymentInfo": {
+        "title": "银行转账支付信息：",
+        "bankLabel": "银行：",
+        "defaultBankName": "MB BANK（越南军队银行）",
+        "accountNumberLabel": "账号：",
+        "accountNameLabel": "户名：",
+        "notice": "* 重要：请务必按指定备注转账，系统会在收到款项后 1-2 分钟内自动激活方案。"
+      }
+    },
+    "clearGeminiKey": "清除 Gemini Key",
+    "close": "关闭",
+    "saving": "保存中...",
+    "save": "保存设置"
+  },
+  "AttachmentManager": {
+    "title": "辅助附件",
+    "description": "附加 PDF、Word、PowerPoint 或文本文件，让 AI 结合这些内容进行更智能的分析。",
+    "addFile": "添加文件",
+    "emptyTitle": "将辅助文档拖放到这里，或点击浏览",
+    "emptyHint": "支持 PDF、DOCX、PPTX、TXT、MD（每个文件最多 20MB）",
+    "legacyBadge": "旧版",
+    "removeTitle": "移除文件",
+    "unsupportedFileAlert": "文件 \"{{name}}\" 不受支持。仅接受 PDF、Word、PowerPoint、TXT 和 MD 辅助文档。",
+    "legacyWarning": {
+      "title": "注意：旧版文件格式（.doc、.ppt）",
+      "body": "浏览器无法直接自动提取旧版 .doc 或 .ppt 文件中的文本。为了获得最佳 AI 分析效果，请先将这些文件转换为 .docx、.pptx 或 .pdf 再上传。"
+    }
+  },
+  "StepUpload": {
+    "tag": "转写模块",
+    "title": "上传文件以生成转写或会议纪要",
+    "description": "选择现有音频或视频文件，应用将生成转写、会议纪要、思维导图，并准备导出为 Word 或 PPT。",
+    "context": {
+      "transcription": "转写",
+      "meeting": "会议纪要",
+      "interview": "访谈"
+    },
+    "buttons": {
+      "googleDrive": "Google Drive",
+      "connecting": "正在连接...",
+      "chooseFile": "选择文件",
+      "importDrive": "从 Google Drive 导入",
+      "connectingDrive": "正在连接 Drive...",
+      "removeFile": "移除文件",
+      "next": "选择格式"
+    },
+    "dropzone": {
+      "title": "拖放文件或点击选择文件",
+      "description": "支持 MP3、WAV、M4A、MP4 以及常见音视频格式。"
+    },
+    "alerts": {
+      "unsupportedFormat": "不支持的格式。请选择音频或视频文件。",
+      "missingGoogleConfig": "应用中的 Google Drive 尚未配置完成，请稍后再试或联系应用管理员。",
+      "sdkNotReady": "Google SDK 尚未完全加载。请检查网络连接。",
+      "pickerLoadFailed": "无法加载 Google Picker SDK。",
+      "googleLoginFailed": "Google 登录失败：{{error}}",
+      "missingAccessToken": "无法获取 Google OAuth2 访问令牌。",
+      "driveDownloadError": "从 Google Drive 下载失败：{{status}}",
+      "driveDownloadProcessError": "从 Google Drive 下载文件时发生错误。",
+      "sdkConfigError": "Google SDK 连接或配置错误。"
+    }
+  },
+  "StepRecord": {
+    "tag": "录音模块",
+    "title": "选择会话类型",
+    "description": "会议模式包含实时笔记，访谈模式则在结束后再进行录音和转写。",
+    "contexts": {
+      "meetingTitle": "会议",
+      "meetingDescription": "录音后生成转写、摘要、决策、风险、行动项、文件夹树和思维导图。",
+      "interviewTitle": "访谈",
+      "interviewDescription": "录音后仅转写访谈内容，不自动生成思维导图或会议笔记。"
+    },
+    "liveCard": {
+      "title": "实时会议笔记",
+      "description": "实时更新大约每 15 秒处理一个片段。在 Hybrid 模式下，仅更新转写与快速摘要；停止录音后，完整 AI 流程仍会重新处理整个文件。"
+    },
+    "recording": {
+      "tag": "直接录音",
+      "activeTitle": "正在录制会话",
+      "idleTitle": "麦克风已准备就绪",
+      "description": "录音结束后，应用会创建新的音频文件、保存到设备，并根据所选会话类型进入 AI 处理步骤。",
+      "duration": "时长",
+      "start": "开始录音",
+      "resume": "继续",
+      "pause": "暂停",
+      "stop": "停止",
+      "statusTitle": "录音状态",
+      "recordAgain": "重新录制",
+      "aiSettings": "AI 设置",
+      "audioPreviewUnsupported": "你的浏览器不支持音频预览。"
+    },
+    "livePanel": {
+      "title": "实时会议笔记",
+      "subtitle": "转写与笔记会逐步更新",
+      "processedChunks": "已处理 {{count}} 个片段",
+      "transcriptPreview": "转写预览",
+      "summaryPreview": "滚动摘要",
+      "decisionsActionItems": "决策与行动项",
+      "risks": "风险 / 阻塞",
+      "emptyTranscript": "暂无实时转写。",
+      "emptySummary": "暂无实时摘要。",
+      "emptyDecisions": "暂无已提取的决策。",
+      "emptyActionItems": "暂无实时行动项。",
+      "emptyRisks": "尚未检测到风险或阻塞。"
+    },
+    "status": {
+      "waitingMeeting": "实时笔记正在等待会议录音开始。",
+      "waitingInterview": "访谈模式仅在会话结束后录音并转写。",
+      "nextChunkWaiting": "实时笔记正在等待下一个录音片段。",
+      "processingChunk": "AI 正在根据第 {{index}} 个录音片段更新...",
+      "updatedChunks": "实时笔记已更新 {{count}} 个录音片段。",
+      "finalizingRealtime": "正在完成最后的 AI 更新...",
+      "realtimeError": "实时笔记出现错误，但你在停止录音后仍可处理主录音。",
+      "realtimeUpdateFailed": "无法更新实时笔记。",
+      "cleared": "当前录音已清除。",
+      "requestingMic": "正在请求麦克风权限...",
+      "hybridReady": "实时 HYBRID 模式已开启：每个片段都会更新转写和快速摘要。",
+      "fullReady": "实时 FULL 模式已开启：每个片段都会更新完整会议笔记。",
+      "offBySettings": "实时功能已在设置中关闭。应用将在会话结束后执行一次完整分析。",
+      "missingApiKey": "尚未配置 Gemini API Key，因此实时笔记已关闭。你仍可录音并在结束后执行完整分析。",
+      "noAudioData": "未捕获到音频数据。请重试。",
+      "savingRecording": "正在将录音保存到设备...",
+      "savedRecording": "录音已保存到 {{path}}。",
+      "saveRecordingFailed": "录音已完成，但无法将文件保存到设备。你仍可继续进入 AI 步骤。",
+      "finalizingRecording": "正在完成录音文件...",
+      "realtimeFinalPass": "在进入完整 AI 步骤前，正在完成最后的实时更新。",
+      "realtimeDone": "该录音会话的实时笔记已更新完成。",
+      "recordingNow": "正在录制现场音频...",
+      "startFailed": "无法开始录音。",
+      "paused": "录音已暂停。",
+      "resumed": "录音已继续。"
+    }
+  },
+  "StepMode": {
+    "tag": "处理步骤",
+    "title": "选择转写格式",
+    "source": "来源",
+    "sourceRecording": "录音",
+    "sourceUpload": "上传",
+    "module": "模块",
+    "moduleRecording": "录音",
+    "moduleUpload": "上传",
+    "context": "上下文",
+    "contextMeeting": "会议",
+    "contextInterview": "访谈",
+    "contextTranscription": "转写",
+    "timeline": "时间轴",
+    "plainText": "纯文本",
+    "progressTag": "处理进度",
+    "initializing": "正在初始化流程...",
+    "progress": "进度",
+    "transcriptPreviewTitle": "逐步出现的 transcript",
+    "transcriptPreviewCount": "已保存 {{count}} 个 batch",
+    "transcriptPreviewEmpty": "还没有保存任何 transcript batch。",
+    "back": "返回",
+    "processingAi": "AI 处理中",
+    "runAnalysis": "开始分析"
+  },
+  "StepResult": {
+    "resultTag": "AI 结果",
+    "savedBadge": "已自动保存到设备",
+    "description": "默认情况下，应用会以最合适的展示形式渲染每个 artifact。需要手动编辑时，你可以切换到原始文本编辑模式。",
+    "draftNotice": "该转写已保存为草稿。你可以先阅读、编辑，再继续分析，而无需从头重新执行语音转文字。",
+    "resumeNotice": "之前的转写任务在中途被打断或失败。你可以从已保存的 checkpoint 继续，而不是重新上传并从头转写全部内容。",
+    "context": "上下文",
+    "source": "来源",
+    "sourceRecording": "录音",
+    "sourceUpload": "上传",
+    "artifacts": "Artifacts",
+    "browserTitle": "Artifact 浏览器",
+    "previewMode": "标准预览",
+    "editMode": "编辑文本",
+    "copied": "已复制",
+    "copySection": "复制此部分",
+    "textareaPlaceholder": "内容会显示在这里...",
+    "reanalyzing": "正在重新分析",
+    "resumingTranscription": "正在继续转写",
+    "resumeTranscription": "继续转写",
+    "reanalyzeFromTranscript": "从转写继续分析",
+    "reanalyzeArtifacts": "重新分析 artifact",
+    "next": "前往导出",
+    "checkpoint": {
+      "title": "Checkpoint 状态",
+      "status": "任务状态",
+      "progress": "已保存批次",
+      "progressValue": "{{saved}} / {{total}} 批次",
+      "currentBatch": "当前进度",
+      "currentBatchValue": "当前在第 {{current}} / {{total}} 批",
+      "failedBatch": "最近失败批次",
+      "failedBatchValue": "第 {{index}} 批",
+      "failedBatchFallback": "{{count}} 个失败批次",
+      "lastError": "最近错误：",
+      "statusValues": {
+        "pending": "等待中",
+        "processing": "处理中",
+        "paused": "已暂停",
+        "complete": "已完成",
+        "failed": "失败"
+      }
+    },
+    "contextValueMeeting": "会议",
+    "contextValueInterview": "访谈",
+    "contextValueTranscription": "转写",
+    "artifactLabels": {
+      "transcript": "转写",
+      "summary": "摘要",
+      "decisions": "决策",
+      "risks": "风险",
+      "folderTree": "文件夹树",
+      "mindmap": "思维导图",
+      "actionItems": "行动项"
+    },
+    "artifactDescriptions": {
+      "transcript": "主要转写内容。",
+      "summary": "会议摘要。",
+      "decisions": "已确认的决策。",
+      "risks": "风险与未解决事项。",
+      "folderTree": "建议的文件夹结构。",
+      "mindmap": "系统思维导图。",
+      "actionItems": "任务清单。"
+    },
+    "previewCards": {
+      "folderTreeTitle": "建议的文件夹结构",
+      "folderTreeSubtitle": "以树状视图显示，而不是原始文本。",
+      "mindmapSubtitle": "直接从 Mermaid 渲染为图表。",
+      "nodeOutline": "节点大纲"
+    },
+    "emptyArtifact": "该 artifact 目前还没有数据。",
+    "mindmapEmpty": "没有可渲染的思维导图数据。",
+    "mindmapZoomIn": "放大",
+    "mindmapZoomOut": "缩小",
+    "mindmapReset": "恢复默认视图",
+    "mindmapResetShort": "默认",
+    "mindmapAutoFit": "重新贴合图表",
+    "mindmapAutoFitShort": "贴合",
+    "mindmapHint": "支持拖拽移动与多点缩放",
+    "mindmapAria": "思维导图可视化",
+    "mindmapStatus": "缩放 {{scale}}% · 双击可重新贴合图表 · 拖动画布可平移 · 拖动节点可手动排布",
+    "timelineEditor": {
+      "title": "时间轴编辑器",
+      "description": "每个时间戳都是一个独立区块，方便你在导出前逐段检查转写内容。",
+      "addBlock": "添加区块",
+      "segmentPlaceholder": "该时间点对应的转写内容...",
+      "removeBlock": "删除区块 {{index}}"
+    }
+  },
+  "StepAudioEditor": {
+    "badge": "音频编辑器 Pro",
+    "title": "在发送到 AI 之前裁剪音频",
+    "description": "保留你想要的片段，直接在时间轴上快速预听，保存为新的音频文件，或直接发送到转写模块。",
+    "waveLane": "波形轨道（真实波形）",
+    "noFile": "还没有文件",
+    "chooseFileToViewWave": "选择音频文件以显示其波形",
+    "rangeStart": "开始",
+    "rangeEnd": "结束",
+    "rangeLength": "长度",
+    "currentPosition": "当前位置",
+    "totalDuration": "总时长",
+    "sourceTag": "源文件",
+    "sourceTitle": "选择文件并定义裁剪范围",
+    "chooseAudio": "选择音频",
+    "emptyTitle": "源文件音频编辑器",
+    "emptyDescription": "高级编辑器可显示音频文件的真实波形。选择想要的时间范围，并在提取前精确试听。",
+    "previewSelection": "试听所选片段",
+    "trimmedReady": "裁剪后的音频已准备好",
+    "savedAt": "已保存到：{{path}}",
+    "saveEdited": "保存编辑后的音频",
+    "saving": "正在保存...",
+    "buildingFile": "正在生成文件...",
+    "buildingSegment": "正在生成裁剪片段...",
+    "sendToTranscribe": "发送到转写模块",
+    "unsupportedPreview": "你的浏览器不支持音频预览。",
+    "errors": {
+      "unsupportedAudio": "音频编辑器目前仅支持音频文件。",
+      "openAudioFailed": "无法打开音频文件。",
+      "buildSegmentFailed": "无法生成裁剪后的音频片段。",
+      "saveSegmentFailed": "无法保存裁剪后的音频文件。"
+    }
+  },
+  "WorkspaceLibrary": {
+    "workspaceBadge": "工作区",
+    "title": "项目与会话",
+    "description": "精简的会话列表。点击每一行可查看详情或重新打开已处理的会话。",
+    "statsSessions": "会话",
+    "statsProjects": "项目",
+    "statsMeetings": "会议",
+    "refresh": "刷新数据",
+    "oldProjects": "已保存项目",
+    "newProjectPlaceholder": "新项目名称...",
+    "createProject": "创建",
+    "allSessions": "全部会话",
+    "allSessionsDescription": "查看未按项目过滤的完整资料库。",
+    "noProjects": "还没有项目。创建第一个项目以归类相关会话。",
+    "projectCount": "{{count}} 个会话",
+    "projectHasNote": "有手动备注",
+    "searchLabel": "按标题、摘要、行动项或路径搜索",
+    "searchInProject": "在项目中搜索：{{name}}",
+    "searchPlaceholder": "例如：sprint planning、访谈、客户 A...",
+    "activeProject": "当前项目",
+    "recordingCount": "{{count}} 个直接录音",
+    "unpinProject": "取消置顶项目",
+    "pinProject": "置顶项目",
+    "deleteProject": "删除项目",
+    "closeProject": "关闭项目",
+    "projectNoteTitle": "项目备注",
+    "projectNotePlaceholder": "为这个项目写下备注：背景、需记住的事情、会议外决策，或下次运行要用的专属提示词...",
+    "loading": "正在加载工作区数据...",
+    "emptySearchTitle": "未找到匹配的会话",
+    "emptyScopeTitle": "当前范围内还没有会话",
+    "emptySearchDescription": "尝试减少关键词，或返回查看全部会话。",
+    "emptyProjectDescription": "这个项目还没有会话。请选择下方会话并将其加入该项目。",
+    "emptyGeneralDescription": "当你完成录音或上传文件并执行 AI 处理后，应用会自动把会话保存在这里。",
+    "sessionNoteBadge": "有会话备注",
+    "open": "打开",
+    "summary": "摘要",
+    "summaryEmpty": "还没有摘要，或者这是一个仅转写的会话。",
+    "transcript": "转写",
+    "transcriptEmpty": "还没有转写预览。",
+    "actionItems": "行动项",
+    "actionItemsEmpty": "还没有行动项，或者这个会话不需要行动项。",
+    "sessionNoteTitle": "会话备注",
+    "sessionNotePlaceholder": "为这个会话写备注：AI 听错的地方、后续任务、重新打开时要注意的点，或 Word/PPT 的使用对象...",
+    "removeFromProject": "从项目中移除",
+    "addToProject": "加入项目",
+    "contexts": {
+      "meeting": "会议纪要",
+      "interview": "访谈",
+      "transcription": "转写"
+    },
+    "sources": {
+      "recording": "直接录音",
+      "upload": "上传文件"
+    }
+  },
+  "ServiceMessages": {
+    "languages": {
+      "vi": "越南语",
+      "en": "英语",
+      "zh": "简体中文",
+      "ko": "韩语"
+    },
+    "timeout": {
+      "default": "请求已超时，请重试。"
+    },
+    "gemini": {
+      "errors": {
+        "invalidApiKeyOrModel": "Gemini API Key 无效，或当前模型不可用。",
+        "unauthorizedModel": "当前 Gemini API Key 无权访问该模型。",
+        "fileTooLarge": "文件超出了 AI 的大小限制。",
+        "timeout": "Gemini 处理时间过长。请尝试更短的文件或更换 provider。",
+        "quota": "Gemini 当前已达到配额或速率限制。请稍后再试。",
+        "temporary": "Gemini 暂时出现错误。请稍后再试。",
+        "unavailable": "Gemini 当前过载或不可用。请稍后再试。",
+        "network": "网络连接错误，请检查你的网络。",
+        "retryHint": "你可以再试一次。"
+      },
+      "general": {
+        "fileTooLargeForUpload": "文件过大。请选择小于 {{limit}}MB 的文件，以避免应用卡住。",
+        "cannotParseJson": "无法解析 AI 返回的 JSON。系统会保留当前可用的原始文本。",
+        "transcriptMissing": "AI 没有返回 transcript。",
+        "enterApiKey": "请在本设备的设置中填写 Gemini API Key。",
+        "cannotUpdateRealtimeNotes": "无法更新实时笔记。",
+        "emptyTranscriptResult": "Transcript 结果为空。",
+        "invalidTranscriptResponse": "Gemini 没有返回有效 transcript。",
+        "cannotTranscribe": "无法使用 Gemini 转写音频。",
+        "cannotAnalyzeProxy": "通过代理分析 transcript 时发生错误。",
+        "emptyResult": "AI 结果为空。",
+        "cannotAnalyze": "分析 transcript 时发生错误。",
+        "cannotProcessFile": "处理文件时发生错误。"
+      },
+      "prompts": {
+        "outputLanguageInstruction": "面向用户的字段如 title、summary、decisions、risks、actionItems、folderTree 和 mindmap 必须使用 {{language}} 编写。transcript 本身必须保留文件中的原始口语语言。"
+      }
+    },
+    "providers": {
+      "openai": {
+        "missingApiKey": "尚未配置 OpenAI API Key。请前往设置填写。",
+        "fileTooLarge": "你的文件（{{size}}MB）超过了 OpenAI Whisper 的 {{limit}}MB 限制。较大的文件请使用 Google Gemini 或 AssemblyAI。",
+        "invalidApiKey": "OpenAI API Key 无效或已过期。",
+        "outOfCredit": "你的 OpenAI 账户余额不足，请先充值。"
+      },
+      "groq": {
+        "missingApiKey": "尚未配置 Groq API Key。请前往设置填写。",
+        "fileTooLarge": "你的文件（{{size}}MB）超过了 Groq Whisper 的 {{limit}}MB 限制。较大的文件请使用 Google Gemini 或 AssemblyAI。"
+      }
+    },
+    "orchestrator": {
+      "providerTimeout": "{{provider}} 转写耗时过长。请重试或更换其他 provider。",
+      "chunkPreparing": "正在为 {{provider}} 准备长文件...",
+      "chunkPreparingDetails": "正在读取元数据，并在静音附近切分音频",
+      "fileLongSplitting": "文件长度为 {{minutes}} 分钟。正在切成约 {{chunkMinutes}} 分钟一段，以避免 503 错误...",
+      "chunkLabel": "第 {{index}}/{{total}} 段",
+      "chunkProgress": "已完成 {{completed}}/{{total}} 段",
+      "chunkSplitComplete": "已切成 {{count}} 段，最多同时使用 {{concurrency}} 个并行任务进行转写...",
+      "chunkWaitingBeforeSend": "发送前等待 {{seconds}} 秒",
+      "chunkRetry": "网络错误，将在 3 秒后重试（{{attempt}}/{{maxRetries}}）...",
+      "chunkProcessing": "正在处理第 {{index}}/{{total}} 段，最多 {{concurrency}} 个并行任务...",
+      "chunkStarting": "正在启动第 {{index}}/{{total}} 段（{{start}} - {{end}}）...",
+      "chunkDone": "已完成片段 {{start}} - {{end}}",
+      "chunkCompleteMerging": "所有片段已转写完成，正在合并最终 transcript...",
+      "chunkFallbackDirect": "分段处理失败，系统将回退到直接转写...",
+      "preparingPipeline": "正在准备音频处理流程...",
+      "currentProvider": "当前 provider：{{provider}}",
+      "providerUploading": "正在上传到 {{provider}}...",
+      "providerQueued": "文件正在 {{provider}} 队列中等待...",
+      "providerProcessingSpeech": "{{provider}} 正在识别语音...",
+      "providerProcessingDone": "语音识别已完成。",
+      "androidVideoPrepFailed": "这个视频在 Android 上转写前需要先提取音轨，但音频准备步骤失败了。",
+      "directTranscript": "{{provider}} 正在直接从上传文件转写...",
+      "directTranscriptShortFile": "文件较短，走直接转写流程",
+      "providerNoTranscript": "{{provider}} 没有返回 transcript。请重试。",
+      "transcriptDone": "Transcript 已完成。",
+      "done": "完成！",
+      "extractingAttachments": "正在提取附件文档内容...",
+      "readingSupportingFiles": "正在读取补充文件",
+      "extractingAttachmentFailed": "提取文档 {{fileName}} 失败：",
+      "geminiInterviewAnalysis": "Gemini 正在生成标题并完善访谈 transcript...",
+      "geminiMeetingAnalysis": "Gemini 正在分析会议内容...",
+      "geminiInterviewProgress": "生成标题并规范访谈 transcript",
+      "geminiMeetingProgress": "生成 summary、decisions、risks、folder tree 和 mindmap",
+      "geminiAnalysisTimeout": "Gemini 分析内容耗时过长，请重试。"
+    }
+  }
+}

@@ -15,11 +15,18 @@ import {
   getAppStorageDirectory,
   getAppStorageLabel,
   getExportDirectory,
-  getLegacyStorageLabel,
   LEGACY_PUBLIC_STORAGE_ROOT,
   STORAGE_ROOT,
 } from './storagePaths';
+import { parseTranscriptTimeline } from './utils/transcriptTimeline';
 import { cacheWorkspaceSession, clearWorkspaceStorage } from './workspaceService';
+import {
+  buildMindmapGraphLayout,
+  mindmapNodesToTree,
+  normalizeMermaidMindmap,
+  parseMindmap,
+  renderMindmapSvgMarkup,
+} from './utils/mindmap';
 
 const labelSource = (source: InputSource) =>
   source === InputSource.RECORDING ? 'Ghi âm trực tiếp' : 'Tải file có sẵn';
@@ -287,31 +294,14 @@ const markdownSectionToHtml = (value: string) => {
 };
 
 const transcriptTimelineToHtml = (transcript: string) => {
-  const normalized = transcript.replace(/\s*(\[\d{2}:\d{2}:\d{2}\])/g, '\n$1');
-  const lines = normalized.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const segments = parseTranscriptTimeline(transcript);
   const rows: string[] = [];
-  let currentTime = '--:--:--';
-  let currentText = '';
-
-  const pushRow = () => {
-    if (!currentText) return;
+  segments.forEach((segment) => {
+    if (!segment.text.trim()) return;
     rows.push(
-      `<div class="timeline-row"><div class="time">${escapeHtml(currentTime)}</div><div class="text">${escapeHtml(currentText)}</div></div>`
+      `<div class="timeline-row"><div class="time">${escapeHtml(segment.timestamp || '--:--:--')}</div><div class="text">${escapeHtml(segment.text).replace(/\n/g, '<br />')}</div></div>`
     );
-  };
-
-  lines.forEach((line) => {
-    const match = line.match(/^\[(\d{2}:\d{2}:\d{2})\]\s*(.*)$/);
-    if (match) {
-      pushRow();
-      currentTime = match[1];
-      currentText = match[2] || '';
-      return;
-    }
-
-    currentText = `${currentText} ${line}`.trim();
   });
-  pushRow();
 
   if (rows.length === 0) {
     return `<div class="plain-transcript">${escapeHtml(transcript || 'Chua co transcript')}</div>`;
@@ -325,7 +315,17 @@ export const buildPresentationHtml = (analysis: SessionAnalysis) => {
   const risksHtml = markdownSectionToHtml(analysis.artifacts.risks || '');
   const actionsHtml = markdownSectionToHtml(analysis.artifacts.actionItems || '');
   const folderTreeHtml = `<pre>${escapeHtml(analysis.artifacts.folderTree || '(trong)')}</pre>`;
-  const mindmapHtml = `<pre>${escapeHtml(analysis.artifacts.mindmap || '(trong)')}</pre>`;
+  const normalizedMindmap = normalizeMermaidMindmap(analysis.artifacts.mindmap || '', analysis);
+  const mindmapNodes = parseMindmap(normalizedMindmap);
+  const mindmapTree = mindmapNodesToTree(mindmapNodes);
+  const mindmapHtml = mindmapTree
+    ? `<div class="mindmap-shell">${renderMindmapSvgMarkup({
+        layout: buildMindmapGraphLayout(mindmapTree),
+        title: analysis.title || 'Mindmap',
+        viewWidth: 1320,
+        viewHeight: 920,
+      })}</div>`
+    : `<pre>${escapeHtml(normalizedMindmap || '(trong)')}</pre>`;
   const transcriptHtml = transcriptTimelineToHtml(analysis.artifacts.transcript || '');
   const title = escapeHtml(analysis.title || 'TSrecord Session');
 
@@ -358,8 +358,16 @@ export const buildPresentationHtml = (analysis: SessionAnalysis) => {
     .time { background:#0f172a; color:#7af2d1; border-radius:10px; font-family:monospace; font-weight:700; text-align:center; padding:6px 8px; height:fit-content; }
     .text { line-height:1.6; color:#1e293b; }
     .plain-transcript { white-space:pre-wrap; line-height:1.65; color:#1e293b; border:1px solid var(--line); border-radius:14px; padding:12px; background:#fcfdff; }
+    .mindmap-shell { overflow:hidden; border:1px solid var(--line); border-radius:22px; background:linear-gradient(180deg,#f8fbff,#ffffff); padding:12px; }
+    .mindmap-shell svg { width:100%; height:auto; display:block; }
     .half { grid-column:span 6; }
     @media (max-width:980px){ .half{grid-column:span 12;} .timeline-row{grid-template-columns:1fr;} }
+    @media print {
+      body { background:#ffffff; }
+      .page { max-width:none; margin:0; padding:0; }
+      .hero, .card { box-shadow:none; break-inside:avoid; }
+      .mindmap-shell { padding:0; border-color:#cbd5e1; }
+    }
   </style>
 </head>
 <body>
@@ -379,7 +387,7 @@ export const buildPresentationHtml = (analysis: SessionAnalysis) => {
       <article class="card half"><h2>Decisions</h2>${decisionsHtml || '<p>Chua co du lieu.</p>'}</article>
       <article class="card half"><h2>Risks</h2>${risksHtml || '<p>Chua co du lieu.</p>'}</article>
       <article class="card"><h2>Action Items</h2>${actionsHtml || '<p>Chua co du lieu.</p>'}</article>
-      ${analysis.context === SessionContext.MEETING ? `<article class="card half"><h2>Folder Tree</h2>${folderTreeHtml}</article><article class="card half"><h2>Mindmap Source</h2>${mindmapHtml}</article>` : ''}
+      ${analysis.context === SessionContext.MEETING ? `<article class="card half"><h2>Folder Tree</h2>${folderTreeHtml}</article><article class="card half"><h2>Mindmap</h2>${mindmapHtml}</article>` : ''}
     </section>
   </div>
   </div>
@@ -395,7 +403,7 @@ export const downloadDocxReport = async ({
   analysis: SessionAnalysis;
   fileName: string;
 }): Promise<SavedDeviceFile | void> => {
-  const { Document, Packer, Paragraph, HeadingLevel } = await import('docx');
+  const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import('docx');
 
   const parseMarkdownToDocx = (text: string) => {
     const lines = text.split(/\r?\n/);
@@ -444,6 +452,28 @@ export const downloadDocxReport = async ({
     return paragraphs;
   };
 
+  const parseTranscriptToDocx = (text: string) => {
+    const segments = parseTranscriptTimeline(text);
+    if (segments.length === 0) {
+      return [new Paragraph('Chưa có transcript')];
+    }
+
+    return segments.flatMap((segment) => [
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: segment.timestamp ? `[${segment.timestamp}]` : '[--:--:--]',
+            bold: true,
+          }),
+        ],
+      }),
+      new Paragraph({
+        text: segment.text || '',
+        spacing: { after: 180 },
+      }),
+    ]);
+  };
+
   const sections = [
     new Paragraph({ text: analysis.title || 'TSrecord Session', heading: HeadingLevel.HEADING_1 }),
     new Paragraph(""),
@@ -454,6 +484,7 @@ export const downloadDocxReport = async ({
     new Paragraph({ text: 'Transcript', heading: HeadingLevel.HEADING_2 }),
     ...parseMarkdownToDocx(analysis.artifacts.transcript || "Chưa có transcript"),
   ];
+  sections.splice(8, sections.length - 8, ...parseTranscriptToDocx(analysis.artifacts.transcript || ''));
 
   if (analysis.context === SessionContext.MEETING) {
     sections.push(
@@ -986,6 +1017,7 @@ export const saveSessionPackage = async ({
     `${STORAGE_ROOT}/${createSessionWorkspaceName(baseName)}`;
   const normalizedAnalysis: SessionAnalysis = {
     ...analysis,
+    analysisStatus: analysis.analysisStatus || 'complete',
     workspacePath,
     createdAt: analysis.createdAt || new Date().toISOString(),
   };
@@ -1010,6 +1042,7 @@ export const saveSessionPackage = async ({
         source: normalizedAnalysis.source,
         context: normalizedAnalysis.context,
         mode: normalizedAnalysis.mode,
+        analysisStatus: normalizedAnalysis.analysisStatus,
         createdAt: normalizedAnalysis.createdAt,
         originalFileName: normalizedAnalysis.originalFileName || null,
         recordingPath: normalizedAnalysis.savedRecording?.path || null,

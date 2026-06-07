@@ -1,0 +1,746 @@
+{
+  "common": {
+    "home": "Home",
+    "settings": "Settings",
+    "offline_warning": "No internet connection — AI features will not work until connection is restored."
+  },
+  "ModuleHome": {
+    "tag": "TSrecord",
+    "heroTitle": "Record or upload files to create meeting minutes",
+    "heroDesc": "Support on-device recording, audio/video upload, minutes with mindmaps, and Word/PPT export.",
+    "features": {
+      "directRecord": "Direct Recording",
+      "upload": "Upload File",
+      "mindmap": "Minutes + Mindmap",
+      "export": "Word/PPT Export"
+    },
+    "modules": {
+      "transcribe": {
+        "title": "Transcribe",
+        "desc": "Upload existing files"
+      },
+      "record": {
+        "title": "Record Notes",
+        "desc": "Record directly on your device"
+      },
+      "editor": {
+        "title": "Audio Editor",
+        "desc": "Trim audio before sending it to transcription"
+      }
+    },
+    "workspace": {
+      "badge": "Workspace",
+      "title": "Retrieve Processed Sessions",
+      "descEmpty": "Processed sessions are saved here to open and search.",
+      "descWithCount": "{{count}} sessions saved. {{recentSessionTitle}}",
+      "recentPrefix": "Latest: "
+    }
+  },
+  "App": {
+    "title": "TSrecord",
+    "titleTranscribe": "Extract Transcript",
+    "titleRecord": "Record & Notes",
+    "titleAudioEditor": "Audio Editor",
+    "titleWorkspace": "Session Library & Search",
+    "subtitle": "AI RECORDING & TRANSCRIPT STUDIO",
+    "subtitleTranscribe": "AUDIO TRANSCRIPTION MODULE",
+    "subtitleRecord": "RECORDING & NOTES MODULE",
+    "subtitleAudioEditor": "AUDIO EDITING MODULE",
+    "workspaceLoadError": "Cannot load session library.",
+    "processing_meeting": "AI is generating transcript, summary, decisions, risks, folder tree and mindmap...",
+    "processing_interview": "AI is transcribing interview content...",
+    "processing_general": "AI is transcribing...",
+    "processing_done": "Transcription and analysis complete, opening results...",
+    "deleteProjectConfirm": "Delete project \"{{name}}\"? Original sessions will remain in your workspace.",
+    "toast": {
+      "sessionLoadError": "Cannot reopen this session. Please try saving the package in a newer version.",
+      "backgroundResumeTriggered": "The app just restored a transcription job from the background scheduler. The workspace has been refreshed."
+    },
+    "errors": {
+      "processFile": "An error occurred while processing the file.",
+      "reanalyzeTranscript": "Cannot reanalyze the saved transcript.",
+      "resumeTranscription": "Cannot resume the unfinished transcription job.",
+      "createProject": "Cannot create a new project."
+    },
+    "resumeTranscription": {
+      "stageLabel": "Resuming the transcription job from the saved checkpoint...",
+      "progressLabel": "The app will skip saved batches and continue with the missing part"
+    },
+    "reanalyze": {
+      "stageLabel": "Reanalyzing from the saved transcript...",
+      "progressLabel": "No need to transcribe from scratch"
+    },
+    "skeleton": {
+      "workspace": "Loading workspace",
+      "upload": "Loading upload screen",
+      "record": "Loading recording module",
+      "audioEditor": "Loading audio editor",
+      "mode": "Loading AI settings",
+      "result": "Loading AI results",
+      "export": "Loading export screen"
+    }
+  },
+  "ScreenSkeleton": {
+    "workspace": "Loading workspace",
+    "record": "Loading recording module",
+    "audioEditor": "Loading audio editor",
+    "mode": "Loading AI settings",
+    "result": "Loading AI results",
+    "export": "Loading export screen",
+    "default": "Loading screen"
+  },
+  "UpdateDialog": {
+    "title": "A new version is available",
+    "releasedOn": "Released on {{date}}",
+    "androidHint": "The APK will download directly and open the install screen",
+    "genericHint": "This release does not include an APK attachment",
+    "needInstallPermission": "You need to allow installation from this source once in Android Settings.",
+    "downloadDone": "The APK has finished downloading. Android will open the installer screen.",
+    "downloading": "Downloading the update...",
+    "paused": "Download paused. Android will continue when a suitable network is available.",
+    "downloadFailed": "APK download failed. Error code: {{reason}}",
+    "cannotTrack": "Cannot track the APK download progress.",
+    "downloadStarted": "APK download started...",
+    "openPermissionScreen": "Android will open the permission screen for installing from this source first.",
+    "cannotStart": "Cannot start the update download.",
+    "cannotOpenInstaller": "Cannot open the installer screen.",
+    "openInstaller": "Open installer",
+    "downloadProgress": "Downloading {{progress}}",
+    "downloadAndInstall": "Download and install",
+    "openReleasePage": "Open release page",
+    "releaseNotes": "Release notes",
+    "later": "Later",
+    "noReleaseNotes": "No release notes available."
+  },
+  "SettingsModal": {
+    "title": "AI Settings",
+    "tabs": {
+      "provider": "STT Source",
+      "models": "AI Models",
+      "chunking": "Long Files",
+      "realtime": "Realtime",
+      "recording": "Recording",
+      "storage": "Storage",
+      "googleDrive": "Google Drive",
+      "license": "Plans"
+    },
+    "common": {
+      "show": "Show",
+      "hide": "Hide",
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "provider": {
+      "useAdminKey": {
+        "title": "Use system API key (Admin)",
+        "description": "Use system API key (requires an active plan)."
+      },
+      "sourceLabel": "Speech-to-text provider",
+      "adminEnabled": {
+        "title": "System API key is enabled",
+        "description": "Using system API key. Make sure this device has an active plan in the {{planTab}} tab."
+      },
+      "keyLabel": "API Key — {{provider}}",
+      "keyStoredLocally": "The key is stored locally on this device.",
+      "getKeyHere": "Get the key here →",
+      "geminiAnalysisKey": {
+        "title": "Gemini API Key (required for analysis)",
+        "description": "Gemini is used for summary, mindmap, decisions, risks, and action items.",
+        "link": "Get the Gemini key here →"
+      },
+      "options": {
+        "gemini": {
+          "name": "Google Gemini",
+          "badge": "FREE",
+          "description": "Multimodal, processes audio directly, and supports files up to 300MB. Recommended for most cases.",
+          "keyPlaceholder": "AIza...",
+          "limit": "1,500 free requests/day"
+        },
+        "assemblyai": {
+          "name": "AssemblyAI",
+          "badge": "$50 FREE",
+          "description": "Built for STT with speaker diarization and no file-size cap. Great for meetings with multiple speakers.",
+          "keyPlaceholder": "Enter AssemblyAI API Key...",
+          "limit": "About 333 free audio hours"
+        },
+        "groq": {
+          "name": "Groq Whisper",
+          "badge": "FREE",
+          "description": "Very fast, faster than real time. Limited to 25MB per file, best for smaller files that need speed.",
+          "keyPlaceholder": "gsk_...",
+          "limit": "RPM limits, file up to 25MB"
+        },
+        "openai": {
+          "name": "OpenAI Whisper",
+          "badge": "PAID",
+          "description": "High accuracy, no free tier, priced at $0.006 per audio minute. Limited to 25MB per file.",
+          "keyPlaceholder": "sk-...",
+          "limit": "$0.006/min, file up to 25MB"
+        }
+      }
+    },
+    "models": {
+      "realtimeLabel": "Model for realtime recording",
+      "analysisLabel": "Model for final analysis",
+      "realtimeHintPrefix": "Recommended:",
+      "realtimeHintMiddle": "if you want more speed and better quality. For the lowest cost, use",
+      "analysisHintPrefix": "Recommended:",
+      "analysisHintMiddle": "for long meetings or deeper analysis. For a balanced choice, use",
+      "options": {
+        "gemini-3-flash-preview": "Gemini 3 Flash Preview (paid, faster than 2.5 Flash)",
+        "gemini-3-pro-preview": "Gemini 3 Pro Preview (paid, deepest reasoning)",
+        "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
+        "gemini-2.5-flash": "Gemini 2.5 Flash (recommended, balanced)",
+        "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite (lowest cost)",
+        "gemini-2.5-pro": "Gemini 2.5 Pro (deepest analysis)"
+      }
+    },
+    "chunking": {
+      "title": "Long file processing",
+      "description": "Automatically split file at silent points for parallel processing and reliability.",
+      "durationLabel": "Minutes / part",
+      "durationHint": "Default is 8 minutes. Smaller values reduce timeout risk but increase the number of requests.",
+      "macroBatchLabel": "Minutes / API batch",
+      "macroBatchHint": "The API batch should be larger than a micro-chunk. Gemini free will automatically use a safer cap to reduce request failures.",
+      "staggerLabel": "Startup delay / part",
+      "staggerHint": "Default is 2 seconds. It lightly staggers parallel requests to reduce rate-limit collisions.",
+      "concurrencyLabel": "Parallel workers",
+      "concurrencyHint": "The production flow is locked to 1 worker to avoid RAM spikes, heat, and mobile crashes."
+    },
+    "realtime": {
+      "title": "Realtime mode",
+      "note": "* Realtime always uses Google Gemini, regardless of the transcript source selected above.",
+      "options": {
+        "HYBRID": {
+          "name": "Hybrid (recommended)",
+          "description": "Realtime only updates the transcript and a short summary. Decisions, risks, and action items run fully at the final step."
+        },
+        "FULL": {
+          "name": "Full Realtime",
+          "description": "Every chunk triggers a full AI update. More convenient, but it uses more requests."
+        },
+        "OFF": {
+          "name": "Realtime off",
+          "description": "No AI calls while recording. Analysis runs only once after recording stops."
+        }
+      }
+    },
+    "recording": {
+      "profiles": {
+        "title": "Recording profile",
+        "options": {
+          "BALANCED": {
+            "name": "Balanced",
+            "description": "Default for most situations. Keeps voices clear with moderate noise handling."
+          },
+          "VOICE_FOCUS": {
+            "name": "Voice focus",
+            "description": "Prioritizes voices close to the microphone. Good for meetings, interviews, or single-speaker capture."
+          },
+          "NOISY_ENV": {
+            "name": "Noisy environment",
+            "description": "Stronger noise, echo, and gain processing for outdoor recording or echo-heavy rooms."
+          },
+          "RAW": {
+            "name": "Raw capture",
+            "description": "Disables automatic processing. Useful with external microphones or external post-processing."
+          },
+          "CUSTOM": {
+            "name": "Custom",
+            "description": "Choose each noise, echo, gain, sample rate, and channel setting manually."
+          }
+        }
+      },
+      "advanced": {
+        "title": "Advanced tuning",
+        "description": "Advanced settings depend on the device hardware and microphone support.",
+        "noiseLabel": "Noise suppression",
+        "echoLabel": "Echo cancellation",
+        "gainLabel": "Auto gain",
+        "sampleRateLabel": "Sample rate",
+        "channelLabel": "Channel",
+        "processingLevels": {
+          "OFF": "Off",
+          "LOW": "Low",
+          "MEDIUM": "Medium",
+          "HIGH": "High"
+        }
+      }
+    },
+    "storage": {
+      "localPathTitle": "Local storage location",
+      "localPathDescription": "Stored locally in the app. Exported or shared files are written to public folders.",
+      "dangerTitle": "Danger zone",
+      "dangerDescription": "Permanently delete all internal app data in {{appStorage}} (cannot be undone).",
+      "confirmDeleteAll": "WARNING: Are you sure you want to delete all app data including recordings and transcripts? This action cannot be undone.",
+      "deleteSuccess": "All data was deleted successfully.",
+      "deleteError": "Error while deleting data: {{message}}",
+      "deleteAll": "Delete all data"
+    },
+    "googleDrive": {
+      "title": "Connect Google Drive",
+      "description": "Sign in with your own Google account to choose audio or video files directly from your Google Drive.",
+      "apiKeyLabel": "Developer API Key",
+      "apiKeyPlaceholder": "Enter Google Cloud API Key...",
+      "note": "The app only uses its OAuth configuration to open Google sign-in. The connected Drive and selected files always belong to the Google account you sign in with."
+    },
+    "license": {
+      "status": {
+        "title": "License status",
+        "activated": "Activated",
+        "notActivated": "Not activated",
+        "planLabel": "Plan",
+        "expiresLabel": "Expires",
+        "planPromo": "Promo / Trial",
+        "planFree": "Free / Trial",
+        "unlimited": "Unlimited / Lifetime",
+        "deviceIdLabel": "Device ID",
+        "loadingDeviceId": "Loading...",
+        "copyDeviceId": "Copy Device ID"
+      },
+      "promo": {
+        "title": "Activate with Promo Code",
+        "placeholder": "Enter promo code...",
+        "success": "Activation successful!",
+        "invalid": "Invalid promo code.",
+        "error": "Something went wrong.",
+        "submitting": "Submitting...",
+        "activate": "Activate"
+      },
+      "plans": {
+        "title": "Buy a system-key plan",
+        "copiedSyntax": "Transfer note copied",
+        "copyTransferSyntax": "Copy transfer note",
+        "monthly": {
+          "name": "1-Month Plan",
+          "price": "29,000đ",
+          "period": "/month",
+          "description": "Unlimited use of the system API keys for transcript generation and meeting analysis."
+        },
+        "lifetime": {
+          "name": "Lifetime Plan",
+          "badge": "Save more",
+          "price": "199,000đ",
+          "period": "/forever",
+          "description": "Pay once and use all features and system API keys forever, with no maintenance fee."
+        }
+      },
+      "paymentInfo": {
+        "title": "Bank transfer payment details:",
+        "bankLabel": "Bank:",
+        "defaultBankName": "MB BANK (Military Bank)",
+        "accountNumberLabel": "Account number:",
+        "accountNameLabel": "Account holder:",
+        "notice": "* IMPORTANT: Please use the exact transfer note so the system can auto-activate your plan within 1-2 minutes after payment arrives."
+      }
+    },
+    "clearGeminiKey": "Clear Gemini key",
+    "close": "Close",
+    "saving": "Saving...",
+    "save": "Save settings"
+  },
+  "AttachmentManager": {
+    "title": "Supporting Attachments",
+    "description": "Attach PDF, Word, PPT, or text files for combined AI analysis.",
+    "addFile": "Add file",
+    "emptyTitle": "Drag and drop or click to add files",
+    "emptyHint": "PDF, DOCX, PPTX, TXT, MD (max 20MB)",
+    "legacyBadge": "Legacy",
+    "removeTitle": "Remove file",
+    "unsupportedFileAlert": "The file \"{{name}}\" is not supported. Only PDF, Word, PowerPoint, TXT, and MD supporting documents are accepted.",
+    "legacyWarning": {
+      "title": "Note: legacy file formats (.doc, .ppt)",
+      "body": "Legacy .doc, .ppt files not supported. Please convert them to .docx, .pptx, or .pdf."
+    }
+  },
+  "StepUpload": {
+    "tag": "Transcription module",
+    "title": "Upload files for transcript or meeting notes",
+    "description": "Upload audio/video to create transcript, meeting notes, mindmap, and export Word/PPT.",
+    "buttons": {
+      "googleDrive": "Google Drive",
+      "connecting": "Connecting...",
+      "chooseFile": "Choose file",
+      "importDrive": "Import from Google Drive",
+      "connectingDrive": "Connecting to Drive...",
+      "removeFile": "Remove file",
+      "next": "Choose format"
+    },
+    "dropzone": {
+      "title": "Drag and drop or click to choose a file",
+      "description": "Supports MP3, WAV, M4A, MP4..."
+    },
+    "alerts": {
+      "unsupportedFormat": "Unsupported format. Please choose an audio or video file.",
+      "missingGoogleConfig": "Google Drive is not fully configured in the app yet. Please try again later or contact the app administrator.",
+      "sdkNotReady": "Google SDK has not finished loading yet. Please check your internet connection.",
+      "pickerLoadFailed": "Unable to load Google Picker SDK.",
+      "googleLoginFailed": "Google sign-in failed: {{error}}",
+      "missingAccessToken": "Could not retrieve the Google OAuth2 access token.",
+      "driveDownloadError": "Google Drive download failed: {{status}}",
+      "driveDownloadProcessError": "Error while downloading the file from Google Drive.",
+      "sdkConfigError": "Google SDK connection or configuration error."
+    }
+  },
+  "StepRecord": {
+    "tag": "Recording module",
+    "title": "Choose session type",
+    "description": "Meetings include realtime notes. Interviews only record and transcribe after finishing.",
+    "contexts": {
+      "meetingTitle": "Meeting",
+      "meetingDescription": "Create transcript, summary, decisions, risks, action items, and mindmap.",
+      "interviewTitle": "Interview",
+      "interviewDescription": "Only transcribe interview content (no mindmaps or meeting notes)."
+    },
+    "liveCard": {
+      "title": "Live meeting notes",
+      "description": "Realtime updates every 15s. Hybrid: transcript + quick summary; full AI runs after recording stops."
+    },
+    "recording": {
+      "tag": "Direct recording",
+      "activeTitle": "Recording session in progress",
+      "idleTitle": "Microphone is ready",
+      "description": "Save recording locally and proceed to AI analysis.",
+      "duration": "Duration",
+      "start": "Start recording",
+      "resume": "Resume",
+      "pause": "Pause",
+      "stop": "Stop",
+      "statusTitle": "Recording status",
+      "recordAgain": "Record again",
+      "aiSettings": "AI settings",
+      "audioPreviewUnsupported": "Your browser does not support audio preview."
+    },
+    "livePanel": {
+      "title": "Realtime meeting note",
+      "subtitle": "Transcript and notes update progressively",
+      "processedChunks": "{{count}} chunks processed",
+      "transcriptPreview": "Transcript preview",
+      "summaryPreview": "Rolling summary",
+      "decisionsActionItems": "Decisions & action items",
+      "risks": "Risks / blockers",
+      "emptyTranscript": "No realtime transcript yet.",
+      "emptySummary": "No realtime summary yet.",
+      "emptyDecisions": "No extracted decisions yet.",
+      "emptyActionItems": "No realtime action items yet.",
+      "emptyRisks": "No risks or blockers detected yet."
+    },
+    "status": {
+      "waitingMeeting": "Realtime notes are waiting for a meeting recording session.",
+      "waitingInterview": "Interview mode only records and transcribes after the session ends.",
+      "nextChunkWaiting": "Realtime notes are waiting for the next recorded chunk.",
+      "processingChunk": "AI is updating from recorded chunk {{index}}...",
+      "updatedChunks": "Realtime notes have updated {{count}} recorded chunks.",
+      "finalizingRealtime": "Final AI updates are being completed...",
+      "realtimeError": "Realtime notes hit an error, but the main recording can still be processed after you stop recording.",
+      "realtimeUpdateFailed": "Unable to update realtime notes.",
+      "cleared": "The current recording has been cleared.",
+      "requestingMic": "Requesting microphone permission...",
+      "hybridReady": "Realtime HYBRID mode is active: transcript and quick summary update for each chunk.",
+      "fullReady": "Realtime FULL mode is active: full meeting notes update for each chunk.",
+      "offBySettings": "Realtime is disabled in settings. The app will do one full analysis when the session ends.",
+      "missingApiKey": "No Gemini API key is configured, so realtime notes are disabled. You can still record and run the full analysis after finishing.",
+      "noAudioData": "No audio data was captured. Please try again.",
+      "savingRecording": "Saving the recording to your device...",
+      "savedRecording": "Recording saved to {{path}}.",
+      "saveRecordingFailed": "Recording finished, but the file could not be saved to the device. You can still continue to the AI step.",
+      "finalizingRecording": "Finalizing the recording file...",
+      "realtimeFinalPass": "Finishing the final realtime updates before you move to the full AI step.",
+      "realtimeDone": "Realtime notes finished updating for this recording session.",
+      "recordingNow": "Recording live audio...",
+      "startFailed": "Could not start recording.",
+      "paused": "Recording paused.",
+      "resumed": "Recording resumed."
+    }
+  },
+  "StepMode": {
+    "tag": "Processing step",
+    "title": "Choose transcript format",
+    "source": "Source",
+    "sourceRecording": "Recording",
+    "sourceUpload": "Upload",
+    "module": "Module",
+    "moduleRecording": "Recording",
+    "moduleUpload": "Upload",
+    "context": "Context",
+    "contextMeeting": "Meeting",
+    "contextInterview": "Interview",
+    "contextTranscription": "Transcription",
+    "timeline": "Timeline",
+    "plainText": "Plain text",
+    "progressTag": "Processing progress",
+    "initializing": "Initializing pipeline...",
+    "progress": "Progress",
+    "transcriptPreviewTitle": "Progressive transcript",
+    "transcriptPreviewCount": "{{count}} saved batches",
+    "transcriptPreviewEmpty": "No transcript batch has been saved yet.",
+    "back": "Back",
+    "processingAi": "Processing AI",
+    "runAnalysis": "Run analysis"
+  },
+  "StepResult": {
+    "resultTag": "AI results",
+    "savedBadge": "AUTO-SAVED TO DEVICE",
+    "description": "Toggle between standard presentation format and raw text editing.",
+    "draftNotice": "Draft transcript saved. You can review, edit, and continue analysis.",
+    "resumeNotice": "Resume transcription from saved checkpoint.",
+    "context": "Context",
+    "source": "Source",
+    "sourceRecording": "Recording",
+    "sourceUpload": "Upload",
+    "artifacts": "Artifacts",
+    "browserTitle": "Artifact browser",
+    "previewMode": "Preview mode",
+    "editMode": "Edit text",
+    "copied": "Copied",
+    "copySection": "Copy this section",
+    "textareaPlaceholder": "Content will appear here...",
+    "reanalyzing": "Reanalyzing",
+    "resumingTranscription": "Resuming transcription",
+    "resumeTranscription": "Resume transcription",
+    "reanalyzeFromTranscript": "Continue analysis from transcript",
+    "reanalyzeArtifacts": "Reanalyze artifacts",
+    "next": "Go to export",
+    "checkpoint": {
+      "title": "Checkpoint status",
+      "status": "Job status",
+      "progress": "Saved batches",
+      "progressValue": "{{saved}} / {{total}} batches",
+      "currentBatch": "Current progress",
+      "currentBatchValue": "At batch {{current}} / {{total}}",
+      "failedBatch": "Latest failed batch",
+      "failedBatchValue": "Batch {{index}}",
+      "failedBatchFallback": "{{count}} failed batches",
+      "lastError": "Latest error:",
+      "statusValues": {
+        "pending": "Pending",
+        "processing": "Processing",
+        "paused": "Paused",
+        "complete": "Complete",
+        "failed": "Failed"
+      }
+    },
+    "contextValueMeeting": "Meeting",
+    "contextValueInterview": "Interview",
+    "contextValueTranscription": "Transcription",
+    "artifactLabels": {
+      "transcript": "Transcript",
+      "summary": "Summary",
+      "decisions": "Decisions",
+      "risks": "Risks",
+      "folderTree": "Folder tree",
+      "mindmap": "Mindmap",
+      "actionItems": "Action items"
+    },
+    "artifactDescriptions": {
+      "transcript": "Main transcript text.",
+      "summary": "Meeting summary.",
+      "decisions": "Confirmed decisions.",
+      "risks": "Risks and unresolved points.",
+      "folderTree": "Suggested folder tree.",
+      "mindmap": "System mindmap.",
+      "actionItems": "Task checklist."
+    },
+    "previewCards": {
+      "folderTreeTitle": "Suggested folder tree",
+      "folderTreeSubtitle": "Displayed as a folder tree structure.",
+      "mindmapSubtitle": "Interactive mindmap diagram.",
+      "nodeOutline": "Node Outline"
+    },
+    "emptyArtifact": "This artifact does not have data yet.",
+    "mindmapEmpty": "No mindmap data available to render.",
+    "mindmapZoomIn": "Zoom in",
+    "mindmapZoomOut": "Zoom out",
+    "mindmapReset": "Reset view",
+    "mindmapResetShort": "Reset",
+    "mindmapAutoFit": "Fit diagram",
+    "mindmapAutoFitShort": "Fit",
+    "mindmapHint": "Drag to move and use pinch zoom on touch devices",
+    "mindmapAria": "Mindmap visualization",
+    "mindmapStatus": "Zoom {{scale}}% · Double click to reset · Drag to pan or rearrange",
+    "timelineEditor": {
+      "title": "Timeline editor",
+      "description": "Review and edit transcript segments before export.",
+      "addBlock": "Add block",
+      "segmentPlaceholder": "Transcript content for this timestamp...",
+      "removeBlock": "Remove block {{index}}"
+    }
+  },
+  "StepAudioEditor": {
+    "badge": "Audio Editor Pro",
+    "title": "Trim audio before sending it to AI",
+    "description": "Trim range, preview, and save new file or send to Transcription.",
+    "waveLane": "Wave lane (actual waveform)",
+    "noFile": "No file yet",
+    "chooseFileToViewWave": "Choose an audio file to display its waveform",
+    "rangeStart": "Start",
+    "rangeEnd": "End",
+    "rangeLength": "Length",
+    "currentPosition": "Current position",
+    "totalDuration": "Total duration",
+    "sourceTag": "Source file",
+    "sourceTitle": "Choose a file and define the trim range",
+    "chooseAudio": "Choose audio",
+    "emptyTitle": "Audio editor for the source file",
+    "emptyDescription": "Waveform display. Select range and preview before trimming.",
+    "previewSelection": "Preview selection",
+    "trimmedReady": "Trimmed audio is ready",
+    "savedAt": "Saved to: {{path}}",
+    "saveEdited": "Save edited audio",
+    "saving": "Saving...",
+    "buildingFile": "Building file...",
+    "buildingSegment": "Building trimmed segment...",
+    "sendToTranscribe": "Send to Transcription",
+    "unsupportedPreview": "Your browser does not support audio preview.",
+    "errors": {
+      "unsupportedAudio": "The audio editor currently supports audio files only.",
+      "openAudioFailed": "Unable to open the audio file.",
+      "buildSegmentFailed": "Unable to build the trimmed audio segment.",
+      "saveSegmentFailed": "Unable to save the trimmed audio file."
+    }
+  },
+  "WorkspaceLibrary": {
+    "workspaceBadge": "Workspace",
+    "title": "Projects & sessions",
+    "description": "Click a row to view details or reopen session.",
+    "statsSessions": "Sessions",
+    "statsProjects": "Projects",
+    "statsMeetings": "Meetings",
+    "refresh": "Refresh data",
+    "oldProjects": "Saved projects",
+    "newProjectPlaceholder": "New project name...",
+    "createProject": "Create",
+    "allSessions": "All sessions",
+    "allSessionsDescription": "View all sessions in library.",
+    "noProjects": "No projects yet. Create your first project to group related sessions.",
+    "projectCount": "{{count}} sessions",
+    "projectHasNote": "Has manual note",
+    "searchLabel": "Search by title, summary, action items, or path",
+    "searchInProject": "Search in project: {{name}}",
+    "searchPlaceholder": "For example: sprint planning, interview, client A...",
+    "activeProject": "Open project",
+    "recordingCount": "{{count}} direct recordings",
+    "unpinProject": "Unpin project",
+    "pinProject": "Pin project",
+    "deleteProject": "Delete project",
+    "closeProject": "Close project",
+    "projectNoteTitle": "Project note",
+    "projectNotePlaceholder": "Write a note for this project: context, things to remember, off-meeting decisions, or a custom prompt for the next run...",
+    "loading": "Loading workspace data...",
+    "emptySearchTitle": "No matching sessions found",
+    "emptyScopeTitle": "No sessions in this scope yet",
+    "emptySearchDescription": "Try using fewer keywords.",
+    "emptyProjectDescription": "Project has no sessions. Assign a session below to this project.",
+    "emptyGeneralDescription": "Sessions are saved here automatically after processing.",
+    "sessionNoteBadge": "Has session note",
+    "open": "Open",
+    "summary": "Summary",
+    "summaryEmpty": "No summary yet, or this is a transcript-only session.",
+    "transcript": "Transcript",
+    "transcriptEmpty": "No transcript preview yet.",
+    "actionItems": "Action Items",
+    "actionItemsEmpty": "No action items yet, or this session does not require them.",
+    "sessionNoteTitle": "Session note",
+    "sessionNotePlaceholder": "Write a session-specific note: AI mistakes, follow-up tasks, reopening notes, or who should receive the Word/PPT output...",
+    "removeFromProject": "Remove from project",
+    "addToProject": "Add to project",
+    "contexts": {
+      "meeting": "Meeting notes",
+      "interview": "Interview",
+      "transcription": "Transcript"
+    },
+    "sources": {
+      "recording": "Direct recording",
+      "upload": "Uploaded file"
+    }
+  },
+  "ServiceMessages": {
+    "languages": {
+      "vi": "Vietnamese",
+      "en": "English",
+      "zh": "Simplified Chinese",
+      "ko": "Korean"
+    },
+    "timeout": {
+      "default": "The request timed out. Please try again."
+    },
+    "gemini": {
+      "errors": {
+        "invalidApiKeyOrModel": "The Gemini API key is invalid or the current model is unavailable.",
+        "unauthorizedModel": "This Gemini API key does not have access to the selected model.",
+        "fileTooLarge": "The file is too large for the AI limit.",
+        "timeout": "Gemini took too long to respond. Try again with a shorter file or another provider.",
+        "quota": "Gemini is currently rate-limited or out of quota. Please wait a moment and try again.",
+        "temporary": "Gemini is experiencing a temporary error. Please try again later.",
+        "unavailable": "Gemini is overloaded or unavailable right now. Please try again later.",
+        "network": "Network error. Please check your internet connection.",
+        "retryHint": "You can try again."
+      },
+      "general": {
+        "fileTooLargeForUpload": "The file is too large. Please choose a file smaller than {{limit}}MB to avoid hanging the app.",
+        "cannotParseJson": "Could not parse AI JSON. The system will keep the raw text that is currently available.",
+        "transcriptMissing": "The AI did not return a transcript.",
+        "enterApiKey": "Please enter your Gemini API key in Settings on this device.",
+        "cannotUpdateRealtimeNotes": "Unable to update realtime notes.",
+        "emptyTranscriptResult": "The transcript result is empty.",
+        "invalidTranscriptResponse": "Gemini did not return a valid transcript.",
+        "cannotTranscribe": "Unable to transcribe audio with Gemini.",
+        "cannotAnalyzeProxy": "An error occurred while analyzing the transcript through the proxy.",
+        "emptyResult": "The AI result is empty.",
+        "cannotAnalyze": "An error occurred while analyzing the transcript.",
+        "cannotProcessFile": "An error occurred while processing the file."
+      },
+      "prompts": {
+        "outputLanguageInstruction": "User-facing fields such as title, summary, decisions, risks, actionItems, folderTree, and mindmap must be written in {{language}}. The transcript itself must remain in the original spoken language from the file."
+      }
+    },
+    "providers": {
+      "openai": {
+        "missingApiKey": "OpenAI API key is not configured. Please enter it in Settings.",
+        "fileTooLarge": "Your file ({{size}}MB) exceeds the {{limit}}MB limit of OpenAI Whisper. Please use Google Gemini or AssemblyAI for larger files.",
+        "invalidApiKey": "The OpenAI API key is invalid or expired.",
+        "outOfCredit": "Your OpenAI account is out of credit. Please add more funds."
+      },
+      "groq": {
+        "missingApiKey": "Groq API key is not configured. Please enter it in Settings.",
+        "fileTooLarge": "Your file ({{size}}MB) exceeds the {{limit}}MB limit of Groq Whisper. Please use Google Gemini or AssemblyAI for larger files."
+      }
+    },
+    "orchestrator": {
+      "providerTimeout": "{{provider}} took too long to produce a transcript. Please try again or choose another provider.",
+      "chunkPreparing": "Preparing the long file for {{provider}}...",
+      "chunkPreparingDetails": "Reading metadata and splitting audio near silent points",
+      "fileLongSplitting": "This file is {{minutes}} minutes long. Splitting it into chunks of about {{chunkMinutes}} minutes to avoid 503 errors...",
+      "chunkLabel": "Part {{index}}/{{total}}",
+      "chunkProgress": "{{completed}}/{{total}} parts complete",
+      "chunkSplitComplete": "Split into {{count}} parts, transcribing with up to {{concurrency}} parallel workers...",
+      "chunkWaitingBeforeSend": "Waiting {{seconds}} seconds before sending",
+      "chunkRetry": "Network error, retrying ({{attempt}}/{{maxRetries}}) in 3 seconds...",
+      "chunkProcessing": "Processing {{index}}/{{total}} with up to {{concurrency}} parallel workers...",
+      "chunkStarting": "Starting part {{index}}/{{total}} ({{start}} - {{end}})...",
+      "chunkDone": "Finished segment {{start}} - {{end}}",
+      "chunkCompleteMerging": "All parts are transcribed. Merging the final transcript...",
+      "chunkFallbackDirect": "Chunking failed, falling back to direct transcription...",
+      "preparingPipeline": "Preparing the audio processing pipeline...",
+      "currentProvider": "Current provider: {{provider}}",
+      "providerUploading": "Uploading to {{provider}}...",
+      "providerQueued": "The file is queued on {{provider}}...",
+      "providerProcessingSpeech": "{{provider}} is recognizing speech...",
+      "providerProcessingDone": "Speech recognition is complete.",
+      "androidVideoPrepFailed": "This video needs its audio track extracted before Android transcription, but the audio preparation step failed.",
+      "directTranscript": "{{provider}} is transcribing directly from the uploaded file...",
+      "directTranscriptShortFile": "Short file, using the direct flow",
+      "providerNoTranscript": "{{provider}} did not return a transcript. Please try again.",
+      "transcriptDone": "Transcript complete.",
+      "done": "Done!",
+      "extractingAttachments": "Extracting content from attached documents...",
+      "readingSupportingFiles": "Reading supporting files",
+      "extractingAttachmentFailed": "Failed to extract document {{fileName}}:",
+      "geminiInterviewAnalysis": "Gemini is creating the title and polishing the interview transcript...",
+      "geminiMeetingAnalysis": "Gemini is analyzing the meeting content...",
+      "geminiInterviewProgress": "Creating the title and normalizing the interview transcript",
+      "geminiMeetingProgress": "Generating summary, decisions, risks, folder tree, and mindmap",
+      "geminiAnalysisTimeout": "Gemini took too long to analyze the content. Please try again."
+    }
+  }
+}

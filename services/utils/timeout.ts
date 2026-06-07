@@ -1,7 +1,9 @@
+import { translateServiceMessage } from './serviceMessages';
+
 export const withTimeout = <T>(
   promise: Promise<T>,
   timeoutMs: number,
-  timeoutMessage = 'Yeu cau het thoi gian. Vui long thu lai.'
+  timeoutMessage = translateServiceMessage('timeout.default')
 ): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
@@ -14,4 +16,3 @@ export const withTimeout = <T>(
         clearTimeout(timeoutId);
       });
   });
-

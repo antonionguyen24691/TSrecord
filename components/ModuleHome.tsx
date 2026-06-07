@@ -1,5 +1,6 @@
 import React from 'react';
-import { ArrowRight, FileAudio, FolderSearch, Mic, Sparkles } from 'lucide-react';
+import { ArrowRight, FileAudio, FolderSearch, Mic, Scissors, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { AppModule } from '../types';
 
 interface ModuleHomeProps {
@@ -12,15 +13,15 @@ interface ModuleHomeProps {
 const modules = [
   {
     id: AppModule.TRANSCRIBE,
-    title: 'Trích xuất',
-    description: 'Upload file có sẵn',
     icon: FileAudio,
   },
   {
     id: AppModule.RECORD_NOTES,
-    title: 'Ghi âm',
-    description: 'Ghi trực tiếp trên thiết bị',
     icon: Mic,
+  },
+  {
+    id: AppModule.AUDIO_EDITOR,
+    icon: Scissors,
   },
 ];
 
@@ -30,33 +31,52 @@ export const ModuleHome: React.FC<ModuleHomeProps> = ({
   sessionCount,
   recentSessionTitle,
 }) => {
+  const { t } = useTranslation();
+  const editorTitle = t('ModuleHome.modules.editor.title');
+  const editorDesc = t('ModuleHome.modules.editor.desc');
+
   return (
     <div className="animate-fade-in">
       <section className="rounded-[24px] sm:rounded-[30px] border border-white/60 bg-white/85 p-3 sm:p-4 md:rounded-[40px] md:p-8 shadow-[0_18px_48px_rgba(15,23,42,0.09)] backdrop-blur-xl">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-[#0d7c66]/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.28em] text-[#0d7c66]">
             <Sparkles className="h-4 w-4" />
-            TSrecord
+            {t('ModuleHome.tag')}
           </div>
           <h2 className="mt-3 sm:mt-4 text-xl sm:text-2xl font-black tracking-tight text-slate-950 md:text-4xl">
-            Ghi âm trực tiếp hoặc upload file để tạo biên bản họp hoàn chỉnh
+            {t('ModuleHome.heroTitle')}
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-            TSrecord tập trung vào 4 việc chính: ghi âm trên thiết bị, nhận file audio/video có sẵn,
-            dựng biên bản họp kèm mindmap và xuất ngay sang Word hoặc PPT khi bạn cần chia sẻ.
+            {t('ModuleHome.heroDesc')}
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Ghi âm trực tiếp</span>
-            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Upload file</span>
-            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Biên bản + mindmap</span>
-            <span className="rounded-full bg-white px-3 py-2 shadow-sm">Xuất Word/PPT</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">{t('ModuleHome.features.directRecord')}</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">{t('ModuleHome.features.upload')}</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">{t('ModuleHome.features.mindmap')}</span>
+            <span className="rounded-full bg-white px-3 py-2 shadow-sm">{t('ModuleHome.features.export')}</span>
           </div>
         </div>
 
-        <div className="mt-4 sm:mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 md:mt-8 md:gap-5">
+        <div className="mt-4 sm:mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3 md:mt-8 md:gap-5">
           {modules.map((item) => {
             const Icon = item.icon;
             const darkCard = item.id === AppModule.RECORD_NOTES;
+            const title =
+              item.id === AppModule.TRANSCRIBE
+                ? t('ModuleHome.modules.transcribe.title')
+                : item.id === AppModule.RECORD_NOTES
+                  ? t('ModuleHome.modules.record.title')
+                  : editorTitle === 'ModuleHome.modules.editor.title'
+                    ? 'Audio Editor'
+                    : editorTitle;
+            const description =
+              item.id === AppModule.TRANSCRIBE
+                ? t('ModuleHome.modules.transcribe.desc')
+                : item.id === AppModule.RECORD_NOTES
+                  ? t('ModuleHome.modules.record.desc')
+                  : editorDesc === 'ModuleHome.modules.editor.desc'
+                    ? 'Trim audio before sending it to transcription'
+                    : editorDesc;
 
             return (
               <button
@@ -79,13 +99,13 @@ export const ModuleHome: React.FC<ModuleHomeProps> = ({
 
                 <div className="mt-3 sm:mt-4 flex items-start justify-between gap-3 sm:gap-4 md:mt-8">
                   <div>
-                    <h3 className="text-lg sm:text-xl font-black leading-tight md:text-3xl">{item.title}</h3>
+                    <h3 className="text-lg sm:text-xl font-black leading-tight md:text-3xl">{title}</h3>
                     <p
                       className={`mt-1 text-[11px] sm:text-xs leading-5 md:mt-3 md:text-sm md:leading-7 text-justify ${
                         darkCard ? 'text-white/72' : 'text-slate-600'
                       }`}
                     >
-                      {item.description}
+                      {description}
                     </p>
                   </div>
                   <ArrowRight
@@ -111,15 +131,20 @@ export const ModuleHome: React.FC<ModuleHomeProps> = ({
               </div>
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0d7c66]">
-                  Workspace
+                  {t('ModuleHome.workspace.badge')}
                 </div>
                 <h3 className="mt-2 text-lg font-black text-slate-950 md:text-2xl">
-                  Tìm lại session đã xử lý
+                  {t('ModuleHome.workspace.title')}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
                   {sessionCount > 0
-                    ? `${sessionCount} session đã được lưu. ${recentSessionTitle ? `Mới nhất: ${recentSessionTitle}.` : ''}`
-                    : 'Mọi phiên xử lý xong sẽ tự động xuất hiện trong thư viện để bạn mở lại và tìm kiếm.'}
+                    ? t('ModuleHome.workspace.descWithCount', {
+                        count: sessionCount,
+                        recentSessionTitle: recentSessionTitle
+                          ? t('ModuleHome.workspace.recentPrefix') + recentSessionTitle + '.'
+                          : '',
+                      })
+                    : t('ModuleHome.workspace.descEmpty')}
                 </p>
               </div>
             </div>

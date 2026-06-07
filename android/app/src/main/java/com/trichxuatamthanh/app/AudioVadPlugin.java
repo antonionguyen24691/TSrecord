@@ -41,6 +41,7 @@ public class AudioVadPlugin extends Plugin {
     private static final double FRAME_DURATION_SECONDS = TARGET_FRAME_SIZE / 16000.0;
     private static final int SEARCH_RADIUS_SECONDS = 45;
     private static final int MIN_CHUNK_DURATION_SECONDS = 60;
+    private static final double EDGE_SPEECH_PADDING_SECONDS = 1.5;
     private static final int STREAM_BUFFER_SIZE = 65536;
 
     // ── Result wrapper for file-backed decode ────────────────────────────
@@ -54,6 +55,35 @@ public class AudioVadPlugin extends Plugin {
             this.file = file;
             this.sampleCount = sampleCount;
             this.sampleRate = sampleRate;
+        }
+    }
+
+    private static class SpeechAnalysisResult {
+        final boolean[] speechFlags;
+        final int frameCount;
+        final long totalSamples;
+        final double totalDurationSeconds;
+
+        SpeechAnalysisResult(
+            boolean[] speechFlags,
+            int frameCount,
+            long totalSamples,
+            double totalDurationSeconds
+        ) {
+            this.speechFlags = speechFlags;
+            this.frameCount = frameCount;
+            this.totalSamples = totalSamples;
+            this.totalDurationSeconds = totalDurationSeconds;
+        }
+    }
+
+    private static class SampleRange {
+        final long startSample;
+        final long endSample;
+
+        SampleRange(long startSample, long endSample) {
+            this.startSample = startSample;
+            this.endSample = endSample;
         }
     }
 
@@ -82,9 +112,8 @@ public class AudioVadPlugin extends Plugin {
             }
             monoTempFile = null;
 
-            long total16kSamples = mono16kFile.length() / BYTES_PER_SAMPLE;
-            double durationSeconds = total16kSamples / (double) TARGET_SAMPLE_RATE;
-            List<Double> boundaries = buildSpeechAwareBoundariesFromFile(mono16kFile, chunkDurationSeconds);
+            SpeechAnalysisResult speechAnalysis = analyzeSpeechFromFile(mono16kFile);
+            List<Double> boundaries = buildSpeechAwareBoundariesFromAnalysis(speechAnalysis, chunkDurationSeconds);
 
             JSArray boundaryArray = new JSArray();
             for (Double boundary : boundaries) {
@@ -93,7 +122,7 @@ public class AudioVadPlugin extends Plugin {
 
             JSObject result = new JSObject();
             result.put("sampleRate", TARGET_SAMPLE_RATE);
-            result.put("durationSeconds", durationSeconds);
+            result.put("durationSeconds", speechAnalysis.totalDurationSeconds);
             result.put("boundariesSeconds", boundaryArray);
             call.resolve(result);
         } catch (Exception exception) {
@@ -105,9 +134,74 @@ public class AudioVadPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void deleteTempFiles(PluginCall call) {
+        JSArray fileUris = call.getArray("fileUris");
+        if (fileUris == null) {
+            call.resolve();
+            return;
+        }
+
+        try {
+            for (int index = 0; index < fileUris.length(); index += 1) {
+                String rawUri = fileUris.optString(index, "");
+                if (rawUri == null || rawUri.trim().isEmpty()) {
+                    continue;
+                }
+                Uri uri = Uri.parse(rawUri);
+                if (!"file".equalsIgnoreCase(uri.getScheme())) {
+                    continue;
+                }
+                File file = new File(uri.getPath());
+                deleteSilently(file);
+                File parent = file.getParentFile();
+                if (parent != null) {
+                    deleteIfEmpty(parent);
+                }
+            }
+            call.resolve();
+        } catch (Exception exception) {
+            call.reject("Không thể dọn file audio tạm.", exception);
+        }
+    }
+
+    @PluginMethod
+    public void mergeWavFiles(PluginCall call) {
+        JSArray fileUris = call.getArray("fileUris");
+        String outputFileName = call.getString("outputFileName", "merged-batch.wav");
+
+        if (fileUris == null || fileUris.length() == 0) {
+            call.reject("Thiếu fileUris để gộp.");
+            return;
+        }
+
+        File outputDirectory = new File(
+            getContext().getCacheDir(),
+            "audio-merged/" + UUID.randomUUID()
+        );
+
+        try {
+            if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
+                throw new IOException("Không thể tạo thư mục merged audio tạm.");
+            }
+
+            File outputFile = new File(outputDirectory, sanitizeWavFileName(outputFileName));
+            mergeWaveFilesFromUris(fileUris, outputFile);
+
+            JSObject result = new JSObject();
+            result.put("fileUri", Uri.fromFile(outputFile).toString());
+            result.put("fileName", outputFile.getName());
+            call.resolve(result);
+        } catch (Exception exception) {
+            deleteSilently(outputDirectory);
+            call.reject("Không thể gộp audio batch trên Android.", exception);
+        }
+    }
+
+    @PluginMethod
     public void splitIntoSpeechChunks(PluginCall call) {
         String fileUri = call.getString("fileUri");
         int chunkDurationSeconds = call.getInt("chunkDurationSeconds", 600);
+        boolean speechOnlyUpload = Boolean.TRUE.equals(call.getBoolean("speechOnlyUpload", false));
 
         if (fileUri == null || fileUri.trim().isEmpty()) {
             call.reject("Thiếu fileUri.");
@@ -127,9 +221,8 @@ public class AudioVadPlugin extends Plugin {
             }
             monoTempFile = null;
 
-            long total16kSamples = mono16kFile.length() / BYTES_PER_SAMPLE;
-            double durationSeconds = total16kSamples / (double) TARGET_SAMPLE_RATE;
-            List<Double> boundaries = buildSpeechAwareBoundariesFromFile(mono16kFile, chunkDurationSeconds);
+            SpeechAnalysisResult speechAnalysis = analyzeSpeechFromFile(mono16kFile);
+            List<Double> boundaries = buildSpeechAwareBoundariesFromAnalysis(speechAnalysis, chunkDurationSeconds);
 
             String baseName = getBaseName(call.getString("fileName", "audio"));
             File outputDirectory = new File(
@@ -145,10 +238,18 @@ public class AudioVadPlugin extends Plugin {
             int total = Math.max(0, boundaries.size() - 1);
 
             for (int index = 0; index < total; index += 1) {
-                double startSeconds = boundaries.get(index);
-                double endSeconds = boundaries.get(index + 1);
+                double[] trimmedRange = tightenChunkRangeToSpeech(
+                    speechAnalysis,
+                    boundaries.get(index),
+                    boundaries.get(index + 1)
+                );
+                double startSeconds = trimmedRange[0];
+                double endSeconds = trimmedRange[1];
                 long startSample = Math.max(0, (long) Math.floor(startSeconds * TARGET_SAMPLE_RATE));
-                long endSample = Math.min(total16kSamples, (long) Math.ceil(endSeconds * TARGET_SAMPLE_RATE));
+                long endSample = Math.min(
+                    speechAnalysis.totalSamples,
+                    (long) Math.ceil(endSeconds * TARGET_SAMPLE_RATE)
+                );
                 if (endSample <= startSample) {
                     continue;
                 }
@@ -160,7 +261,19 @@ public class AudioVadPlugin extends Plugin {
                     index + 1
                 );
                 File chunkFile = new File(outputDirectory, fileName);
-                writeWavChunkFromFile(mono16kFile, chunkFile, startSample, endSample);
+                if (speechOnlyUpload) {
+                    writeSpeechOnlyWavChunkFromFile(
+                        mono16kFile,
+                        chunkFile,
+                        speechAnalysis,
+                        startSeconds,
+                        endSeconds,
+                        startSample,
+                        endSample
+                    );
+                } else {
+                    writeWavChunkFromFile(mono16kFile, chunkFile, startSample, endSample);
+                }
 
                 JSObject chunk = new JSObject();
                 chunk.put("index", index);
@@ -174,7 +287,7 @@ public class AudioVadPlugin extends Plugin {
 
             JSObject result = new JSObject();
             result.put("sampleRate", TARGET_SAMPLE_RATE);
-            result.put("durationSeconds", durationSeconds);
+            result.put("durationSeconds", speechAnalysis.totalDurationSeconds);
             result.put("chunks", chunks);
             call.resolve(result);
         } catch (Exception exception) {
@@ -410,14 +523,10 @@ public class AudioVadPlugin extends Plugin {
     // and runs WebRTC VAD on each frame. Peak memory: ~frame buffer + boolean flags array.
     // For 33 minutes: ~99K frames = ~99KB for the flags.
 
-    private List<Double> buildSpeechAwareBoundariesFromFile(
-        File mono16kFile,
-        int chunkDurationSeconds
-    ) throws Exception {
+    private SpeechAnalysisResult analyzeSpeechFromFile(File mono16kFile) throws Exception {
         long fileSize = mono16kFile.length();
         long totalSamples = fileSize / BYTES_PER_SAMPLE;
         double totalDurationSeconds = totalSamples / (double) TARGET_SAMPLE_RATE;
-
         int samplesPerFrame = TARGET_FRAME_SIZE;
         int bytesPerFrame = samplesPerFrame * BYTES_PER_SAMPLE;
         int frameCount = (int) (totalSamples / samplesPerFrame);
@@ -451,67 +560,12 @@ public class AudioVadPlugin extends Plugin {
                 }
             }
 
-            // Build chunk boundaries using same algorithm as before
-            int minChunkFrames = Math.max(
-                1,
-                (int) Math.floor(
-                    Math.min(
-                        chunkDurationSeconds / 2.0,
-                        Math.max(MIN_CHUNK_DURATION_SECONDS, chunkDurationSeconds * 0.35)
-                    ) / FRAME_DURATION_SECONDS
-                )
+            return new SpeechAnalysisResult(
+                speechFlags,
+                frameCount,
+                totalSamples,
+                totalDurationSeconds
             );
-            int searchRadiusFrames = Math.max(
-                1,
-                (int) Math.floor(SEARCH_RADIUS_SECONDS / FRAME_DURATION_SECONDS)
-            );
-
-            List<Double> boundaries = new ArrayList<>();
-            boundaries.add(0.0);
-            int previousBoundaryFrame = 0;
-            double targetSeconds = chunkDurationSeconds;
-
-            while (targetSeconds < totalDurationSeconds - MIN_CHUNK_DURATION_SECONDS) {
-                int targetFrame = (int) Math.floor(targetSeconds / FRAME_DURATION_SECONDS);
-                int searchStart = Math.max(
-                    previousBoundaryFrame + minChunkFrames,
-                    targetFrame - searchRadiusFrames
-                );
-                int searchEnd = Math.min(
-                    frameCount - minChunkFrames,
-                    targetFrame + searchRadiusFrames
-                );
-
-                int bestFrame = -1;
-                int bestDistance = Integer.MAX_VALUE;
-                for (int frameIndex = searchStart; frameIndex <= searchEnd; frameIndex += 1) {
-                    if (!speechFlags[frameIndex]) {
-                        int distance = Math.abs(frameIndex - targetFrame);
-                        if (distance < bestDistance) {
-                            bestDistance = distance;
-                            bestFrame = frameIndex;
-                        }
-                    }
-                }
-
-                if (bestFrame < 0) {
-                    bestFrame = Math.min(searchEnd, Math.max(searchStart, targetFrame));
-                }
-
-                double boundarySeconds = bestFrame * FRAME_DURATION_SECONDS;
-                double previousBoundarySeconds = boundaries.get(boundaries.size() - 1);
-                if (boundarySeconds <= previousBoundarySeconds + MIN_CHUNK_DURATION_SECONDS) {
-                    targetSeconds += chunkDurationSeconds;
-                    continue;
-                }
-
-                boundaries.add(boundarySeconds);
-                previousBoundaryFrame = bestFrame;
-                targetSeconds = boundarySeconds + chunkDurationSeconds;
-            }
-
-            boundaries.add(totalDurationSeconds);
-            return boundaries;
         } finally {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -520,6 +574,117 @@ public class AudioVadPlugin extends Plugin {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    private List<Double> buildSpeechAwareBoundariesFromAnalysis(
+        SpeechAnalysisResult analysis,
+        int chunkDurationSeconds
+    ) {
+        int minChunkFrames = Math.max(
+            1,
+            (int) Math.floor(
+                Math.min(
+                    chunkDurationSeconds / 2.0,
+                    Math.max(MIN_CHUNK_DURATION_SECONDS, chunkDurationSeconds * 0.35)
+                ) / FRAME_DURATION_SECONDS
+            )
+        );
+        int searchRadiusFrames = Math.max(
+            1,
+            (int) Math.floor(SEARCH_RADIUS_SECONDS / FRAME_DURATION_SECONDS)
+        );
+
+        List<Double> boundaries = new ArrayList<>();
+        boundaries.add(0.0);
+        int previousBoundaryFrame = 0;
+        double targetSeconds = chunkDurationSeconds;
+
+        while (targetSeconds < analysis.totalDurationSeconds - MIN_CHUNK_DURATION_SECONDS) {
+            int targetFrame = (int) Math.floor(targetSeconds / FRAME_DURATION_SECONDS);
+            int searchStart = Math.max(
+                previousBoundaryFrame + minChunkFrames,
+                targetFrame - searchRadiusFrames
+            );
+            int searchEnd = Math.min(
+                analysis.frameCount - minChunkFrames,
+                targetFrame + searchRadiusFrames
+            );
+
+            int bestFrame = -1;
+            int bestDistance = Integer.MAX_VALUE;
+            for (int frameIndex = searchStart; frameIndex <= searchEnd; frameIndex += 1) {
+                if (!analysis.speechFlags[frameIndex]) {
+                    int distance = Math.abs(frameIndex - targetFrame);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestFrame = frameIndex;
+                    }
+                }
+            }
+
+            if (bestFrame < 0) {
+                bestFrame = Math.min(searchEnd, Math.max(searchStart, targetFrame));
+            }
+
+            double boundarySeconds = bestFrame * FRAME_DURATION_SECONDS;
+            double previousBoundarySeconds = boundaries.get(boundaries.size() - 1);
+            if (boundarySeconds <= previousBoundarySeconds + MIN_CHUNK_DURATION_SECONDS) {
+                targetSeconds += chunkDurationSeconds;
+                continue;
+            }
+
+            boundaries.add(boundarySeconds);
+            previousBoundaryFrame = bestFrame;
+            targetSeconds = boundarySeconds + chunkDurationSeconds;
+        }
+
+        boundaries.add(analysis.totalDurationSeconds);
+        return boundaries;
+    }
+
+    private double[] tightenChunkRangeToSpeech(
+        SpeechAnalysisResult analysis,
+        double originalStartSeconds,
+        double originalEndSeconds
+    ) {
+        int startFrame = Math.max(0, (int) Math.floor(originalStartSeconds / FRAME_DURATION_SECONDS));
+        int endFrame = Math.min(
+            analysis.frameCount,
+            (int) Math.ceil(originalEndSeconds / FRAME_DURATION_SECONDS)
+        );
+
+        int firstSpeechFrame = -1;
+        int lastSpeechFrame = -1;
+
+        for (int frameIndex = startFrame; frameIndex < endFrame; frameIndex += 1) {
+            if (!analysis.speechFlags[frameIndex]) {
+                continue;
+            }
+            if (firstSpeechFrame < 0) {
+                firstSpeechFrame = frameIndex;
+            }
+            lastSpeechFrame = frameIndex;
+        }
+
+        if (firstSpeechFrame < 0 || lastSpeechFrame < 0) {
+            return new double[] { originalStartSeconds, originalEndSeconds };
+        }
+
+        int paddingFrames = Math.max(
+            1,
+            (int) Math.round(EDGE_SPEECH_PADDING_SECONDS / FRAME_DURATION_SECONDS)
+        );
+        int trimmedStartFrame = Math.max(startFrame, firstSpeechFrame - paddingFrames);
+        int trimmedEndFrame = Math.min(endFrame, lastSpeechFrame + paddingFrames + 1);
+
+        double trimmedStartSeconds = trimmedStartFrame * FRAME_DURATION_SECONDS;
+        double trimmedEndSeconds = trimmedEndFrame * FRAME_DURATION_SECONDS;
+
+        if (trimmedEndSeconds <= trimmedStartSeconds) {
+            return new double[] { originalStartSeconds, originalEndSeconds };
+        }
+
+        return new double[] { trimmedStartSeconds, trimmedEndSeconds };
     }
 
     // ── Phase 4: Write WAV chunk from file segment ───────────────────────
@@ -568,6 +733,110 @@ public class AudioVadPlugin extends Plugin {
                 remaining -= read;
             }
         }
+    }
+
+    private void writeSpeechOnlyWavChunkFromFile(
+        File sourceFile,
+        File outputFile,
+        SpeechAnalysisResult analysis,
+        double startSeconds,
+        double endSeconds,
+        long fallbackStartSample,
+        long fallbackEndSample
+    ) throws IOException {
+        List<SampleRange> ranges = buildSpeechOnlySampleRanges(analysis, startSeconds, endSeconds);
+        if (ranges.isEmpty()) {
+            writeWavChunkFromFile(sourceFile, outputFile, fallbackStartSample, fallbackEndSample);
+            return;
+        }
+
+        long pcmDataBytes = 0;
+        for (SampleRange range : ranges) {
+            pcmDataBytes += (range.endSample - range.startSample) * BYTES_PER_SAMPLE;
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(sourceFile, "r");
+             FileOutputStream fos = new FileOutputStream(outputFile)) {
+            writeWavHeader(fos, pcmDataBytes, TARGET_SAMPLE_RATE);
+            byte[] buffer = new byte[STREAM_BUFFER_SIZE];
+
+            for (SampleRange range : ranges) {
+                raf.seek(range.startSample * BYTES_PER_SAMPLE);
+                long remaining = (range.endSample - range.startSample) * BYTES_PER_SAMPLE;
+
+                while (remaining > 0) {
+                    int toRead = (int) Math.min(buffer.length, remaining);
+                    int read = raf.read(buffer, 0, toRead);
+                    if (read <= 0) break;
+                    fos.write(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+        }
+    }
+
+    private List<SampleRange> buildSpeechOnlySampleRanges(
+        SpeechAnalysisResult analysis,
+        double startSeconds,
+        double endSeconds
+    ) {
+        List<SampleRange> ranges = new ArrayList<>();
+        int startFrame = Math.max(0, (int) Math.floor(startSeconds / FRAME_DURATION_SECONDS));
+        int endFrame = Math.min(
+            analysis.frameCount,
+            (int) Math.ceil(endSeconds / FRAME_DURATION_SECONDS)
+        );
+        int paddingFrames = Math.max(
+            1,
+            (int) Math.round(EDGE_SPEECH_PADDING_SECONDS / FRAME_DURATION_SECONDS)
+        );
+
+        int frameIndex = startFrame;
+        while (frameIndex < endFrame) {
+            while (frameIndex < endFrame && !analysis.speechFlags[frameIndex]) {
+                frameIndex += 1;
+            }
+
+            if (frameIndex >= endFrame) {
+                break;
+            }
+
+            int speechStartFrame = frameIndex;
+            while (frameIndex < endFrame && analysis.speechFlags[frameIndex]) {
+                frameIndex += 1;
+            }
+            int speechEndFrame = frameIndex;
+
+            int paddedStartFrame = Math.max(startFrame, speechStartFrame - paddingFrames);
+            int paddedEndFrame = Math.min(endFrame, speechEndFrame + paddingFrames);
+            long rangeStartSample = Math.max(
+                0,
+                (long) paddedStartFrame * TARGET_FRAME_SIZE
+            );
+            long rangeEndSample = Math.min(
+                analysis.totalSamples,
+                (long) paddedEndFrame * TARGET_FRAME_SIZE
+            );
+
+            if (rangeEndSample <= rangeStartSample) {
+                continue;
+            }
+
+            if (!ranges.isEmpty()) {
+                SampleRange previous = ranges.get(ranges.size() - 1);
+                if (rangeStartSample <= previous.endSample) {
+                    ranges.set(
+                        ranges.size() - 1,
+                        new SampleRange(previous.startSample, Math.max(previous.endSample, rangeEndSample))
+                    );
+                    continue;
+                }
+            }
+
+            ranges.add(new SampleRange(rangeStartSample, rangeEndSample));
+        }
+
+        return ranges;
     }
 
     // ── Shared utility methods (unchanged) ───────────────────────────────
@@ -637,12 +906,112 @@ public class AudioVadPlugin extends Plugin {
         outputStream.write((value >> 24) & 0xff);
     }
 
+    private void mergeWaveFilesFromUris(JSArray fileUris, File outputFile) throws Exception {
+        long totalPcmBytes = 0;
+        List<File> inputFiles = new ArrayList<>();
+
+        for (int index = 0; index < fileUris.length(); index += 1) {
+            String rawUri = fileUris.optString(index, "");
+            if (rawUri == null || rawUri.trim().isEmpty()) {
+                continue;
+            }
+            Uri uri = Uri.parse(rawUri);
+            if (!"file".equalsIgnoreCase(uri.getScheme())) {
+                throw new IOException("Chunk URI không phải file://");
+            }
+            File inputFile = new File(uri.getPath());
+            if (!inputFile.exists()) {
+                throw new IOException("Không tìm thấy chunk file: " + rawUri);
+            }
+            if (inputFile.length() < 44) {
+                throw new IOException("Chunk WAV không hợp lệ: " + rawUri);
+            }
+            inputFiles.add(inputFile);
+            totalPcmBytes += (inputFile.length() - 44);
+        }
+
+        try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+            writeWavHeader(outputStream, totalPcmBytes, TARGET_SAMPLE_RATE);
+            byte[] buffer = new byte[STREAM_BUFFER_SIZE];
+
+            for (File inputFile : inputFiles) {
+                try (BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(inputFile), STREAM_BUFFER_SIZE)) {
+                    long bytesToSkip = 44;
+                    while (bytesToSkip > 0) {
+                        long skipped = inputStream.skip(bytesToSkip);
+                        if (skipped <= 0) {
+                            throw new IOException("Không thể bỏ qua header WAV khi merge.");
+                        }
+                        bytesToSkip -= skipped;
+                    }
+
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+                }
+            }
+        }
+    }
+
+    private void writeWavHeader(FileOutputStream outputStream, long pcmDataBytes, int sampleRate) throws IOException {
+        int channels = 1;
+        int bitsPerSample = BYTES_PER_SAMPLE * 8;
+        int byteRate = sampleRate * channels * BYTES_PER_SAMPLE;
+        int blockAlign = channels * BYTES_PER_SAMPLE;
+
+        outputStream.write(new byte[]{'R', 'I', 'F', 'F'});
+        writeInt32LittleEndian(outputStream, (int) (36 + pcmDataBytes));
+        outputStream.write(new byte[]{'W', 'A', 'V', 'E'});
+        outputStream.write(new byte[]{'f', 'm', 't', ' '});
+        writeInt32LittleEndian(outputStream, 16);
+        writeInt16LittleEndian(outputStream, 1);
+        writeInt16LittleEndian(outputStream, channels);
+        writeInt32LittleEndian(outputStream, sampleRate);
+        writeInt32LittleEndian(outputStream, byteRate);
+        writeInt16LittleEndian(outputStream, blockAlign);
+        writeInt16LittleEndian(outputStream, bitsPerSample);
+        outputStream.write(new byte[]{'d', 'a', 't', 'a'});
+        writeInt32LittleEndian(outputStream, (int) pcmDataBytes);
+    }
+
+    private String sanitizeWavFileName(String rawName) {
+        String safeName = rawName == null || rawName.trim().isEmpty() ? "merged-batch.wav" : rawName.trim();
+        safeName = safeName.replaceAll("[^a-zA-Z0-9._-]+", "-");
+        if (!safeName.toLowerCase(Locale.US).endsWith(".wav")) {
+            safeName = safeName + ".wav";
+        }
+        return safeName;
+    }
+
     private void deleteSilently(File file) {
         if (file != null) {
             try {
+                if (file.isDirectory()) {
+                    File[] children = file.listFiles();
+                    if (children != null) {
+                        for (File child : children) {
+                            deleteSilently(child);
+                        }
+                    }
+                }
                 file.delete();
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    private void deleteIfEmpty(File directory) {
+        if (directory == null || !directory.exists() || !directory.isDirectory()) {
+            return;
+        }
+        File[] children = directory.listFiles();
+        if (children != null && children.length > 0) {
+            return;
+        }
+        try {
+            directory.delete();
+        } catch (Exception ignored) {
         }
     }
 }

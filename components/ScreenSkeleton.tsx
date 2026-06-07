@@ -1,9 +1,11 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 type ScreenSkeletonVariant =
   | 'workspace'
   | 'upload'
   | 'record'
+  | 'audioEditor'
   | 'mode'
   | 'result'
   | 'export';
@@ -44,9 +46,10 @@ const ScreenShell: React.FC<{
 );
 
 export const ScreenSkeleton: React.FC<ScreenSkeletonProps> = ({ variant, label }) => {
+  const { t } = useTranslation();
   if (variant === 'workspace') {
     return (
-      <ScreenShell label={label || 'Đang tải workspace'}>
+      <ScreenShell label={label || t('ScreenSkeleton.workspace')}>
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
             <SkeletonBar width="140px" height="32px" rounded="999px" />
@@ -97,7 +100,7 @@ export const ScreenSkeleton: React.FC<ScreenSkeletonProps> = ({ variant, label }
 
   if (variant === 'record') {
     return (
-      <ScreenShell label={label || 'Đang tải phân hệ ghi âm'}>
+      <ScreenShell label={label || t('ScreenSkeleton.record')}>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.92fr_1.08fr]">
           <div className="rounded-[32px] bg-slate-950 p-6">
             <SkeletonBar width="110px" height="12px" className="mb-4 app-skeleton--dark" />
@@ -149,9 +152,40 @@ export const ScreenSkeleton: React.FC<ScreenSkeletonProps> = ({ variant, label }
     );
   }
 
+  if (variant === 'audioEditor') {
+    return (
+      <ScreenShell label={label || t('ScreenSkeleton.audioEditor')}>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-[28px] bg-slate-950 p-5">
+            <SkeletonBar width="120px" height="12px" className="mb-4 app-skeleton--dark" />
+            <SkeletonBar width="68%" height="36px" rounded="18px" className="app-skeleton--dark" />
+            <SkeletonBar width="92%" className="mt-4 app-skeleton--dark" />
+            <SkeletonBar width="100%" height="180px" rounded="24px" className="mt-6 app-skeleton--dark" />
+          </div>
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5">
+            <div className="flex justify-between gap-3">
+              <div className="flex-1">
+                <SkeletonBar width="110px" height="12px" className="mb-4" />
+                <SkeletonBar width="58%" height="34px" rounded="18px" />
+              </div>
+              <SkeletonBar width="120px" height="44px" rounded="14px" />
+            </div>
+            <SkeletonBar width="100%" height="120px" rounded="24px" className="mt-5" />
+            <SkeletonBar width="100%" height="52px" rounded="16px" className="mt-5" />
+            <SkeletonBar width="100%" height="52px" rounded="16px" className="mt-4" />
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <SkeletonBar width="100%" height="56px" rounded="18px" />
+              <SkeletonBar width="100%" height="56px" rounded="18px" />
+            </div>
+          </div>
+        </div>
+      </ScreenShell>
+    );
+  }
+
   if (variant === 'mode') {
     return (
-      <ScreenShell label={label || 'Đang tải cấu hình AI'}>
+      <ScreenShell label={label || t('ScreenSkeleton.mode')}>
         <SkeletonBar width="160px" height="12px" className="mb-4" />
         <SkeletonBar width="50%" height="36px" rounded="18px" />
         <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -174,7 +208,7 @@ export const ScreenSkeleton: React.FC<ScreenSkeletonProps> = ({ variant, label }
 
   if (variant === 'result') {
     return (
-      <ScreenShell label={label || 'Đang tải kết quả AI'}>
+      <ScreenShell label={label || t('ScreenSkeleton.result')}>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[248px_1fr]">
           <div className="rounded-[24px] bg-slate-950 p-5">
             <SkeletonBar width="120px" height="12px" className="mb-5 app-skeleton--dark" />
@@ -224,7 +258,7 @@ export const ScreenSkeleton: React.FC<ScreenSkeletonProps> = ({ variant, label }
 
   if (variant === 'export') {
     return (
-      <ScreenShell label={label || 'Đang tải màn hình xuất file'}>
+      <ScreenShell label={label || t('ScreenSkeleton.export')}>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <div>
             <SkeletonBar width="120px" height="12px" className="mb-4" />
@@ -257,7 +291,7 @@ export const ScreenSkeleton: React.FC<ScreenSkeletonProps> = ({ variant, label }
   }
 
   return (
-    <ScreenShell label={label || 'Đang tải màn hình'}>
+    <ScreenShell label={label || t('ScreenSkeleton.default')}>
       <SkeletonBar width="140px" height="12px" className="mb-4" />
       <SkeletonBar width="54%" height="36px" rounded="18px" />
       <SkeletonBar width="90%" className="mt-4" />

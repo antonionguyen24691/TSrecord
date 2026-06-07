@@ -11,18 +11,30 @@ import {
   DEFAULT_MODEL_ID,
   DEFAULT_REALTIME_MODEL_ID,
   loadAiSettings,
+  getDeviceId,
 } from './aiSettingsService';
 import type { RealtimeMode } from './aiSettingsService';
 import { createGeminiUserError } from './utils/geminiError';
 import { logError, logWarning } from './utils/logging';
+import {
+  getAiOutputLanguageInstruction,
+  getSpeechRecognitionLanguage,
+  translateServiceMessage,
+} from './utils/serviceMessages';
+import { fileToBase64 } from './utils/audioUtils';
+
 
 const MAX_FILE_SIZE_MB = 300;
-const INLINE_DATA_THRESHOLD_MB = 20;
+const INLINE_DATA_THRESHOLD_MB = 8;
 const TEMPERATURE_TRANSCRIPT = 0.1;
 const TEMPERATURE_ANALYSIS = 0.3;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 2000;
 const RETRYABLE_STATUS_PATTERNS = /\b(429|500|502|503|504|unavailable|overloaded|resource_exhausted|too many requests|internal|deadline)\b/i;
+
+type RetryableGeminiError = Error & {
+  retryAfterMs?: number;
+};
 
 const sessionResponseSchema = {
   type: 'object',
@@ -49,15 +61,6 @@ const sessionResponseSchema = {
     'mindmap',
     'actionItems',
   ],
-} as const;
-
-const transcriptOnlyResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    transcript: { type: 'string' },
-  },
-  required: ['transcript'],
 } as const;
 
 const liveMeetingChunkSchema = {
@@ -96,6 +99,17 @@ const isRetryableError = (error: unknown): boolean => {
   return RETRYABLE_STATUS_PATTERNS.test(message);
 };
 
+const getRetryDelayMs = (error: unknown, attempt: number) => {
+  const retryAfterMs =
+    error instanceof Error
+      ? (error as RetryableGeminiError).retryAfterMs
+      : undefined;
+  if (typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+    return Math.min(retryAfterMs, 120000);
+  }
+  return RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+};
+
 const retryWithBackoff = async <T>(
   fn: () => Promise<T>,
   context: string
@@ -112,7 +126,7 @@ const retryWithBackoff = async <T>(
         throw error;
       }
 
-      const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+      const delayMs = getRetryDelayMs(error, attempt);
       logWarning(
         `${context}: Retry ${attempt + 1}/${MAX_RETRIES} sau ${delayMs}ms`,
         error
@@ -124,17 +138,58 @@ const retryWithBackoff = async <T>(
   throw lastError;
 };
 
-const fileToBase64 = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      const base64Content = result.includes(',') ? result.split(',')[1] : result;
-      resolve(base64Content);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+const retryRestWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  context: string
+) => retryWithBackoff(fn, `${context}:rest`);
+
+const fetchGeminiRestWithBackoff = async (
+  input: RequestInfo | URL,
+  init: RequestInit,
+  context: string
+) =>
+  retryRestWithBackoff(async () => {
+    const response = await fetch(input, init);
+    if (
+      !response.ok &&
+      RETRYABLE_STATUS_PATTERNS.test(
+        `${response.status} ${response.statusText || ''}`
+      )
+    ) {
+      const bodyText = await response.text();
+      const error = new Error(
+        `Gemini REST error (${response.status}): ${bodyText}`
+      ) as RetryableGeminiError;
+      error.retryAfterMs = parseGeminiRetryDelayMs(response, bodyText);
+      throw error;
+    }
+    return response;
+  }, context);
+
+const parseGeminiRetryDelayMs = (response: Response, bodyText: string) => {
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const asSeconds = Number(retryAfter);
+    if (Number.isFinite(asSeconds) && asSeconds > 0) {
+      return asSeconds * 1000;
+    }
+
+    const asDate = Date.parse(retryAfter);
+    if (Number.isFinite(asDate)) {
+      return Math.max(0, asDate - Date.now());
+    }
+  }
+
+  const retryDelayMatch = bodyText.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/i);
+  if (retryDelayMatch) {
+    return Number(retryDelayMatch[1]) * 1000;
+  }
+
+  return undefined;
+};
+
+// fileToBase64 is imported from audioUtils
+
 
 const fileToGenerativePart = async (
   file: File,
@@ -142,7 +197,9 @@ const fileToGenerativePart = async (
 ): Promise<Record<string, unknown>> => {
   if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
     throw new Error(
-      `File qua lon. Vui long chon file duoi ${MAX_FILE_SIZE_MB}MB de tranh treo ung dung.`
+      translateServiceMessage('gemini.general.fileTooLargeForUpload', {
+        limit: MAX_FILE_SIZE_MB,
+      })
     );
   }
 
@@ -155,7 +212,17 @@ const fileToGenerativePart = async (
         config: { mimeType: file.type || 'audio/webm' },
       });
 
-      if (uploaded.uri) {
+      if (uploaded.uri && uploaded.name) {
+        // Poll for file to become active
+        let fileInfo = await ai.files.get({ name: uploaded.name });
+        while (fileInfo.state === 'PROCESSING') {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          fileInfo = await ai.files.get({ name: uploaded.name });
+        }
+        if (fileInfo.state !== 'ACTIVE') {
+          throw new Error(`File upload processing failed with state: ${fileInfo.state}`);
+        }
+
         return {
           fileData: {
             fileUri: uploaded.uri,
@@ -164,6 +231,10 @@ const fileToGenerativePart = async (
         };
       }
     } catch (uploadError) {
+      if (fileSizeMB > INLINE_DATA_THRESHOLD_MB) {
+        logWarning('Gemini Files API upload failed for a large file; switching to REST upload fallback:', uploadError);
+        throw uploadError;
+      }
       logWarning('Gemini Files API upload failed, falling back to inline data:', uploadError);
     }
   }
@@ -188,6 +259,22 @@ const sanitizeJsonText = (value: string) =>
     .replace(/^```\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
+
+const normalizeGenerationConfigForRest = (config: Record<string, unknown>) => {
+  const { responseJsonSchema, ...rest } = config;
+  return responseJsonSchema
+    ? {
+        ...rest,
+        responseSchema: responseJsonSchema,
+      }
+    : rest;
+};
+
+const extractRestCandidateText = (responseBody: any) =>
+  responseBody?.candidates?.[0]?.content?.parts
+    ?.map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('')
+    .trim() || '';
 
 const readText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
@@ -285,6 +372,7 @@ ${getTranscriptInstruction(mode)}
 
 Rang buoc:
 - Output phai la JSON hop le duy nhat.
+- ${getAiOutputLanguageInstruction()}
 - Neu khong du bang chung cho mot artifact nao, tra chuoi rong cho artifact do.
 - Khong duoc suy dien them ten rieng, con so, deadline, module, folder, he thong neu transcript khong noi toi.
 - "decisions" chi ghi noi dung da duoc chot.
@@ -318,6 +406,7 @@ ${transcriptInstruction}
 
 Rang buoc:
 - Output phai la JSON hop le duy nhat.
+- ${getAiOutputLanguageInstruction()}
 - Neu khong nghe ro hoac khong du bang chung, ghi trung tinh hoac de trong, khong tu bia.
 - "decisions" chi chua noi dung da duoc chot ro rang.
 - "actionItems" chi ghi viec lam co can cu.
@@ -341,6 +430,7 @@ Rang buoc:
 - Chi tap trung vao transcript sach va de dung lai.
 - Khong tao note hop, mindmap, folder tree.
 - Output phai la JSON hop le duy nhat.
+- ${getAiOutputLanguageInstruction()}
     `.trim();
   }
 
@@ -358,6 +448,7 @@ ${transcriptInstruction}
 Rang buoc:
 - Khong tom tat, khong suy dien he thong, khong dung mindmap cho phong van.
 - Output phai la JSON hop le duy nhat.
+- ${getAiOutputLanguageInstruction()}
   `.trim();
 };
 
@@ -365,23 +456,52 @@ const buildTranscriptOnlyPrompt = (mode: ExtractionMode) => `
 Vai tro: cong cu speech-to-text.
 
 Nhiem vu:
-- Chi nghe audio/video va tra ve truong "transcript".
+- Chi nghe audio/video va tra ve transcript thuan.
 - Khong tom tat.
 - Khong suy dien.
 - Khong tao decisions, risks, mindmap hay artifact nao khac.
 - Neu khong nghe ro, giu dung phan nghe duoc; khong tu bia.
+- Giu nguyen ngon ngu noi goc trong file, khong dich sang ngon ngu UI.
 
 ${getTranscriptInstruction(mode)}
 
 Rang buoc:
-- Output phai la JSON hop le duy nhat.
-- Khong tra them text nao ngoai JSON.
+- Chi tra ve noi dung transcript, khong JSON, khong markdown fence, khong giai thich them.
 `.trim();
+
+const extractTranscriptFromModelText = (rawText: string) => {
+  const cleaned = sanitizeJsonText(rawText);
+  if (!cleaned) return '';
+
+  try {
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    const transcript = readText(parsed.transcript);
+    if (transcript) return transcript;
+  } catch {
+    // Plain-text output is expected; JSON is only a backward-compatible fallback.
+  }
+
+  return cleaned;
+};
+
+const buildGeminiTranscriptionModelCandidates = (preferredModelId: string) =>
+  Array.from(
+    new Set(
+      [
+        'gemini-2.5-flash-lite',
+        DEFAULT_REALTIME_MODEL_ID,
+        preferredModelId,
+        DEFAULT_MODEL_ID,
+        'gemini-2.5-flash',
+      ].filter(Boolean)
+    )
+  );
 
 const mapResponseToAnalysis = ({
   rawText,
   parsed,
   file,
+  fallbackFileName,
   mode,
   source,
   context,
@@ -389,13 +509,14 @@ const mapResponseToAnalysis = ({
 }: {
   rawText: string;
   parsed: Record<string, unknown> | null;
-  file: File;
+  file?: File | null;
+  fallbackFileName?: string;
   mode: ExtractionMode;
   source: InputSource;
   context: SessionContext;
   savedRecording?: SavedDeviceFile | null;
 }): SessionAnalysis => {
-  const fallbackTitle = getFallbackTitle(file.name);
+  const fallbackTitle = getFallbackTitle(file?.name || fallbackFileName || 'transcript');
 
   if (!parsed) {
     return {
@@ -406,7 +527,7 @@ const mapResponseToAnalysis = ({
       suggestedFolderName: fallbackTitle,
       artifacts: {
         transcript:
-          rawText || 'Khong the doc JSON tu AI. He thong giu lai phan text tho hien co.',
+          rawText || translateServiceMessage('gemini.general.cannotParseJson'),
         summary: '',
         decisions: '',
         risks: '',
@@ -426,7 +547,10 @@ const mapResponseToAnalysis = ({
     suggestedFolderName:
       readText(parsed.suggestedFolderName) || fallbackTitle.replace(/\s+/g, '-'),
     artifacts: {
-      transcript: readText(parsed.transcript) || rawText || 'AI khong tra ve transcript.',
+      transcript:
+        readText(parsed.transcript) ||
+        rawText ||
+        translateServiceMessage('gemini.general.transcriptMissing'),
       summary: context === SessionContext.MEETING ? readText(parsed.summary) : '',
       decisions: context === SessionContext.MEETING ? readText(parsed.decisions) : '',
       risks: context === SessionContext.MEETING ? readText(parsed.risks) : '',
@@ -449,8 +573,148 @@ const mapResponseToAnalysis = ({
 
 let _cachedAiClient: { ai: GoogleGenAI; apiKey: string } | null = null;
 
-const getAiClient = async () => {
-  const settings = await loadAiSettings();
+const uploadToGeminiFilesRest = async ({
+  apiKey,
+  file,
+}: {
+  apiKey: string;
+  file: File;
+}) => {
+  const initRes = await fetchGeminiRestWithBackoff(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(file.size),
+        'X-Goog-Upload-Header-Content-Type': file.type || 'audio/wav',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file: {
+          displayName: file.name || 'audio.wav',
+        },
+      }),
+    },
+    'uploadToGeminiFilesRest:init'
+  );
+
+  if (!initRes.ok) {
+    throw new Error(`Gemini file upload init failed: ${await initRes.text()}`);
+  }
+
+  const uploadUrl = initRes.headers.get('x-goog-upload-url') || initRes.headers.get('X-Goog-Upload-Url');
+  if (!uploadUrl) {
+    throw new Error('Gemini file upload URL is missing.');
+  }
+
+  const uploadRes = await fetchGeminiRestWithBackoff(
+    uploadUrl,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: file,
+    },
+    'uploadToGeminiFilesRest:finalize'
+  );
+
+  if (!uploadRes.ok) {
+    throw new Error(`Gemini file upload finalize failed: ${await uploadRes.text()}`);
+  }
+
+  const uploadData = await uploadRes.json();
+  const fileNameOnServer = uploadData.file?.name;
+  const fileUri = uploadData.file?.uri;
+  let state = uploadData.file?.state;
+
+  if (!fileNameOnServer || !fileUri) {
+    throw new Error('Gemini file metadata is incomplete.');
+  }
+
+  while (state === 'PROCESSING') {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const pollRes = await fetchGeminiRestWithBackoff(
+      `https://generativelanguage.googleapis.com/v1beta/${fileNameOnServer}?key=${apiKey}`,
+      {},
+      'uploadToGeminiFilesRest:poll'
+    );
+    if (!pollRes.ok) {
+      throw new Error(`Gemini file polling failed: ${await pollRes.text()}`);
+    }
+    const pollData = await pollRes.json();
+    state = pollData.state;
+    if (state === 'FAILED') {
+      throw new Error('Gemini file processing failed.');
+    }
+  }
+
+  return {
+    fileData: {
+      fileUri,
+      mimeType: uploadData.file?.mimeType || file.type || 'audio/wav',
+    },
+  };
+};
+
+const fileToRestPart = async ({
+  file,
+  apiKey,
+}: {
+  file: File;
+  apiKey: string;
+}) => {
+  const sizeMb = file.size / (1024 * 1024);
+  if (sizeMb > 8) {
+    return uploadToGeminiFilesRest({ apiKey, file });
+  }
+
+  return {
+    inlineData: {
+      data: await fileToBase64(file),
+      mimeType: file.type || 'audio/wav',
+    },
+  };
+};
+
+const generateContentViaRest = async ({
+  apiKey,
+  model,
+  parts,
+  generationConfig,
+}: {
+  apiKey: string;
+  model: string;
+  parts: Array<Record<string, unknown>>;
+  generationConfig: Record<string, unknown>;
+}) => {
+  const response = await fetchGeminiRestWithBackoff(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: normalizeGenerationConfigForRest(generationConfig),
+      }),
+    },
+    `generateContentViaRest:${model}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Gemini REST error (${response.status}): ${await response.text()}`);
+  }
+
+  return response.json();
+};
+
+const getAiClient = async (passedSettings?: any) => {
+  const settings = passedSettings || (await loadAiSettings());
   const apiKey = settings.apiKey.trim();
   const realtimeModelId =
     settings.realtimeModelId || DEFAULT_REALTIME_MODEL_ID || DEFAULT_MODEL_ID;
@@ -458,7 +722,7 @@ const getAiClient = async () => {
     settings.analysisModelId || DEFAULT_ANALYSIS_MODEL_ID || DEFAULT_MODEL_ID;
 
   if (!apiKey || apiKey === 'undefined') {
-    throw new Error('Vui long nhap Gemini API Key trong phan Cai dat tren thiet bi nay.');
+    throw new Error(translateServiceMessage('gemini.general.enterApiKey'));
   }
 
   if (!_cachedAiClient || _cachedAiClient.apiKey !== apiKey) {
@@ -467,6 +731,8 @@ const getAiClient = async () => {
 
   return {
     ai: _cachedAiClient.ai,
+    apiKey,
+    transcriptionModelId: settings.realtimeModelId || DEFAULT_REALTIME_MODEL_ID || DEFAULT_MODEL_ID,
     realtimeModelId,
     analysisModelId,
   };
@@ -588,7 +854,10 @@ Rang buoc:
     return normalizeMeetingChunkResponse(parsed, rawText);
   } catch (error: unknown) {
     logError('Realtime Gemini chunk error:', error);
-    throw createGeminiUserError(error, 'Khong the cap nhat ghi chu realtime.');
+    throw createGeminiUserError(
+      error,
+      translateServiceMessage('gemini.general.cannotUpdateRealtimeNotes')
+    );
   }
 };
 
@@ -606,62 +875,262 @@ ${buildMeetingAnalysisPrompt(mode)}
 export const transcribeAudioWithGemini = async ({
   file,
   mode,
+  settings: passedSettings,
 }: {
   file: File;
   mode: ExtractionMode;
+  settings?: any;
 }): Promise<string> => {
-  try {
-    const { ai, analysisModelId } = await getAiClient();
-    const filePart = await fileToGenerativePart(file, ai);
-    const response = await retryWithBackoff(
-      () => ai.models.generateContent({
-        model: analysisModelId,
-        contents: {
-          parts: [filePart, { text: buildTranscriptOnlyPrompt(mode) }],
-        },
-        config: {
-          temperature: TEMPERATURE_TRANSCRIPT,
-          responseMimeType: 'application/json',
-          responseJsonSchema: transcriptOnlyResponseSchema,
-        },
+  const settings = passedSettings || (await loadAiSettings());
+  if (settings.useAdminKey) {
+    const deviceId = await getDeviceId();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const fileBase64 = await fileToBase64(file);
+    const response = await fetch(`${backendUrl}/api/client/proxy/transcribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId,
+        provider: 'gemini',
+        fileBase64,
+        fileName: file.name,
+        fileType: file.type,
+        mode,
+        language: getSpeechRecognitionLanguage(),
+        preferredModelId: settings.realtimeModelId || DEFAULT_REALTIME_MODEL_ID,
       }),
-      'transcribeAudioWithGemini'
-    );
+    });
 
-    const rawText = sanitizeJsonText(response.text || '');
-    if (!rawText) throw new Error('Ket qua transcript rong.');
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || `Proxy transcription error (${response.status})`);
+    }
 
-    const parsed = JSON.parse(rawText) as Record<string, unknown>;
-    const transcript = readText(parsed.transcript);
-    if (!transcript) throw new Error('Gemini khong tra transcript hop le.');
-    return transcript;
+    const data = await response.json();
+    return data.transcript;
+  }
+
+  try {
+    const { ai, transcriptionModelId, apiKey } = await getAiClient(settings);
+    const filePart = await fileToGenerativePart(file, ai);
+    const prompt = buildTranscriptOnlyPrompt(mode);
+    const transcriptionModels = buildGeminiTranscriptionModelCandidates(transcriptionModelId);
+    let rawText = '';
+    let lastError: unknown = null;
+
+    for (const modelId of transcriptionModels) {
+      try {
+        const response = await retryWithBackoff(
+          () => ai.models.generateContent({
+            model: modelId,
+            contents: {
+              parts: [filePart, { text: prompt }],
+            },
+            config: {
+              temperature: TEMPERATURE_TRANSCRIPT,
+            },
+          }),
+          `transcribeAudioWithGemini:${modelId}`
+        );
+        rawText = response.text || '';
+        const transcript = extractTranscriptFromModelText(rawText);
+        if (transcript) {
+          return transcript;
+        }
+        lastError = new Error(translateServiceMessage('gemini.general.invalidTranscriptResponse'));
+      } catch (sdkError) {
+        lastError = sdkError;
+        logWarning(`Gemini SDK transcription failed for model ${modelId}, retrying via REST fallback:`, sdkError);
+
+        try {
+          const restResponse = await generateContentViaRest({
+            apiKey,
+            model: modelId,
+            parts: [await fileToRestPart({ file, apiKey }), { text: prompt }],
+            generationConfig: {
+              temperature: TEMPERATURE_TRANSCRIPT,
+            },
+          });
+          rawText = extractRestCandidateText(restResponse);
+          const transcript = extractTranscriptFromModelText(rawText);
+          if (transcript) {
+            return transcript;
+          }
+          lastError = new Error(translateServiceMessage('gemini.general.invalidTranscriptResponse'));
+        } catch (restError) {
+          lastError = restError;
+          logWarning(`Gemini REST transcription failed for model ${modelId}:`, restError);
+        }
+      }
+    }
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(
+          rawText
+            ? translateServiceMessage('gemini.general.invalidTranscriptResponse')
+            : translateServiceMessage('gemini.general.emptyTranscriptResult')
+        );
   } catch (error: unknown) {
     logError('Gemini transcription error:', error);
-    throw createGeminiUserError(error, 'Khong the transcript audio bang Gemini.');
+    throw createGeminiUserError(
+      error,
+      translateServiceMessage('gemini.general.cannotTranscribe')
+    );
   }
 };
 
 export const analyzeTranscriptWithGemini = async ({
   transcriptText,
   file,
+  fallbackFileName,
   mode,
   source,
   context,
   savedRecording,
   additionalExtractedTexts,
   additionalPdfFiles,
+  settings: passedSettings,
 }: {
   transcriptText: string;
-  file: File;
+  file?: File | null;
+  fallbackFileName?: string;
   mode: ExtractionMode;
   source: InputSource;
   context: SessionContext;
   savedRecording?: SavedDeviceFile | null;
   additionalExtractedTexts?: Array<{ fileName: string; content: string }>;
   additionalPdfFiles?: File[];
+  settings?: any;
 }): Promise<SessionAnalysis> => {
+  const settings = passedSettings || (await loadAiSettings());
+  if (settings.useAdminKey) {
+    try {
+      const pdfParts = await Promise.all(
+        (additionalPdfFiles || []).map(async (pdfFile) => {
+          const data = await fileToBase64(pdfFile);
+          return {
+            inlineData: {
+              data,
+              mimeType: pdfFile.type || 'application/pdf',
+            },
+          };
+        })
+      );
+
+      let prompt: string;
+      if (context === SessionContext.MEETING) {
+        prompt = buildTextOnlyPrompt(transcriptText, mode);
+      } else if (context === SessionContext.INTERVIEW) {
+        prompt = `
+Vai tro: chuyen gia chep phong van.
+ 
+Duoi day la transcript cuoc phong van da co san:
+--- TRANSCRIPT BAT DAU ---
+${transcriptText}
+--- TRANSCRIPT KET THUC ---
+ 
+Nhiem vu:
+- Dat lai "transcript" bang dung transcript phong van o tren, giu nguyen cau hoi va tra loi.
+- Tao "title" ngan gon theo chu de cuoc phong van.
+- Tao "suggestedFolderName" dang slug ngan gon.
+- Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
+- Output phai la JSON hop le duy nhat.
+ 
+Rang buoc:
+- Khong tom tat, khong suy dien he thong, khong dung mindmap hay folder tree cho phong van.
+- Khong tu bia thong tin ngoai transcript.
+        `.trim();
+      } else {
+        prompt = `
+Vai tro: cong cu xu ly transcript.
+ 
+Duoi day la transcript da co san:
+--- TRANSCRIPT BAT DAU ---
+${transcriptText}
+--- TRANSCRIPT KET THUC ---
+ 
+Nhiem vu:
+- Dat lai "transcript" bang dung transcript o tren.
+- Tao "title" va "suggestedFolderName" ngan gon.
+- Cac truong "summary", "decisions", "risks", "folderTree", "mindmap", "actionItems" phai la chuoi rong.
+- Output phai la JSON hop le duy nhat.
+        `.trim();
+      }
+
+      if (additionalExtractedTexts && additionalExtractedTexts.length > 0) {
+        const textsBlock = additionalExtractedTexts
+          .map(
+            (item) => `
+--- TAI LIEU DINH KEM BO TRO: ${item.fileName} ---
+${item.content}
+--- HET TAI LIEU: ${item.fileName} ---
+`
+          )
+          .join('\n\n');
+
+        prompt += `
+ 
+Duoi day la noi dung cua cac tai lieu bo tro do nguoi dung cung cap. Hay doc va ket hop doi chieu cac tai lieu nay voi transcript o tren de tra ve ket qua tom tat, quyet dinh, mindmap, va folder tree chinh xac va day du nhat:
+${textsBlock}
+`;
+      }
+
+      if (additionalPdfFiles && additionalPdfFiles.length > 0) {
+        prompt += `
+ 
+Chu y: Co ${additionalPdfFiles.length} tai lieu PDF duoc dinh kem duoi dang cac dynamic parts trong request nay. Hay doc va phan tich truc tiep file PDF nay cung voi transcript de toi uu ket qua summary va mindmap.
+`;
+      }
+
+      const parts = [...pdfParts, { text: prompt }];
+      const deviceId = await getDeviceId();
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      const model = settings.analysisModelId || DEFAULT_ANALYSIS_MODEL_ID;
+
+      const response = await fetch(`${backendUrl}/api/client/proxy/gemini`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          model,
+          contents: { parts },
+          generationConfig: {
+            temperature: context === SessionContext.MEETING ? TEMPERATURE_ANALYSIS : TEMPERATURE_TRANSCRIPT,
+            responseMimeType: 'application/json',
+            responseJsonSchema: sessionResponseSchema,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || `Proxy analysis error (${response.status})`);
+      }
+
+      const rawText = await response.json();
+      // Since proxy returns raw parsed JSON, we wrap it back or handle it
+      return mapResponseToAnalysis({
+        rawText: JSON.stringify(rawText),
+        parsed: rawText,
+        file,
+        fallbackFileName,
+        mode,
+        source,
+        context,
+        savedRecording,
+      });
+    } catch (error: any) {
+      logError('Gemini proxy text analysis error:', error);
+      throw createGeminiUserError(
+        error,
+        translateServiceMessage('gemini.general.cannotAnalyzeProxy')
+      );
+    }
+  }
+
   try {
-    const { ai, analysisModelId } = await getAiClient();
+    const { ai, analysisModelId, apiKey } = await getAiClient(settings);
 
     // Chuẩn bị các file PDF đính kèm dưới dạng các generative parts đa phương thức
     const pdfParts = await Promise.all(
@@ -738,21 +1207,40 @@ Chu y: Co ${additionalPdfFiles.length} tai lieu PDF duoc dinh kem duoi dang cac 
 
     const parts = [...pdfParts, { text: prompt }];
 
-    const response = await retryWithBackoff(
-      () => ai.models.generateContent({
+    let rawText = '';
+    try {
+      const response = await retryWithBackoff(
+        () => ai.models.generateContent({
+          model: analysisModelId,
+          contents: { parts },
+          config: {
+            temperature: context === SessionContext.MEETING ? TEMPERATURE_ANALYSIS : TEMPERATURE_TRANSCRIPT,
+            responseMimeType: 'application/json',
+            responseJsonSchema: sessionResponseSchema,
+          },
+        }),
+        'analyzeTranscriptWithGemini'
+      );
+      rawText = sanitizeJsonText(response.text || '');
+    } catch (sdkError) {
+      logWarning('Gemini SDK analysis failed, retrying via REST fallback:', sdkError);
+      const restPdfParts = await Promise.all(
+        (additionalPdfFiles || []).map((pdfFile) => fileToRestPart({ file: pdfFile, apiKey }))
+      );
+      const restResponse = await generateContentViaRest({
+        apiKey,
         model: analysisModelId,
-        contents: { parts },
-        config: {
+        parts: [...restPdfParts, { text: prompt }],
+        generationConfig: {
           temperature: context === SessionContext.MEETING ? TEMPERATURE_ANALYSIS : TEMPERATURE_TRANSCRIPT,
           responseMimeType: 'application/json',
           responseJsonSchema: sessionResponseSchema,
         },
-      }),
-      'analyzeTranscriptWithGemini'
-    );
+      });
+      rawText = sanitizeJsonText(extractRestCandidateText(restResponse));
+    }
 
-    const rawText = sanitizeJsonText(response.text || '');
-    if (!rawText) throw new Error('Ket qua AI rong.');
+    if (!rawText) throw new Error(translateServiceMessage('gemini.general.emptyResult'));
 
     let parsed: Record<string, unknown> | null = null;
     try {
@@ -765,6 +1253,7 @@ Chu y: Co ${additionalPdfFiles.length} tai lieu PDF duoc dinh kem duoi dang cac 
       rawText,
       parsed,
       file,
+      fallbackFileName,
       mode,
       source,
       context,
@@ -772,7 +1261,10 @@ Chu y: Co ${additionalPdfFiles.length} tai lieu PDF duoc dinh kem duoi dang cac 
     });
   } catch (error: unknown) {
     logError('Gemini text analysis error:', error);
-    throw createGeminiUserError(error, 'Da xay ra loi khi phan tich transcript.');
+    throw createGeminiUserError(
+      error,
+      translateServiceMessage('gemini.general.cannotAnalyze')
+    );
   }
 };
 
@@ -814,7 +1306,7 @@ export const processMediaSession = async ({
     );
 
     const rawText = sanitizeJsonText(response.text || '');
-    if (!rawText) throw new Error('Ket qua AI rong.');
+    if (!rawText) throw new Error(translateServiceMessage('gemini.general.emptyResult'));
 
     let parsed: Record<string, unknown> | null = null;
     try {
@@ -834,6 +1326,9 @@ export const processMediaSession = async ({
     });
   } catch (error: unknown) {
     logError('Gemini processing error:', error);
-    throw createGeminiUserError(error, 'Da xay ra loi khi xu ly file.');
+    throw createGeminiUserError(
+      error,
+      translateServiceMessage('gemini.general.cannotProcessFile')
+    );
   }
 };

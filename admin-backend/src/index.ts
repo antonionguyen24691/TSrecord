@@ -12,6 +12,7 @@ import promoCodesRoutes from './routes/promoCodes.js';
 import configRoutes from './routes/config.js';
 import webhooksRoutes from './routes/webhooks.js';
 import clientRoutes from './routes/client.js';
+import platformRoutes from './routes/platform.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,7 +20,15 @@ const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // ── Middleware ────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  limit: '50mb',
+  verify: (req: any, res, buf) => {
+    if (req.originalUrl && req.originalUrl.includes('/webhooks/')) {
+      req.rawBody = buf;
+    }
+  }
+}));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ── API routes ───────────────────────────────────────────────
 app.use('/api/admin', adminRoutes);
@@ -30,6 +39,7 @@ app.use('/api/promo-codes', promoCodesRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/client', clientRoutes);
+app.use('/api/v2', platformRoutes);
 
 // ── Serve admin UI ───────────────────────────────────────────
 const publicDir = path.resolve(__dirname, '..', 'public');
@@ -38,12 +48,13 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-// ── Initialize DB and start ──────────────────────────────────
-getDb();
-console.log(`[TSrecord Admin] Database initialized`);
+// Vercel imports the Express app. Local/Fly runs still use the SQLite backend.
+if (!process.env.VERCEL) {
+  getDb();
+  console.log('[TSrecord Admin] Local database initialized');
+  app.listen(PORT, () => {
+    console.log(`[TSrecord Admin] Server running at http://localhost:${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`[TSrecord Admin] Server running at http://localhost:${PORT}`);
-  console.log(`[TSrecord Admin] Admin UI: http://localhost:${PORT}`);
-  console.log(`[TSrecord Admin] Client API: http://localhost:${PORT}/api/client/license?device_id=...`);
-});
+export default app;

@@ -6,6 +6,10 @@
  */
 
 import { ExtractionMode } from '../types';
+import {
+  getSpeechRecognitionLanguage,
+  translateServiceMessage,
+} from './utils/serviceMessages';
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
 const MAX_FILE_SIZE_MB = 25;
@@ -21,14 +25,16 @@ export const transcribeWithGroq = async (
   mode: ExtractionMode = ExtractionMode.TIMELINE
 ): Promise<string> => {
   if (!apiKey) {
-    throw new Error('Chưa cấu hình Groq API Key. Vui lòng vào Cài đặt để nhập key.');
+    throw new Error(translateServiceMessage('providers.groq.missingApiKey'));
   }
 
   const fileSizeMB = file.size / (1024 * 1024);
   if (fileSizeMB > MAX_FILE_SIZE_MB) {
     throw new Error(
-      `File của bạn (${fileSizeMB.toFixed(1)}MB) vượt quá giới hạn 25MB của Groq Whisper. ` +
-        `Vui lòng dùng Google Gemini hoặc AssemblyAI cho file lớn hơn.`
+      translateServiceMessage('providers.groq.fileTooLarge', {
+        size: fileSizeMB.toFixed(1),
+        limit: MAX_FILE_SIZE_MB,
+      })
     );
   }
 
@@ -40,7 +46,7 @@ export const transcribeWithGroq = async (
   formData.append('response_format', 'verbose_json');
   formData.append('timestamp_granularities[]', 'segment');
   // Groq Whisper hỗ trợ tiếng Việt tốt
-  formData.append('language', 'vi');
+  formData.append('language', getSpeechRecognitionLanguage());
 
   const response = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
     method: 'POST',

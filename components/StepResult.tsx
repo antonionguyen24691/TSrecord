@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   ArrowRight,
@@ -8,18 +9,30 @@ import {
   FileWarning,
   FolderTree,
   ListTodo,
+  Plus,
   ScrollText,
   ShieldAlert,
   Share2,
+  Trash2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ArtifactKey, SessionAnalysis, SessionContext } from '../types';
+import {
+  buildTranscriptTimelineText,
+  parseTranscriptTimeline,
+  TranscriptTimelineSegment,
+} from '../services/utils/transcriptTimeline';
+import { computeMindmapViewport as computeMindmapViewportUtil } from '../services/utils/mindmap';
 
 interface StepResultProps {
   analysis: SessionAnalysis;
   setAnalysis: React.Dispatch<React.SetStateAction<SessionAnalysis | null>>;
   onNext: () => void;
+  onReanalyze?: () => void;
+  onResumeTranscription?: () => void;
+  isReanalyzing?: boolean;
+  isResumingTranscription?: boolean;
 }
 
 interface ArtifactItem {
@@ -33,11 +46,6 @@ interface ArtifactItem {
 interface TreeNode {
   label: string;
   children: TreeNode[];
-}
-
-interface TranscriptSegment {
-  timestamp: string | null;
-  text: string;
 }
 
 interface MindmapNode {
@@ -237,7 +245,7 @@ const buildFallbackMindmapFromAnalysis = (analysis: SessionAnalysis) => {
     .map((item) => item.text)
     .filter(Boolean)
     .slice(0, 5);
-  const transcriptSegments = parseTimelineTranscript(analysis.artifacts.transcript)
+  const transcriptSegments = parseTranscriptTimeline(analysis.artifacts.transcript)
     .map((segment) => segment.text)
     .filter(Boolean)
     .slice(0, 3);
@@ -309,40 +317,6 @@ const normalizeMermaidMindmap = (rawMindmap: string, analysis: SessionAnalysis) 
   }
 
   return buildFallbackMindmapFromAnalysis(analysis);
-};
-
-const parseTimelineTranscript = (value: string): TranscriptSegment[] => {
-  const normalizedText = value
-    .replace(/\s*(\[\d{2}:\d{2}:\d{2}\])/g, '\n$1')
-    .replace(/\n{3,}/g, '\n\n');
-  const lines = cleanLines(normalizedText);
-  const segments: TranscriptSegment[] = [];
-  let current: TranscriptSegment | null = null;
-
-  lines.forEach((line) => {
-    const match = line.match(/^\[(\d{2}:\d{2}:\d{2})\]\s*(.*)$/);
-
-    if (match) {
-      current = {
-        timestamp: match[1],
-        text: match[2].trim(),
-      };
-      segments.push(current);
-      return;
-    }
-
-    if (current) {
-      current.text = `${current.text} ${line}`.trim();
-      return;
-    }
-
-    segments.push({
-      timestamp: null,
-      text: line,
-    });
-  });
-
-  return segments;
 };
 
 const mindmapNodesToTree = (nodes: MindmapNode[]): MindmapTreeNode | null => {
@@ -513,7 +487,8 @@ const buildFolderTree = (rows: Array<{ depth: number; label: string }>) => {
   return root.children;
 };
 
-const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
+const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = React.memo(({ nodes }) => {
+  const { t } = useTranslation();
   const tree = mindmapNodesToTree(nodes);
   const initialLayout = useMemo(
     () => (tree ? buildMindmapGraphLayout(tree) : { nodes: [], edges: [], width: 1120, height: 760 }),
@@ -524,6 +499,7 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const transformGroupRef = useRef<SVGGElement>(null);
   const viewportRef = useRef({ x: 0, y: 0, scale: 1 });
+  const initialNodesRef = useRef<MindmapRenderNode[]>(initialLayout.nodes);
   const dragRef = useRef<
     | {
         type: 'node';
@@ -548,10 +524,47 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
 
   useEffect(() => {
     setGraphNodes(initialLayout.nodes);
-    const resetVp = { x: 0, y: 0, scale: 1 };
-    setViewport(resetVp);
-    viewportRef.current = resetVp;
+    initialNodesRef.current = initialLayout.nodes;
   }, [initialLayout]);
+
+  const fitViewportToGraph = (nextNodes: MindmapRenderNode[] = graphNodes) => {
+    const svg = svgRef.current;
+    if (!svg || nextNodes.length === 0) {
+      const fallback = { x: 0, y: 0, scale: 1 };
+      viewportRef.current = fallback;
+      applyViewportTransform();
+      setViewport(fallback);
+      return;
+    }
+
+    const rect = svg.getBoundingClientRect();
+    const fitted = computeMindmapViewportUtil({
+      graphNodes: nextNodes,
+      viewWidth: rect.width || initialLayout.width,
+      viewHeight: rect.height || 580,
+      padding: 48,
+    });
+
+    viewportRef.current = fitted;
+    applyViewportTransform();
+    setViewport(fitted);
+  };
+
+  useEffect(() => {
+    fitViewportToGraph(initialLayout.nodes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLayout]);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      fitViewportToGraph();
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphNodes]);
 
   const strokeForDepth = (depth: number) => {
     const palette = ['#0f172a', '#0d7c66', '#2563eb', '#f59e0b', '#ec4899', '#14b8a6'];
@@ -728,7 +741,7 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
     if (svg) {
       try {
         svg.releasePointerCapture(event.pointerId);
-      } catch (e) {
+      } catch {
         // Ignore pointer capture release error if pointer was not captured
       }
       svg.style.cursor = 'grab';
@@ -805,14 +818,18 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
   };
 
   const handleZoomReset = () => {
-    const resetVp = { x: 0, y: 0, scale: 1 };
-    viewportRef.current = resetVp;
-    applyViewportTransform();
-    setViewport(resetVp);
+    fitViewportToGraph();
+  };
+
+  const handleAutoLayout = () => {
+    setGraphNodes(initialNodesRef.current);
+    window.requestAnimationFrame(() => {
+      fitViewportToGraph(initialNodesRef.current);
+    });
   };
 
   if (!tree) {
-    return <EmptyArtifactState message="Không có dữ liệu mindmap để render." />;
+    return <EmptyArtifactState message={t('StepResult.mindmapEmpty')} />;
   }
 
   return (
@@ -823,7 +840,7 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
           type="button"
           onClick={handleZoomIn}
           className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 font-black text-sm text-slate-800 transition-all active:scale-95"
-          title="Phóng to"
+          title={t('StepResult.mindmapZoomIn')}
         >
           +
         </button>
@@ -831,7 +848,7 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
           type="button"
           onClick={handleZoomOut}
           className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 font-black text-sm text-slate-800 transition-all active:scale-95"
-          title="Thu nhỏ"
+          title={t('StepResult.mindmapZoomOut')}
         >
           −
         </button>
@@ -840,15 +857,23 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
           type="button"
           onClick={handleZoomReset}
           className="rounded-lg hover:bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition-all active:scale-95"
-          title="Khôi phục mặc định"
+          title={t('StepResult.mindmapReset')}
         >
-          Mặc định
+          {t('StepResult.mindmapResetShort')}
+        </button>
+        <button
+          type="button"
+          onClick={handleAutoLayout}
+          className="rounded-lg hover:bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition-all active:scale-95"
+          title={t('StepResult.mindmapAutoFit')}
+        >
+          {t('StepResult.mindmapAutoFitShort')}
         </button>
       </div>
 
       <div className="absolute top-4 left-4 z-10 hidden sm:flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 backdrop-blur">
         <div className="h-1.5 w-1.5 rounded-full bg-[#0d7c66] animate-pulse" />
-        Hỗ trợ kéo thả & Zoom đa điểm (Pinch)
+        {t('StepResult.mindmapHint')}
       </div>
 
       <svg
@@ -857,7 +882,8 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
         className="h-[580px] w-full touch-none bg-white transition-colors"
         style={{ cursor: 'grab' }}
         role="img"
-        aria-label="Mindmap visualization"
+        aria-label={t('StepResult.mindmapAria')}
+        onDoubleClick={handleZoomReset}
         onPointerDown={handlePointerDown()}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDragging}
@@ -978,11 +1004,14 @@ const MindmapGraphPreview: React.FC<{ nodes: MindmapNode[] }> = ({ nodes }) => {
           })}
         </g>
       </svg>
+      <div className="border-t border-slate-200 bg-white/80 px-4 py-2 text-[11px] font-semibold text-slate-500">
+        {t('StepResult.mindmapStatus', { scale: Math.round(viewport.scale * 100) })}
+      </div>
     </div>
   );
-};
+});
 
-const FolderTreeNodeView: React.FC<{ node: TreeNode; depth?: number }> = ({ node, depth = 0 }) => (
+const FolderTreeNodeView: React.FC<{ node: TreeNode; depth?: number }> = React.memo(({ node, depth = 0 }) => (
   <div className={depth === 0 ? '' : 'ml-4 mt-[4px] border-l border-slate-200 pl-[6px]'}>
     <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-[6px] py-[4px] text-sm font-semibold text-slate-800 shadow-sm">
       <div className="h-2.5 w-2.5 rounded-full bg-[#0d7c66]" />
@@ -996,42 +1025,76 @@ const FolderTreeNodeView: React.FC<{ node: TreeNode; depth?: number }> = ({ node
       </div>
     )}
   </div>
-);
+));
 
 const PreviewCard: React.FC<{
   title: string;
   subtitle?: string;
   children: React.ReactNode;
-}> = ({ title, subtitle, children }) => (
+}> = React.memo(({ title, subtitle, children }) => (
   <div className="rounded-[20px] border border-slate-200 bg-white p-[4px] shadow-sm">
     <div className="px-[4px] text-sm font-bold text-slate-900">{title}</div>
     {subtitle && <div className="mt-[3px] px-[4px] text-xs text-slate-500">{subtitle}</div>}
     <div className="mt-[6px]">{children}</div>
   </div>
-);
+));
 
-const EmptyArtifactState: React.FC<{ message: string }> = ({ message }) => (
+const EmptyArtifactState: React.FC<{ message: string }> = React.memo(({ message }) => (
   <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-[6px] py-6 text-center text-sm text-slate-500">
     {message}
   </div>
-);
+));
 
-const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnalysis }> = ({
+const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnalysis }> = React.memo(({
   artifact,
   analysis,
 }) => {
+  const { t } = useTranslation();
   const content = artifact.content.trim();
 
+  const timelineSegments = useMemo(() => {
+    if (artifact.key !== 'transcript') return [];
+    return parseTranscriptTimeline(content);
+  }, [artifact.key, content]);
+
+  const hasTimeline = useMemo(() => {
+    return timelineSegments.some((segment) => segment.timestamp);
+  }, [timelineSegments]);
+
+  const normalizedMarkdown = useMemo(() => {
+    if (artifact.key !== 'summary') return '';
+    return normalizeSummaryMarkdown(content);
+  }, [artifact.key, content]);
+
+  const bulletItems = useMemo(() => {
+    if (artifact.key !== 'decisions' && artifact.key !== 'risks') return [];
+    return parseBulletList(content);
+  }, [artifact.key, content]);
+
+  const checklistItems = useMemo(() => {
+    if (artifact.key !== 'actionItems') return [];
+    return parseChecklist(content);
+  }, [artifact.key, content]);
+
+  const folderTree = useMemo(() => {
+    if (artifact.key !== 'folderTree') return [];
+    const rows = parseFolderTree(content);
+    return buildFolderTree(rows);
+  }, [artifact.key, content]);
+
+  const mindmapNodes = useMemo(() => {
+    if (artifact.key !== 'mindmap') return [];
+    const normalizedChart = normalizeMermaidMindmap(content, analysis);
+    return parseMindmap(normalizedChart);
+  }, [artifact.key, content, analysis]);
+
   if (!content) {
-    return <EmptyArtifactState message="Artifact này hiện chưa có dữ liệu." />;
+    return <EmptyArtifactState message={t('StepResult.emptyArtifact')} />;
   }
 
   if (artifact.key === 'transcript') {
-    const timelineSegments = parseTimelineTranscript(content);
-    const hasTimeline = timelineSegments.some((segment) => segment.timestamp);
-
     return (
-      <PreviewCard title="Transcript đã chuẩn hóa" subtitle="Giữ nguyên nội dung chép lời, dễ rà soát và đối chiếu.">
+      <PreviewCard title={artifact.label} subtitle={artifact.description}>
         {hasTimeline ? (
           <div className="space-y-[4px] overflow-visible rounded-2xl bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-[4px] md:max-h-[68vh] md:overflow-auto">
             {timelineSegments.map((segment, index) => (
@@ -1042,7 +1105,9 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
                 <div className="inline-flex h-fit items-center justify-center rounded-2xl bg-slate-950 px-[6px] py-[4px] font-mono text-sm font-bold text-[#7af2d1]">
                   {segment.timestamp || '--:--:--'}
                 </div>
-                <div className="text-[15px] leading-7 text-slate-800 text-justify">{segment.text}</div>
+                <div className="whitespace-pre-wrap text-[15px] leading-7 text-slate-800 text-justify">
+                  {segment.text}
+                </div>
               </div>
             ))}
           </div>
@@ -1056,11 +1121,10 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
   }
 
   if (artifact.key === 'summary') {
-    const normalizedMarkdown = normalizeSummaryMarkdown(content);
     return (
       <PreviewCard
-        title="Meeting summary"
-        subtitle="Markdown được render thành layout đọc được thay vì text thô."
+        title={artifact.label}
+        subtitle={artifact.description}
       >
         <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-[6px] shadow-sm">
           <div className="space-y-[6px]">
@@ -1109,11 +1173,9 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
   }
 
   if (artifact.key === 'decisions' || artifact.key === 'risks') {
-    const items = parseBulletList(content);
-
     return (
       <div className="grid grid-cols-1 gap-2">
-        {items.map((item, index) => (
+        {bulletItems.map((item, index) => (
           <div
             key={`${artifact.key}-${index}`}
             className={`rounded-[18px] border px-[6px] py-[4px] text-[15px] leading-7 text-justify ${
@@ -1145,11 +1207,9 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
   }
 
   if (artifact.key === 'actionItems') {
-    const items = parseChecklist(content);
-
     return (
       <div className="grid grid-cols-1 gap-2">
-        {items.map((item, index) => (
+        {checklistItems.map((item, index) => (
           <div
             key={`action-${index}`}
             className="flex items-start gap-2 rounded-[18px] border border-slate-200 bg-slate-50 px-[6px] py-[4px] text-[15px] leading-7 text-slate-800 text-justify"
@@ -1171,17 +1231,14 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
   }
 
   if (artifact.key === 'folderTree') {
-    const rows = parseFolderTree(content);
-    const tree = buildFolderTree(rows);
-
     return (
       <PreviewCard
-        title="Cây thư mục đề xuất"
-        subtitle="Hiển thị như một tree view thay vì raw text."
+        title={t('StepResult.previewCards.folderTreeTitle')}
+        subtitle={t('StepResult.previewCards.folderTreeSubtitle')}
       >
         <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,#f8fffc,#ffffff)] p-[6px]">
           <div className="space-y-[4px]">
-            {tree.map((node, index) => (
+            {folderTree.map((node, index) => (
               <FolderTreeNodeView key={`${node.label}-${index}`} node={node} />
             ))}
           </div>
@@ -1191,22 +1248,19 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
   }
 
   if (artifact.key === 'mindmap') {
-    const normalizedChart = normalizeMermaidMindmap(content, analysis);
-    const nodes = parseMindmap(normalizedChart);
-
     return (
       <PreviewCard
-        title="Mindmap"
-        subtitle="Render trực tiếp từ Mermaid thành sơ đồ."
+        title={artifact.label}
+        subtitle={t('StepResult.previewCards.mindmapSubtitle')}
       >
         <div className="grid grid-cols-1 gap-[6px]">
-          <MindmapGraphPreview nodes={nodes} />
+          <MindmapGraphPreview nodes={mindmapNodes} />
           <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-[6px] py-[4px]">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              Node Outline
+              {t('StepResult.previewCards.nodeOutline')}
             </div>
             <div className="mt-[4px] space-y-[4px]">
-              {nodes.map((node, index) => (
+              {mindmapNodes.map((node, index) => (
                 <div
                   key={`mindmap-${index}`}
                   className="rounded-2xl bg-white px-[6px] py-[4px] text-sm font-medium text-slate-800 shadow-sm"
@@ -1229,31 +1283,195 @@ const ArtifactPreview: React.FC<{ artifact: ArtifactItem; analysis: SessionAnaly
       </div>
     </PreviewCard>
   );
-};
+});
+
+
+const TimelineTranscriptEditor: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+}> = React.memo(({ value, onChange }) => {
+  const { t } = useTranslation();
+  const segments = useMemo(() => parseTranscriptTimeline(value), [value]);
+
+  const updateSegments = useCallback((nextSegments: TranscriptTimelineSegment[]) => {
+    onChange(buildTranscriptTimelineText(nextSegments));
+  }, [onChange]);
+
+  const handleSegmentChange = useCallback((
+    index: number,
+    field: keyof TranscriptTimelineSegment,
+    nextValue: string
+  ) => {
+    updateSegments(
+      segments.map((segment, segmentIndex) =>
+        segmentIndex === index
+          ? {
+              ...segment,
+              [field]: field === 'timestamp' ? nextValue.trim() || null : nextValue,
+            }
+          : segment
+      )
+    );
+  }, [segments, updateSegments]);
+
+  const handleAddSegment = useCallback(() => {
+    updateSegments([
+      ...segments,
+      {
+        timestamp: null,
+        text: '',
+      },
+    ]);
+  }, [segments, updateSegments]);
+
+  const handleRemoveSegment = useCallback((index: number) => {
+    updateSegments(segments.filter((_, segmentIndex) => segmentIndex !== index));
+  }, [segments, updateSegments]);
+
+  return (
+    <div className="flex min-h-[50vh] flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:min-h-[68vh]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-bold text-slate-900">{t('StepResult.timelineEditor.title')}</div>
+          <div className="text-xs text-slate-500">
+            {t('StepResult.timelineEditor.description')}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleAddSegment}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-all hover:bg-slate-100"
+        >
+          <Plus className="h-4 w-4" />
+          {t('StepResult.timelineEditor.addBlock')}
+        </button>
+      </div>
+
+      <div className="space-y-3 overflow-auto pr-1">
+        {segments.map((segment, index) => (
+          <div
+            key={`timeline-editor-${index}`}
+            className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-[132px_1fr_auto]"
+          >
+            <input
+              type="text"
+              value={segment.timestamp || ''}
+              onChange={(event) => handleSegmentChange(index, 'timestamp', event.target.value)}
+              placeholder="00:00:00"
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-sm font-bold text-slate-900 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
+            />
+            <textarea
+              value={segment.text}
+              onChange={(event) => handleSegmentChange(index, 'text', event.target.value)}
+              placeholder={t('StepResult.timelineEditor.segmentPlaceholder')}
+              className="min-h-[96px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
+            />
+            <button
+              type="button"
+              onClick={() => handleRemoveSegment(index)}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-rose-700 transition-all hover:bg-rose-100"
+              aria-label={t('StepResult.timelineEditor.removeBlock', { index: index + 1 })}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
 
 export const StepResult: React.FC<StepResultProps> = ({
   analysis,
   setAnalysis,
   onNext,
+  onReanalyze,
+  onResumeTranscription,
+  isReanalyzing = false,
+  isResumingTranscription = false,
 }) => {
+  const { t } = useTranslation();
   const contextLabel =
     analysis.context === SessionContext.MEETING
-      ? 'Meeting'
+      ? t('StepResult.contextValueMeeting')
       : analysis.context === SessionContext.INTERVIEW
-        ? 'Interview'
-        : 'Transcription';
+        ? t('StepResult.contextValueInterview')
+        : t('StepResult.contextValueTranscription');
 
   const [copied, setCopied] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactKey>('transcript');
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview');
+  const needsAnalysis = analysis.analysisStatus === 'draft_transcript';
+  const canResumeTranscription =
+    needsAnalysis &&
+    Boolean(onResumeTranscription) &&
+    Boolean(analysis.processingJobId) &&
+    Boolean(analysis.savedRecording?.path) &&
+    analysis.processingJobStatus !== undefined &&
+    analysis.processingJobStatus !== 'complete';
+  const checkpointSummaryItems = useMemo(
+    () =>
+      [
+        {
+          key: 'status',
+          label: t('StepResult.checkpoint.status'),
+          value: analysis.processingJobStatus
+            ? t(`StepResult.checkpoint.statusValues.${analysis.processingJobStatus}`)
+            : null,
+        },
+        {
+          key: 'progress',
+          label: t('StepResult.checkpoint.progress'),
+          value:
+            typeof analysis.processingSavedBatchCount === 'number' &&
+            typeof analysis.processingJobTotalBatches === 'number' &&
+            analysis.processingJobTotalBatches > 0
+              ? t('StepResult.checkpoint.progressValue', {
+                  saved: analysis.processingSavedBatchCount,
+                  total: analysis.processingJobTotalBatches,
+                })
+              : null,
+        },
+        {
+          key: 'currentBatch',
+          label: t('StepResult.checkpoint.currentBatch'),
+          value:
+            typeof analysis.processingJobCurrentBatch === 'number' &&
+            typeof analysis.processingJobTotalBatches === 'number' &&
+            analysis.processingJobTotalBatches > 0
+              ? t('StepResult.checkpoint.currentBatchValue', {
+                  current: analysis.processingJobCurrentBatch,
+                  total: analysis.processingJobTotalBatches,
+                })
+              : null,
+        },
+        {
+          key: 'failedBatch',
+          label: t('StepResult.checkpoint.failedBatch'),
+          value:
+            typeof analysis.processingLastFailedBatchIndex === 'number'
+              ? t('StepResult.checkpoint.failedBatchValue', {
+                  index: analysis.processingLastFailedBatchIndex + 1,
+                })
+              : typeof analysis.processingFailedBatchCount === 'number' &&
+                  analysis.processingFailedBatchCount > 0
+                ? t('StepResult.checkpoint.failedBatchFallback', {
+                    count: analysis.processingFailedBatchCount,
+                  })
+                : null,
+        },
+      ].filter((item): item is { key: string; label: string; value: string } => Boolean(item.value)),
+    [analysis, t]
+  );
+  const checkpointErrorMessage = analysis.processingLastErrorMessage?.trim() || '';
 
   const artifactItems = useMemo<ArtifactItem[]>(
     () =>
       [
         {
           key: 'transcript',
-          label: 'Transcript',
-          description: 'Bản chép lời chính.',
+          label: t('StepResult.artifactLabels.transcript'),
+          description: t('StepResult.artifactDescriptions.transcript'),
           icon: ScrollText,
           content: analysis.artifacts.transcript,
         },
@@ -1261,50 +1479,50 @@ export const StepResult: React.FC<StepResultProps> = ({
           ? [
               {
                 key: 'summary' as ArtifactKey,
-                label: 'Summary',
-                description: 'Tóm tắt cuộc họp.',
+                label: t('StepResult.artifactLabels.summary'),
+                description: t('StepResult.artifactDescriptions.summary'),
                 icon: Share2,
                 content: analysis.artifacts.summary,
               },
               {
                 key: 'decisions' as ArtifactKey,
-                label: 'Decisions',
-                description: 'Các quyết định đã chốt.',
+                label: t('StepResult.artifactLabels.decisions'),
+                description: t('StepResult.artifactDescriptions.decisions'),
                 icon: ListTodo,
                 content: analysis.artifacts.decisions,
               },
               {
                 key: 'risks' as ArtifactKey,
-                label: 'Risks',
-                description: 'Rủi ro và điểm còn mở.',
+                label: t('StepResult.artifactLabels.risks'),
+                description: t('StepResult.artifactDescriptions.risks'),
                 icon: ShieldAlert,
                 content: analysis.artifacts.risks,
               },
               {
                 key: 'folderTree' as ArtifactKey,
-                label: 'Folder tree',
-                description: 'Cây thư mục đề xuất.',
+                label: t('StepResult.artifactLabels.folderTree'),
+                description: t('StepResult.artifactDescriptions.folderTree'),
                 icon: FolderTree,
                 content: analysis.artifacts.folderTree,
               },
               {
                 key: 'mindmap' as ArtifactKey,
-                label: 'Mindmap',
-                description: 'Mindmap hệ thống.',
+                label: t('StepResult.artifactLabels.mindmap'),
+                description: t('StepResult.artifactDescriptions.mindmap'),
                 icon: FileWarning,
                 content: analysis.artifacts.mindmap,
               },
               {
                 key: 'actionItems' as ArtifactKey,
-                label: 'Action items',
-                description: 'Checklist công việc.',
+                label: t('StepResult.artifactLabels.actionItems'),
+                description: t('StepResult.artifactDescriptions.actionItems'),
                 icon: ListTodo,
                 content: analysis.artifacts.actionItems,
               },
             ]
           : []),
       ] as ArtifactItem[],
-    [analysis]
+    [analysis, t]
   );
 
   useEffect(() => {
@@ -1343,11 +1561,11 @@ export const StepResult: React.FC<StepResultProps> = ({
           <div className="max-w-4xl">
             <div className="flex flex-wrap items-center gap-[6px]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#0d7c66]">
-                Kết quả AI
+                {t('StepResult.resultTag')}
               </p>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-100 shadow-sm">
                 <Check className="h-3 w-3" />
-                ĐÃ TỰ ĐỘNG LƯU VÀO MÁY
+                {t('StepResult.savedBadge')}
               </div>
             </div>
             <input
@@ -1366,29 +1584,60 @@ export const StepResult: React.FC<StepResultProps> = ({
               className="mt-[4px] w-full rounded-2xl border border-transparent bg-slate-50 px-[6px] py-[4px] text-3xl font-black text-slate-900 outline-none transition-all focus:border-[#0d7c66] focus:bg-white"
             />
             <p className="mt-[4px] text-sm leading-6 text-slate-500">
-              Mặc định app sẽ render artifact theo đúng dạng hiển thị. Khi cần chỉnh tay, bạn có
-              thể chuyển sang chế độ sửa text gốc.
+              {t('StepResult.description')}
             </p>
+            {needsAnalysis && (
+              <>
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                  {canResumeTranscription
+                    ? t('StepResult.resumeNotice')
+                    : t('StepResult.draftNotice')}
+                </div>
+                {checkpointSummaryItems.length > 0 && (
+                  <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      {t('StepResult.checkpoint.title')}
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {checkpointSummaryItems.map((item) => (
+                        <div key={item.key} className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-sm font-bold text-slate-900">{item.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {checkpointErrorMessage && (
+                      <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
+                        <span className="font-semibold">{t('StepResult.checkpoint.lastError')}</span>{' '}
+                        {checkpointErrorMessage}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-[4px] text-sm md:grid-cols-3">
             <div className="rounded-[16px] bg-slate-50 px-[6px] py-[4px]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Context
+                {t('StepResult.context')}
               </div>
               <div className="mt-[3px] font-bold text-slate-900">{contextLabel}</div>
             </div>
             <div className="rounded-[16px] bg-slate-50 px-[6px] py-[4px]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Source
+                {t('StepResult.source')}
               </div>
               <div className="mt-[3px] font-bold text-slate-900">
-                {analysis.source === 'RECORDING' ? 'Recording' : 'Upload'}
+                {analysis.source === 'RECORDING' ? t('StepResult.sourceRecording') : t('StepResult.sourceUpload')}
               </div>
             </div>
             <div className="rounded-[16px] bg-slate-50 px-[6px] py-[4px]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Artifacts
+                {t('StepResult.artifacts')}
               </div>
               <div className="mt-[3px] font-bold text-slate-900">{artifactItems.length}</div>
             </div>
@@ -1398,7 +1647,7 @@ export const StepResult: React.FC<StepResultProps> = ({
         <div className="mt-[6px] grid grid-cols-1 gap-[6px] xl:grid-cols-[248px_1fr]">
           <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-[6px] text-white">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7af2d1]">
-              Artifact browser
+              {t('StepResult.browserTitle')}
             </div>
             <div className="thin-scrollbar mt-[6px] flex gap-[4px] overflow-x-auto pb-2 xl:block xl:space-y-[4px] xl:overflow-visible xl:pb-0">
               {artifactItems.map((item) => {
@@ -1456,7 +1705,7 @@ export const StepResult: React.FC<StepResultProps> = ({
                         : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    Xem dạng chuẩn
+                    {t('StepResult.previewMode')}
                   </button>
                   <button
                     type="button"
@@ -1466,9 +1715,9 @@ export const StepResult: React.FC<StepResultProps> = ({
                         ? 'bg-slate-950 text-white'
                         : 'text-slate-600 hover:bg-slate-50'
                     }`}
-                  >
-                    <FilePenLine className="h-3.5 w-3.5" />
-                    Sửa text
+                    >
+                      <FilePenLine className="h-3.5 w-3.5" />
+                    {t('StepResult.editMode')}
                   </button>
                 </div>
 
@@ -1480,9 +1729,9 @@ export const StepResult: React.FC<StepResultProps> = ({
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
                   }`}
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Đã sao chép' : 'Sao chép phần này'}
+                  >
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? t('StepResult.copied') : t('StepResult.copySection')}
                 </button>
               </div>
             </div>
@@ -1490,12 +1739,17 @@ export const StepResult: React.FC<StepResultProps> = ({
             <div className="min-h-0 bg-white px-[4px] py-[4px] md:min-h-[72vh] md:px-[6px] md:py-[6px]">
               {viewMode === 'preview' ? (
                 <ArtifactPreview artifact={activeArtifact} analysis={analysis} />
+              ) : activeArtifact.key === 'transcript' ? (
+                <TimelineTranscriptEditor
+                  value={activeArtifact.content}
+                  onChange={(nextValue) => updateArtifact(activeArtifact.key, nextValue)}
+                />
               ) : (
                 <textarea
                   value={activeArtifact.content}
                   onChange={(event) => updateArtifact(activeArtifact.key, event.target.value)}
                   className="min-h-[50vh] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-[6px] py-[4px] font-mono text-[15px] leading-7 text-slate-800 outline-none transition-all focus:border-[#0d7c66] focus:bg-white text-justify md:min-h-[68vh]"
-                  placeholder="Nội dung sẽ hiển thị tại đây..."
+                  placeholder={t('StepResult.textareaPlaceholder')}
                 />
               )}
             </div>
@@ -1504,12 +1758,46 @@ export const StepResult: React.FC<StepResultProps> = ({
       </div>
 
       <div className="mt-4 w-full md:mt-8">
-        <div className="mx-auto flex w-full max-w-6xl justify-center">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 md:flex-row md:justify-center">
+          {canResumeTranscription && (
+            <button
+              type="button"
+              onClick={onResumeTranscription}
+              disabled={isResumingTranscription}
+              className={`flex h-14 w-full items-center justify-center gap-3 rounded-2xl px-6 text-base font-bold uppercase tracking-[0.18em] transition-all md:w-auto md:min-w-[320px] ${
+                isResumingTranscription
+                  ? 'cursor-wait bg-slate-200 text-slate-500'
+                  : 'border border-[#0d7c66] bg-[#e9fff8] text-[#0d7c66] hover:bg-[#dcfbf1]'
+              }`}
+            >
+              {isResumingTranscription
+                ? t('StepResult.resumingTranscription')
+                : t('StepResult.resumeTranscription')}
+            </button>
+          )}
+          {onReanalyze && (
+            <button
+              type="button"
+              onClick={onReanalyze}
+              disabled={isReanalyzing}
+              className={`flex h-14 w-full items-center justify-center gap-3 rounded-2xl px-6 text-base font-bold uppercase tracking-[0.18em] transition-all md:w-auto md:min-w-[320px] ${
+                isReanalyzing
+                  ? 'cursor-wait bg-slate-200 text-slate-500'
+                  : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {isReanalyzing
+                ? t('StepResult.reanalyzing')
+                : needsAnalysis
+                  ? t('StepResult.reanalyzeFromTranscript')
+                  : t('StepResult.reanalyzeArtifacts')}
+            </button>
+          )}
           <button
             onClick={onNext}
             className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-[#0d7c66] px-6 text-base font-bold uppercase tracking-[0.2em] text-white shadow-lg shadow-[#0d7c66]/25 transition-all hover:-translate-y-0.5 md:w-auto md:min-w-[320px]"
           >
-            Sang bước xuất
+            {t('StepResult.next')}
             <ArrowRight className="h-5 w-5" />
           </button>
         </div>

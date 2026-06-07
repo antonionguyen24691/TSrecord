@@ -1,14 +1,18 @@
 import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
   },
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   build: {
+    target: 'es2020',
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -32,6 +36,18 @@ export default defineConfig({
 
           if (id.includes('lucide-react')) {
             return 'icons-vendor';
+          }
+
+          if (id.includes('i18next') || id.includes('react-i18next')) {
+            return 'i18n-vendor';
+          }
+
+          if (id.includes('wavesurfer.js')) {
+            return 'audio-waveform-vendor';
+          }
+
+          if (id.includes('@capacitor')) {
+            return 'capacitor-vendor';
           }
 
           return 'vendor';
