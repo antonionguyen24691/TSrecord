@@ -3,6 +3,30 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/tin-tuc/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/bai-viet/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/gioi-thieu",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/lien-he",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/index.html"
+    },
+    {
       "source": "/((?!assets/|robots.txt|sitemap.xml|ads.txt|logo.svg|og-cover.svg).*)",
       "destination": "/index.html"
     }

@@ -9,13 +9,21 @@ import {
   LockKeyhole,
   Sparkles,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { SiteLayout } from '../components/SiteLayout';
 import { articles } from '../content/articles';
+import { fetchCmsArticles } from '../content/cms';
 import { getSiteUrl, SiteSeo } from '../seo/SiteSeo';
 
 export const LandingPage = () => {
   const siteUrl = getSiteUrl();
-  const featuredArticles = articles.slice(0, 3);
+  const [featuredArticles, setFeaturedArticles] = useState(articles.slice(0, 3));
+
+  useEffect(() => {
+    fetchCmsArticles()
+      .then((items) => setFeaturedArticles(items.filter((item) => item.featured).slice(0, 3)))
+      .catch(() => undefined);
+  }, []);
 
   return (
     <SiteLayout>

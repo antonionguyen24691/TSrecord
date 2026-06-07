@@ -13,6 +13,7 @@ import configRoutes from './routes/config.js';
 import webhooksRoutes from './routes/webhooks.js';
 import clientRoutes from './routes/client.js';
 import platformRoutes from './routes/platform.js';
+import cmsRoutes from './routes/cms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -40,6 +41,7 @@ app.use('/api/config', configRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/client', clientRoutes);
 app.use('/api/v2', platformRoutes);
+app.use('/api/cms', cmsRoutes);
 
 // ── Serve admin UI ───────────────────────────────────────────
 const publicDir = path.resolve(__dirname, '..', 'public');

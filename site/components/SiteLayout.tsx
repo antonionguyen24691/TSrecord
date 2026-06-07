@@ -14,10 +14,21 @@ const navItems = [
 
 export const SiteLayout = ({ children }: SiteLayoutProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
 
   useEffect(() => {
-    setMenuOpen(false);
-  }, []);
+    if (!menuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <div className="site-shell">
@@ -35,7 +46,11 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
 
           <nav className="site-nav" aria-label="Điều hướng chính">
             {navItems.map((item) => (
-              <a key={item.href} href={item.href}>
+              <a
+                key={item.href}
+                href={item.href}
+                aria-current={currentPath === item.href ? 'page' : undefined}
+              >
                 {item.label}
               </a>
             ))}
@@ -57,18 +72,36 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
           </button>
         </div>
 
-        {menuOpen && (
+        <div className={`site-mobile-layer ${menuOpen ? 'is-open' : ''}`} aria-hidden={!menuOpen}>
+          <button
+            className="site-mobile-backdrop"
+            type="button"
+            aria-label="Đóng menu"
+            tabIndex={menuOpen ? 0 : -1}
+            onClick={() => setMenuOpen(false)}
+          />
           <nav className="site-mobile-nav" aria-label="Điều hướng di động">
-            {navItems.map((item) => (
-              <a key={item.href} href={item.href}>
+            <div className="site-mobile-nav__intro">
+              <span>Khám phá TSrecord</span>
+              <p>Từ bản ghi đến nội dung có thể sử dụng.</p>
+            </div>
+            {navItems.map((item, index) => (
+              <a
+                key={item.href}
+                href={item.href}
+                tabIndex={menuOpen ? 0 : -1}
+                aria-current={currentPath === item.href ? 'page' : undefined}
+              >
+                <span>0{index + 1}</span>
                 {item.label}
               </a>
             ))}
-            <a className="site-mobile-nav__cta" href="/app">
+            <a className="site-mobile-nav__cta" href="/app" tabIndex={menuOpen ? 0 : -1}>
               Mở ứng dụng
+              <ArrowRight aria-hidden="true" />
             </a>
           </nav>
-        )}
+        </div>
       </header>
 
       <main id="main-content">{children}</main>

@@ -1,12 +1,44 @@
 import { ArrowLeft, ArrowRight, CalendarDays, Clock3 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { AdSlot } from '../components/AdSlot';
 import { SiteLayout } from '../components/SiteLayout';
 import { SiteArticle } from '../content/articles';
+import { fetchCmsArticle } from '../content/cms';
 import { getSiteUrl, SiteSeo } from '../seo/SiteSeo';
 
-export const ArticlePage = ({ article }: { article: SiteArticle }) => {
+export const ArticlePage = ({
+  slug,
+  fallbackArticle,
+}: {
+  slug: string;
+  fallbackArticle?: SiteArticle;
+}) => {
+  const [article, setArticle] = useState<SiteArticle | undefined>(fallbackArticle);
+  const [missing, setMissing] = useState(false);
   const siteUrl = getSiteUrl();
-  const path = `/tin-tuc/${article.slug}`;
+  const path = `/tin-tuc/${slug}`;
+
+  useEffect(() => {
+    fetchCmsArticle(slug)
+      .then((item) => setArticle(item))
+      .catch(() => setMissing(!fallbackArticle));
+  }, [fallbackArticle, slug]);
+
+  if (!article) {
+    return (
+      <SiteLayout>
+        <section className="article-loading">
+          <div className="site-container">
+            <span>{missing ? '404' : 'Đang tải'}</span>
+            <h1>{missing ? 'Không tìm thấy bài viết.' : 'Đang mở bài viết...'}</h1>
+            <a className="site-button site-button--primary" href="/tin-tuc">
+              Về trang bài viết
+            </a>
+          </div>
+        </section>
+      </SiteLayout>
+    );
+  }
 
   return (
     <SiteLayout>

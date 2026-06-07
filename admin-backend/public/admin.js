@@ -2,6 +2,7 @@
 const API = '';
 let token = localStorage.getItem('admin_token') || '';
 let currentView = 'dashboard';
+let cmsState = { pages: [], articles: [] };
 
 const $ = (id) => document.getElementById(id);
 const app = document.getElementById('app');
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { id: 'payments', label: 'Thanh toán', icon: '💳' },
   { id: 'promo', label: 'Mã code', icon: '🎟️' },
   { id: 'config', label: 'Cấu hình', icon: '⚙️' },
+  { id: 'content', label: 'Nội dung website', icon: '📝' },
   { id: 'revenue', label: 'Doanh thu HKD', icon: '📈' },
 ];
 
@@ -105,7 +107,7 @@ const renderView = async () => {
   if (!main) return;
   main.innerHTML = '<div class="flex items-center justify-center h-64 text-slate-400">Đang tải...</div>';
   try {
-    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, revenue: renderRevenue };
+    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, content: renderCms, revenue: renderRevenue };
     await (views[currentView] || renderDashboard)(main);
   } catch (err) { main.innerHTML = `<div class="text-red-500 p-8">Lỗi: ${err.message}</div>`; }
 };
@@ -427,6 +429,213 @@ window.saveConfig = async () => {
   const updates = Array.from(inputs).map(input => ({ key: input.dataset.configKey, value: input.value }));
   const res = await jsonApi('/api/config', { method: 'PUT', body: JSON.stringify(updates) });
   if (res?.ok) alert('Đã lưu cấu hình!');
+};
+
+// ── Website CMS ──────────────────────────────────────────────
+const cmsField = (label, id, value = '', extra = '') => `
+  <label class="block">
+    <span class="block text-xs font-bold text-slate-600 mb-1.5">${label}</span>
+    <input id="${id}" value="${escapeHtml(value)}" ${extra}
+      class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+  </label>`;
+
+const cmsTextarea = (label, id, value, rows = 10) => `
+  <label class="block">
+    <span class="block text-xs font-bold text-slate-600 mb-1.5">${label}</span>
+    <textarea id="${id}" rows="${rows}"
+      class="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-mono text-xs leading-6 focus:outline-none focus:ring-2 focus:ring-emerald-500">${escapeHtml(value)}</textarea>
+  </label>`;
+
+const renderCms = async (el) => {
+  const data = await jsonApi('/api/cms/admin/content');
+  if (!data?.pages || !data?.articles) {
+    el.innerHTML = '<div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">CMS chưa kết nối được. Kiểm tra DATABASE_URL của backend.</div>';
+    return;
+  }
+  cmsState = data;
+  el.innerHTML = `
+    <div class="fade-in">
+      <div class="flex flex-wrap items-end justify-between gap-4 mb-7">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Website CMS</span>
+          <h2 class="text-3xl font-black mt-1">Nội dung công khai</h2>
+          <p class="text-sm text-slate-500 mt-2">Chỉnh trang giới thiệu, liên hệ, chính sách và bài viết mà không cần build lại frontend.</p>
+        </div>
+        <button onclick="editCmsArticle()" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">+ Bài viết mới</button>
+      </div>
+
+      <div id="cms-editor" class="mb-6"></div>
+
+      <section class="mb-8">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-black text-slate-900">Trang thông tin</h3>
+          <span class="text-xs text-slate-400">${data.pages.length} trang</span>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          ${data.pages.map((page, index) => `
+            <article class="bg-white border border-slate-200 rounded-2xl p-5">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <div class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">/${escapeHtml(page.slug)}</div>
+                  <h4 class="font-black text-lg mt-1">${escapeHtml(page.title)}</h4>
+                  <p class="text-sm text-slate-500 mt-2 line-clamp-2">${escapeHtml(page.description)}</p>
+                </div>
+                ${statusBadge(page.status)}
+              </div>
+              <button onclick="editCmsPage(${index})" class="mt-4 text-sm font-bold text-emerald-700 hover:text-emerald-900">Chỉnh sửa trang →</button>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+
+      <section>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-black text-slate-900">Bài viết</h3>
+          <span class="text-xs text-slate-400">${data.articles.length} bài</span>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          ${data.articles.map((article, index) => `
+            <article class="flex flex-col lg:flex-row lg:items-center gap-4 p-5 border-b border-slate-100 last:border-0">
+              <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span>${escapeHtml(article.category)}</span>
+                  <span>·</span>
+                  <span>/${escapeHtml(article.slug)}</span>
+                  ${article.featured ? '<span class="text-emerald-700">· Nổi bật</span>' : ''}
+                </div>
+                <h4 class="font-black mt-1">${escapeHtml(article.title)}</h4>
+                <p class="text-sm text-slate-500 mt-1">${escapeHtml(article.description)}</p>
+              </div>
+              <div class="flex items-center gap-3">
+                ${statusBadge(article.status)}
+                <button onclick="editCmsArticle(${index})" class="text-sm font-bold text-emerald-700">Sửa</button>
+                <button onclick="deleteCmsArticle('${article.id}')" class="text-sm font-bold text-red-500">Xóa</button>
+              </div>
+            </article>
+          `).join('') || '<p class="p-6 text-sm text-slate-400">Chưa có bài viết.</p>'}
+        </div>
+      </section>
+    </div>`;
+};
+
+window.editCmsPage = (index) => {
+  const page = cmsState.pages[index];
+  const editor = $('cms-editor');
+  editor.innerHTML = `
+    <div class="bg-white border border-emerald-200 rounded-2xl p-6 shadow-sm">
+      <div class="flex items-center justify-between mb-5">
+        <div><span class="text-xs font-bold text-emerald-700">CHỈNH TRANG</span><h3 class="text-xl font-black">${escapeHtml(page.title)}</h3></div>
+        <button onclick="$('cms-editor').innerHTML=''" class="text-sm font-bold text-slate-400">Đóng</button>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        ${cmsField('Slug', 'cms-page-slug', page.slug, 'readonly')}
+        ${cmsField('Nhãn đầu trang', 'cms-page-eyebrow', page.eyebrow)}
+        ${cmsField('Tiêu đề', 'cms-page-title', page.title)}
+        <label class="block"><span class="block text-xs font-bold text-slate-600 mb-1.5">Trạng thái</span>
+          <select id="cms-page-status" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+            <option value="published" ${page.status === 'published' ? 'selected' : ''}>Đã xuất bản</option>
+            <option value="draft" ${page.status === 'draft' ? 'selected' : ''}>Bản nháp</option>
+          </select>
+        </label>
+        <div class="lg:col-span-2">${cmsTextarea('Mô tả SEO', 'cms-page-description', page.description, 3)}</div>
+        <div class="lg:col-span-2">${cmsTextarea('Nội dung JSON', 'cms-page-content', JSON.stringify(page.content, null, 2), 14)}</div>
+        <div class="lg:col-span-2">${cmsTextarea('Metadata JSON', 'cms-page-metadata', JSON.stringify(page.metadata || {}, null, 2), 5)}</div>
+      </div>
+      <div id="cms-form-error" class="hidden mt-4 text-sm text-red-600"></div>
+      <button onclick="saveCmsPage()" class="mt-5 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Lưu và cập nhật website</button>
+    </div>`;
+  editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+window.saveCmsPage = async () => {
+  try {
+    const slug = $('cms-page-slug').value;
+    const response = await api(`/api/cms/admin/pages/${slug}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: $('cms-page-title').value,
+        description: $('cms-page-description').value,
+        eyebrow: $('cms-page-eyebrow').value,
+        status: $('cms-page-status').value,
+        content: JSON.parse($('cms-page-content').value),
+        metadata: JSON.parse($('cms-page-metadata').value || '{}'),
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Không thể lưu trang.');
+    renderView();
+  } catch (error) {
+    const target = $('cms-form-error');
+    target.textContent = error.message;
+    target.classList.remove('hidden');
+  }
+};
+
+window.editCmsArticle = (index) => {
+  const article = Number.isInteger(index) ? cmsState.articles[index] : null;
+  const editor = $('cms-editor');
+  editor.innerHTML = `
+    <div class="bg-white border border-emerald-200 rounded-2xl p-6 shadow-sm">
+      <div class="flex items-center justify-between mb-5">
+        <div><span class="text-xs font-bold text-emerald-700">${article ? 'CHỈNH BÀI VIẾT' : 'BÀI VIẾT MỚI'}</span><h3 class="text-xl font-black">${escapeHtml(article?.title || 'Tạo nội dung mới')}</h3></div>
+        <button onclick="$('cms-editor').innerHTML=''" class="text-sm font-bold text-slate-400">Đóng</button>
+      </div>
+      <input id="cms-article-id" type="hidden" value="${article?.id || ''}" />
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        ${cmsField('Slug', 'cms-article-slug', article?.slug || '')}
+        ${cmsField('Chuyên mục', 'cms-article-category', article?.category || 'Kiến thức')}
+        ${cmsField('Tiêu đề', 'cms-article-title', article?.title || '')}
+        ${cmsField('Số phút đọc', 'cms-article-minutes', article?.reading_minutes || 5, 'type="number" min="1"')}
+        <label class="block"><span class="block text-xs font-bold text-slate-600 mb-1.5">Trạng thái</span>
+          <select id="cms-article-status" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+            <option value="draft" ${article?.status !== 'published' ? 'selected' : ''}>Bản nháp</option>
+            <option value="published" ${article?.status === 'published' ? 'selected' : ''}>Đã xuất bản</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-3 pt-6 text-sm font-bold text-slate-700">
+          <input id="cms-article-featured" type="checkbox" class="w-4 h-4" ${article?.featured ? 'checked' : ''} />
+          Hiển thị nổi bật trên trang chủ
+        </label>
+        <div class="lg:col-span-2">${cmsTextarea('Mô tả SEO', 'cms-article-description', article?.description || '', 3)}</div>
+        <div class="lg:col-span-2">${cmsTextarea('Nội dung JSON', 'cms-article-content', JSON.stringify(article?.content || [{ heading: 'Tiêu đề phần', paragraphs: ['Nội dung đoạn văn.'] }], null, 2), 16)}</div>
+      </div>
+      <div id="cms-form-error" class="hidden mt-4 text-sm text-red-600"></div>
+      <button onclick="saveCmsArticle()" class="mt-5 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Lưu bài viết</button>
+    </div>`;
+  editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+window.saveCmsArticle = async () => {
+  try {
+    const id = $('cms-article-id').value;
+    const payload = {
+      slug: $('cms-article-slug').value.trim(),
+      title: $('cms-article-title').value.trim(),
+      description: $('cms-article-description').value.trim(),
+      category: $('cms-article-category').value.trim(),
+      readingMinutes: Number($('cms-article-minutes').value) || 5,
+      status: $('cms-article-status').value,
+      featured: $('cms-article-featured').checked,
+      content: JSON.parse($('cms-article-content').value),
+    };
+    const response = await api(id ? `/api/cms/admin/articles/${id}` : '/api/cms/admin/articles', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Không thể lưu bài viết.');
+    renderView();
+  } catch (error) {
+    const target = $('cms-form-error');
+    target.textContent = error.message;
+    target.classList.remove('hidden');
+  }
+};
+
+window.deleteCmsArticle = async (id) => {
+  if (!confirm('Xóa bài viết này khỏi CMS?')) return;
+  const response = await api(`/api/cms/admin/articles/${id}`, { method: 'DELETE' });
+  if (response?.ok) renderView();
 };
 
 // ── Revenue HKD ──────────────────────────────────────────────

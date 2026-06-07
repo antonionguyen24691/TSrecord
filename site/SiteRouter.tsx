@@ -33,15 +33,15 @@ export const SiteRouter = () => {
     );
   }
   if (path === '/') return <LandingPage />;
-  if (path === '/tin-tuc') return <ArticlesPage />;
-  if (path === '/gioi-thieu') return <AboutPage />;
-  if (path === '/lien-he') return <ContactPage />;
+  if (path === '/tin-tuc' || path === '/bai-viet') return <ArticlesPage />;
+  if (path === '/gioi-thieu' || path === '/about') return <AboutPage />;
+  if (path === '/lien-he' || path === '/contact') return <ContactPage />;
   if (path === '/chinh-sach-bao-mat') return <PrivacyPage />;
   if (path === '/dieu-khoan') return <TermsPage />;
 
-  if (path.startsWith('/tin-tuc/')) {
-    const article = getArticleBySlug(path.slice('/tin-tuc/'.length));
-    if (article) return <ArticlePage article={article} />;
+  if (path.startsWith('/tin-tuc/') || path.startsWith('/bai-viet/')) {
+    const slug = path.split('/').filter(Boolean).at(-1) || '';
+    return <ArticlePage slug={slug} fallbackArticle={getArticleBySlug(slug)} />;
   }
 
   return <NotFoundPage />;

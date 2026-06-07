@@ -198,6 +198,42 @@ CREATE TABLE IF NOT EXISTS ad_events_v2 (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS cms_pages_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text NOT NULL UNIQUE,
+  title text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  eyebrow text NOT NULL DEFAULT 'TSrecord',
+  content jsonb NOT NULL DEFAULT '[]'::jsonb,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published')),
+  published_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS cms_pages_v2_status_idx
+  ON cms_pages_v2(status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS cms_articles_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text NOT NULL UNIQUE,
+  title text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  category text NOT NULL DEFAULT 'Kiến thức',
+  content jsonb NOT NULL DEFAULT '[]'::jsonb,
+  cover jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  featured boolean NOT NULL DEFAULT false,
+  reading_minutes integer NOT NULL DEFAULT 5 CHECK (reading_minutes > 0),
+  published_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS cms_articles_v2_public_idx
+  ON cms_articles_v2(status, published_at DESC, updated_at DESC);
+
 INSERT INTO plans_v2
   (code, name, duration_months, request_limit, price_vnd, price_usd_minor, ads_enabled, own_key_enabled, features)
 VALUES

@@ -1,11 +1,24 @@
 import { ArrowRight, AudioLines } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { AdSlot } from '../components/AdSlot';
 import { SiteLayout } from '../components/SiteLayout';
 import { articles } from '../content/articles';
+import { fetchCmsArticles } from '../content/cms';
 import { SiteSeo } from '../seo/SiteSeo';
 
-export const ArticlesPage = () => (
-  <SiteLayout>
+export const ArticlesPage = () => {
+  const [publishedArticles, setPublishedArticles] = useState(articles);
+
+  useEffect(() => {
+    fetchCmsArticles()
+      .then((items) => {
+        if (items.length > 0) setPublishedArticles(items);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  return (
+    <SiteLayout>
     <SiteSeo
       title="Bài viết về phiên âm, ghi âm và năng suất | TSrecord"
       description="Hướng dẫn chuyển ghi âm thành văn bản, ghi chép cuộc họp, bảo mật dữ liệu và tổ chức nội dung."
@@ -24,7 +37,7 @@ export const ArticlesPage = () => (
     <section className="site-section site-section--editorial">
       <div className="site-container content-with-rail">
         <div className="article-list">
-          {articles.map((article, index) => (
+          {publishedArticles.map((article, index) => (
             <article key={article.slug} className="article-list-item">
               <div className="article-list-item__index">
                 <span>{String(index + 1).padStart(2, '0')}</span>
@@ -54,5 +67,6 @@ export const ArticlesPage = () => (
         </div>
       </div>
     </section>
-  </SiteLayout>
-);
+    </SiteLayout>
+  );
+};
