@@ -1,0 +1,132 @@
+<svg width="600" height="600" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Người ghi âm và bản ghi được chuyển thành văn bản">
+  <defs>
+    <linearGradient id="hf-blobA" x1="70" y1="60" x2="520" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#cdf7e8"/>
+      <stop offset="0.5" stop-color="#7af2d1"/>
+      <stop offset="1" stop-color="#23b896"/>
+    </linearGradient>
+    <linearGradient id="hf-blobB" x1="120" y1="430" x2="470" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f7f0df"/>
+      <stop offset="1" stop-color="#f0eadc" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hf-skin" x1="190" y1="200" x2="320" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe6cb"/>
+      <stop offset="1" stop-color="#f4c79b"/>
+    </linearGradient>
+    <linearGradient id="hf-shirt" x1="140" y1="430" x2="380" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0e7563"/>
+      <stop offset="1" stop-color="#084a41"/>
+    </linearGradient>
+    <linearGradient id="hf-wave" x1="250" y1="380" x2="470" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0c6759"/>
+      <stop offset="1" stop-color="#2bbf9b"/>
+    </linearGradient>
+    <linearGradient id="hf-card" x1="360" y1="150" x2="560" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f3fbf8"/>
+    </linearGradient>
+    <radialGradient id="hf-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop stop-color="#7af2d1" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7af2d1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="hf-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#12604f" flood-opacity="0.22"/>
+    </filter>
+    <filter id="hf-card-sh" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#1d6c5c" flood-opacity="0.18"/>
+    </filter>
+    <filter id="hf-grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.08"/></feComponentTransfer>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <clipPath id="hf-bgclip">
+      <path d="M300 36c92-12 188 30 230 112 42 84 16 168-24 244-40 78-100 150-194 158-96 8-198-38-248-122C16 348 14 248 60 172 108 92 208 48 300 36Z"/>
+    </clipPath>
+    <clipPath id="hf-head"><circle cx="252" cy="300" r="95"/></clipPath>
+  </defs>
+
+  <!-- layered organic background -->
+  <path filter="url(#hf-soft)" fill="url(#hf-blobA)" d="M300 36c92-12 188 30 230 112 42 84 16 168-24 244-40 78-100 150-194 158-96 8-198-38-248-122C16 348 14 248 60 172 108 92 208 48 300 36Z"/>
+  <g clip-path="url(#hf-bgclip)">
+    <path fill="url(#hf-blobB)" opacity="0.95" d="M120 420c-40-50-36-132 12-178 50-48 142-50 196-8 50 40 60 120 22 178-40 60-130 76-196 46-14-6-24-22-34-38Z"/>
+    <circle cx="420" cy="150" r="120" fill="url(#hf-glow)"/>
+    <!-- subtle concentric guide rings -->
+    <circle cx="252" cy="300" r="150" stroke="#ffffff" stroke-opacity="0.35" stroke-width="2" fill="none" stroke-dasharray="3 12"/>
+    <circle cx="252" cy="300" r="196" stroke="#ffffff" stroke-opacity="0.22" stroke-width="2" fill="none" stroke-dasharray="3 14"/>
+  </g>
+
+  <!-- voice waves: mic -> text -->
+  <g stroke="url(#hf-wave)" stroke-linecap="round" fill="none">
+    <path d="M270 372c30-6 54 4 70 30" stroke-width="11"/>
+    <path d="M276 340c58-14 108 10 134 64" stroke-width="9" opacity="0.7"/>
+    <path d="M282 308c84-20 152 18 184 92" stroke-width="8" opacity="0.45"/>
+  </g>
+
+  <!-- person with headset + mic -->
+  <g filter="url(#hf-soft)">
+    <!-- shoulders -->
+    <path fill="url(#hf-shirt)" d="M150 600c0-78 46-138 102-138s102 60 102 138Z"/>
+    <path fill="#ffffff" opacity="0.12" d="M252 462c40 0 74 30 90 74H162c16-44 50-74 90-74Z"/>
+    <!-- head -->
+    <circle cx="252" cy="300" r="95" fill="url(#hf-skin)"/>
+    <g clip-path="url(#hf-head)">
+      <path fill="#2a4a40" d="M157 296c0-66 42-108 95-108s95 42 95 95c0-30-34-34-95-34-56 0-95 9-95 47Z"/>
+      <path fill="#2a4a40" d="M157 296c-7 30 6 56 20 70-24-2-33-50-20-70Z"/>
+    </g>
+    <!-- face -->
+    <circle cx="225" cy="296" r="6.5" fill="#3a4f48"/>
+    <circle cx="282" cy="296" r="6.5" fill="#3a4f48"/>
+    <path d="M232 338c12 11 30 11 42 0" stroke="#c8895c" stroke-width="6.5" stroke-linecap="round" fill="none"/>
+    <circle cx="206" cy="320" r="9" fill="#f7b48a" opacity="0.55"/>
+    <circle cx="298" cy="320" r="9" fill="#f7b48a" opacity="0.55"/>
+    <!-- headset band + earcup -->
+    <path d="M158 304C162 196 342 196 346 304" stroke="#0c6759" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <rect x="140" y="276" width="36" height="58" rx="17" fill="#084a41"/>
+    <rect x="328" y="276" width="36" height="58" rx="17" fill="#0c6759"/>
+    <!-- mic boom -->
+    <path d="M158 332C144 384 188 408 236 396" stroke="#084a41" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <circle cx="242" cy="392" r="10" fill="#f08a5d"/>
+    <circle cx="242" cy="392" r="4" fill="#fff" opacity="0.85"/>
+  </g>
+
+  <!-- floating transcript card -->
+  <g filter="url(#hf-card-sh)">
+    <rect x="356" y="150" width="212" height="158" rx="22" fill="url(#hf-card)"/>
+    <circle cx="386" cy="184" r="11" fill="#7af2d1"/>
+    <rect x="406" y="178" width="78" height="12" rx="6" fill="#0c6759"/>
+    <rect x="380" y="216" width="160" height="11" rx="5.5" fill="#274b43" opacity="0.85"/>
+    <rect x="380" y="238" width="132" height="11" rx="5.5" fill="#274b43" opacity="0.5"/>
+    <rect x="380" y="260" width="150" height="11" rx="5.5" fill="#274b43" opacity="0.32"/>
+    <!-- check badge -->
+    <circle cx="528" cy="288" r="22" fill="#0c6759"/>
+    <path d="M518 288l7 7 13-15" stroke="#eafff8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- mini waveform chip -->
+  <g transform="translate(372 470)">
+    <rect x="-12" y="-26" width="150" height="58" rx="18" fill="#10231e"/>
+    <g fill="#7af2d1">
+      <rect x="6" y="-10" width="6" height="20" rx="3"/>
+      <rect x="22" y="-18" width="6" height="36" rx="3"/>
+      <rect x="38" y="-6" width="6" height="12" rx="3"/>
+      <rect x="54" y="-20" width="6" height="40" rx="3"/>
+      <rect x="70" y="-14" width="6" height="28" rx="3"/>
+      <rect x="86" y="-4" width="6" height="8" rx="3"/>
+      <rect x="102" y="-16" width="6" height="32" rx="3"/>
+      <rect x="118" y="-9" width="6" height="18" rx="3"/>
+    </g>
+  </g>
+
+  <!-- sparkles -->
+  <circle cx="486" cy="118" r="7" fill="#0c6759" opacity="0.55"/>
+  <circle cx="118" cy="132" r="9" fill="#ffffff" opacity="0.85"/>
+  <circle cx="540" cy="392" r="6" fill="#2bbf9b"/>
+  <path d="M150 470l4 12 12 4-12 4-4 12-4-12-12-4 12-4Z" fill="#ffffff" opacity="0.7"/>
+
+  <!-- grain (clipped to artwork) -->
+  <g clip-path="url(#hf-bgclip)">
+    <rect width="600" height="600" filter="url(#hf-grain)" opacity="0.55"/>
+  </g>
+</svg>

@@ -92,41 +92,62 @@ export const LandingPage = () => {
             </div>
           </div>
 
-          <div className="product-scene" aria-label={text.sceneLabel}>
-            <div className="product-scene__halo" aria-hidden="true" />
-            <div className="product-scene__signal" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <div className="product-scene__top">
-              <span className="product-scene__dot" />
-              <span>{text.session}</span>
-              <strong>{text.processing}</strong>
-            </div>
-            <div className="product-scene__wave" aria-hidden="true">
-              {Array.from({ length: 38 }).map((_, index) => (
-                <i key={index} style={{ height: `${18 + ((index * 17) % 54)}%` }} />
-              ))}
-            </div>
-            <div className="product-scene__timeline">
-              <span>00:00</span>
-              <div>
-                <strong>{text.speaker}</strong>
-                <p>{text.transcript}</p>
+          <div className="product-stage">
+            {/* Minh hoạ "giọng nói → văn bản" vẽ tay (SVG), thêm chất con người cho hero */}
+            <img
+              className="product-stage__figure"
+              src="/hero-figure.svg"
+              alt=""
+              aria-hidden="true"
+              loading="eager"
+            />
+
+            <div className="product-scene" aria-label={text.sceneLabel}>
+              <div className="product-scene__halo" aria-hidden="true" />
+              <div className="product-scene__signal" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="product-scene__top">
+                <span className="product-scene__dot" />
+                <span>{text.session}</span>
+                <strong>{text.processing}</strong>
+              </div>
+              <div className="product-scene__wave" aria-hidden="true">
+                {Array.from({ length: 38 }).map((_, index) => (
+                  <i key={index} style={{ height: `${18 + ((index * 17) % 54)}%` }} />
+                ))}
+              </div>
+              <div className="product-scene__timeline">
+                <span>00:00</span>
+                <div>
+                  <strong>{text.speaker}</strong>
+                  <p>{text.transcript}</p>
+                </div>
+              </div>
+              <div className="product-scene__timeline product-scene__timeline--active">
+                <span>02:18</span>
+                <div>
+                  <strong>{text.decision}</strong>
+                  <p>{text.decisionText}</p>
+                </div>
+              </div>
+              <div className="product-scene__status">
+                <span><FileAudio /> {text.audioLength}</span>
+                <span><Languages /> {text.sourceLanguage}</span>
               </div>
             </div>
-            <div className="product-scene__timeline product-scene__timeline--active">
-              <span>02:18</span>
-              <div>
-                <strong>{text.decision}</strong>
-                <p>{text.decisionText}</p>
-              </div>
-            </div>
-            <div className="product-scene__status">
-              <span><FileAudio /> {text.audioLength}</span>
-              <span><Languages /> {text.sourceLanguage}</span>
-            </div>
+
+            {/*
+              SLOT ẢNH THẬT — thay /avatar-placeholder.svg bằng ảnh chân dung người
+              dùng thật (jpg/png/webp, vuông, tối thiểu 160x160) đặt trong /public.
+              Giữ nguyên class để khung bo tròn + viền + chấm "đang ghi" tự áp dụng.
+            */}
+            <figure className="product-stage__person">
+              <img src="/avatar-placeholder.svg" alt={text.sceneLabel} />
+              <span className="product-stage__person-pulse" aria-hidden="true" />
+            </figure>
           </div>
         </div>
       </section>

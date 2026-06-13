@@ -2476,3 +2476,194 @@ pre,
     transform: translate3d(0, -8px, 0);
   }
 }
+
+/* ============================================================
+   ORGANIC & HUMAN LAYER — texture giay, blob huu co, minh hoa
+   nguoi + slot anh that. Append sau cung de ghi de an toan.
+   ============================================================ */
+
+/* Grain mong phu toan trang -> chat "analog", bot phang */
+.site-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Hero co them mot lop sang am, blob huu co thay cho vong tron geometric */
+.site-hero {
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(122, 242, 209, 0.22), transparent 46%),
+    radial-gradient(90% 80% at 100% 8%, rgba(240, 234, 220, 0.55), transparent 50%),
+    radial-gradient(circle at 88% 95%, rgba(12, 103, 89, 0.08), transparent 32%);
+}
+
+.site-hero__orbit {
+  border: 0;
+  filter: blur(2px);
+  opacity: 0.55;
+}
+
+.site-hero__orbit::after {
+  background: var(--site-mint);
+  box-shadow: 0 0 0 10px rgba(122, 242, 209, 0.14);
+}
+
+.site-hero__orbit--one {
+  border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  background: radial-gradient(circle at 35% 30%, rgba(122, 242, 209, 0.5), rgba(43, 191, 155, 0.12) 70%);
+  animation: blob-morph 18s ease-in-out infinite alternate, orbit-drift 16s ease-in-out infinite alternate;
+}
+
+.site-hero__orbit--two {
+  border-radius: 63% 37% 41% 59% / 54% 47% 53% 46%;
+  background: radial-gradient(circle at 60% 40%, rgba(240, 234, 220, 0.7), rgba(240, 138, 93, 0.12) 75%);
+  animation: blob-morph 22s ease-in-out -6s infinite alternate-reverse, orbit-drift 20s ease-in-out -4s infinite alternate-reverse;
+}
+
+@keyframes blob-morph {
+  0% {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  }
+  50% {
+    border-radius: 58% 42% 38% 62% / 56% 38% 62% 44%;
+  }
+  100% {
+    border-radius: 36% 64% 57% 43% / 47% 58% 42% 53%;
+  }
+}
+
+/* San khau hero: minh hoa nguoi (nen am) + card san pham (truoc) + avatar */
+.product-stage {
+  position: relative;
+  isolation: isolate;
+}
+
+.product-stage__figure {
+  position: absolute;
+  z-index: 0;
+  top: -14%;
+  right: -10%;
+  width: min(82%, 430px);
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 26px 50px rgba(24, 96, 82, 0.22));
+  animation: figure-float 9s ease-in-out infinite alternate;
+}
+
+@keyframes figure-float {
+  from {
+    transform: translateY(0) rotate(-1deg);
+  }
+  to {
+    transform: translateY(-16px) rotate(1.2deg);
+  }
+}
+
+.product-stage .product-scene {
+  position: relative;
+  z-index: 2;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 320ms ease;
+}
+
+.product-stage:hover .product-scene {
+  transform: rotate(0deg) translateY(-6px);
+  box-shadow: 0 40px 96px rgba(24, 78, 68, 0.22);
+}
+
+/* Avatar nguoi dung that — SLOT anh: doi src trong LandingPage.tsx */
+.product-stage__person {
+  position: absolute;
+  z-index: 3;
+  left: -20px;
+  bottom: -24px;
+  width: 92px;
+  height: 92px;
+  margin: 0;
+  border-radius: 50%;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 38px rgba(24, 78, 68, 0.22);
+  backdrop-filter: blur(6px);
+  animation: figure-float 7s ease-in-out -2s infinite alternate;
+}
+
+.product-stage__person img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.product-stage__person-pulse {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2bd28e;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 0 rgba(43, 210, 142, 0.55);
+  animation: person-pulse 2.4s ease-out infinite;
+}
+
+@keyframes person-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(43, 210, 142, 0.5);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 12px rgba(43, 210, 142, 0);
+  }
+}
+
+/* Micro-interaction cho cac panel/the -> cam giac song dong, co chu y */
+.feature-panel,
+.article-card,
+.security-points article {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 280ms ease;
+}
+
+.feature-panel:hover,
+.article-card:hover {
+  transform: translateY(-6px);
+}
+
+.security-points article:hover {
+  transform: translateX(4px);
+}
+
+/* Responsive: man hinh hep -> minh hoa nho lai, avatar ve goc tren */
+@media (max-width: 880px) {
+  .product-stage__figure {
+    width: 56%;
+    top: -8%;
+    right: -4%;
+    opacity: 0.85;
+  }
+
+  .product-stage__person {
+    width: 72px;
+    height: 72px;
+    left: auto;
+    right: -8px;
+    top: -18px;
+    bottom: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-hero__orbit--one,
+  .site-hero__orbit--two,
+  .product-stage__figure,
+  .product-stage__person,
+  .product-stage__person-pulse {
+    animation: none !important;
+  }
+}
