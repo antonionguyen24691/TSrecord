@@ -1,0 +1,13 @@
+# Mau cau hinh ky release. COPY file nay thanh `android/key.properties`
+# roi dien thong tin keystore that. KHONG commit key.properties / file .keystore.
+#
+# Tao keystore (chay 1 lan, can JDK keytool - co san trong Android Studio jbr):
+#   keytool -genkey -v -keystore tsrecord-release.keystore \
+#     -alias tsrecord -keyalg RSA -keysize 2048 -validity 10000
+#
+# Dat file .keystore o noi an toan ngoai repo, roi tro storeFile toi duong dan do.
+
+storeFile=../tsrecord-release.keystore
+storePassword=THAY_BANG_MAT_KHAU_STORE
+keyAlias=tsrecord
+keyPassword=THAY_BANG_MAT_KHAU_KEY
