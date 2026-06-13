@@ -83,16 +83,61 @@ const base64ToBytes = (value: string) => {
   return bytes;
 };
 
-const blobToBase64 = async (blob: Blob) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.includes(',') ? result.split(',')[1] : result);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const slice = bytes.subarray(index, Math.min(bytes.length, index + chunkSize));
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+};
+
+// Ghi blob lớn xuống đĩa theo từng lát ~1MB thay vì base64-hoá nguyên file
+// rồi đẩy một cục qua bridge. Tránh đỉnh RAM ~2.3x kích thước file khi lưu
+// bản ghi âm dài (vd 85MB -> ~300MB nếu base64 nguyên khối).
+const writeBlobToDeviceStreamingly = async (
+  blob: Blob,
+  path: string,
+  directory: ReturnType<typeof getAppStorageDirectory>
+) => {
+  // Chia hết cho 3 để mỗi lát base64 không sinh padding '=' giữa chừng,
+  // nhờ vậy nối các đoạn base64 vẫn decode đúng.
+  const CHUNK_SIZE = 1047552; // ~1MB
+  let isFirst = true;
+
+  for (let offset = 0; offset < blob.size; offset += CHUNK_SIZE) {
+    const slice = blob.slice(offset, offset + CHUNK_SIZE);
+    const buffer = await slice.arrayBuffer();
+    const base64Chunk = bytesToBase64(new Uint8Array(buffer));
+
+    if (isFirst) {
+      await Filesystem.writeFile({
+        path,
+        data: base64Chunk,
+        directory,
+        recursive: true,
+      });
+      isFirst = false;
+    } else {
+      await Filesystem.appendFile({
+        path,
+        data: base64Chunk,
+        directory,
+      });
+    }
+  }
+
+  // Blob rỗng: vẫn tạo file rỗng để URI hợp lệ.
+  if (isFirst) {
+    await Filesystem.writeFile({
+      path,
+      data: '',
+      directory,
+      recursive: true,
+    });
+  }
+};
 
 type RecordingConstraintSettings = Pick<
   AiSettings,
@@ -381,14 +426,7 @@ export const saveRecordingToDevice = async ({
 
   await ensureDirectory(mediaPath);
 
-  const data = await blobToBase64(blob);
-
-  await Filesystem.writeFile({
-    path: filePath,
-    data,
-    directory: getAppStorageDirectory(),
-    recursive: true,
-  });
+  await writeBlobToDeviceStreamingly(blob, filePath, getAppStorageDirectory());
 
   const uriResult = await Filesystem.getUri({
     path: filePath,
@@ -412,6 +450,29 @@ export const loadSavedRecordingFile = async ({
   path: string;
   fileName?: string;
 }) => {
+  const resolvedFileName =
+    fileName || path.split('/').pop() || `recording.${guessExtension('audio/webm')}`;
+
+  // Trên native: lấy URI rồi fetch -> Blob (do nền tảng cấp phát, stream được).
+  // Tránh nạp base64 nguyên file (~1.3x) + atob (~1x) + Uint8Array (~1x) vào
+  // RAM cùng lúc — vốn dễ gây OOM với file dài khi "tiếp tục transcribe".
+  if (Capacitor.isNativePlatform()) {
+    const uriResult = await Filesystem.getUri({
+      path,
+      directory: getAppStorageDirectory(),
+    });
+    const response = await fetch(Capacitor.convertFileSrc(uriResult.uri));
+    if (!response.ok) {
+      throw new Error('Không thể đọc lại file nguồn đã lưu trên thiết bị.');
+    }
+    const blob = await response.blob();
+    return new File([blob], resolvedFileName, {
+      type: blob.type || guessMimeTypeFromFileName(resolvedFileName),
+      lastModified: Date.now(),
+    });
+  }
+
+  // Web (Filesystem nền IndexedDB): chỉ còn đường base64.
   const result = await Filesystem.readFile({
     path,
     directory: getAppStorageDirectory(),
@@ -428,7 +489,6 @@ export const loadSavedRecordingFile = async ({
     throw new Error('Không thể đọc lại file nguồn đã lưu trên thiết bị.');
   }
 
-  const resolvedFileName = fileName || path.split('/').pop() || `recording.${guessExtension('audio/webm')}`;
   const bytes = base64ToBytes(base64Data);
 
   return new File([bytes], resolvedFileName, {

@@ -4,12 +4,19 @@ import { AudioVad } from '../plugins/audioVad';
 import { getAudioContext, encodeWav, downmixToMono, resampleMonoChannel } from './utils/audioUtils';
 
 export interface AudioChunkPart {
-  file: File;
   index: number;
   total: number;
   startSeconds: number;
   endSeconds: number;
+  fileName: string;
   tempFileUri?: string;
+  /**
+   * Nạp nội dung chunk thành File MỘT cách lazy, ngay trước khi dùng.
+   * Trên Android chunk đã nằm sẵn trên đĩa (tempFileUri); chỉ fetch về RAM
+   * khi worker thực sự xử lý nó, rồi để GC thu hồi — tránh giữ toàn bộ
+   * audio (~hàng trăm MB) trong heap WebView cùng lúc.
+   */
+  loadFile: () => Promise<File>;
 }
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.webm', '.flac'];
@@ -336,16 +343,17 @@ const splitAudioFileIntoNativeAndroidChunks = async (
       speechOnlyUpload,
     });
 
-    return Promise.all(
-      result.chunks.map(async (chunk) => ({
-        file: await nativeChunkUriToFile(chunk.fileUri, chunk.fileName),
-        index: chunk.index,
-        total: chunk.total,
-        startSeconds: chunk.startSeconds,
-        endSeconds: chunk.endSeconds,
-        tempFileUri: chunk.fileUri,
-      }))
-    );
+    // KHÔNG fetch toàn bộ chunk về RAM ở đây. Chỉ giữ metadata + URI;
+    // mỗi chunk sẽ được nạp lazy qua loadFile() ngay trước khi xử lý.
+    return result.chunks.map((chunk) => ({
+      index: chunk.index,
+      total: chunk.total,
+      startSeconds: chunk.startSeconds,
+      endSeconds: chunk.endSeconds,
+      fileName: chunk.fileName,
+      tempFileUri: chunk.fileUri,
+      loadFile: () => nativeChunkUriToFile(chunk.fileUri, chunk.fileName),
+    }));
   } catch (error) {
     console.warn('Native Android chunk split unavailable, fallback to web audio split:', error);
     return null;
@@ -430,21 +438,19 @@ export const splitAudioFileIntoChunks = async ({
       );
 
       const blob = encodeWav([resampledChannel], TARGET_CHUNK_SAMPLE_RATE);
-      const chunkFile = new File(
-        [blob],
-        `${baseName}-part-${String(index + 1).padStart(2, '0')}.wav`,
-        {
-          type: 'audio/wav',
-          lastModified: Date.now(),
-        }
-      );
+      const fileName = `${baseName}-part-${String(index + 1).padStart(2, '0')}.wav`;
+      const chunkFile = new File([blob], fileName, {
+        type: 'audio/wav',
+        lastModified: Date.now(),
+      });
 
       parts.push({
-        file: chunkFile,
         index,
         total: totalChunks,
         startSeconds: startFrame / decoded.sampleRate,
         endSeconds: endFrame / decoded.sampleRate,
+        fileName,
+        loadFile: () => Promise.resolve(chunkFile),
       });
     }
 
@@ -472,6 +478,7 @@ export const prepareAudioFileForTranscription = async (
   if (
     options?.skipNormalization ||
     file.name.includes('-part-') ||
+    file.name.includes('-batch-') ||
     file.name.includes('-normalized.wav') ||
     !isAudioFile(file) ||
     isVideoFile(file)

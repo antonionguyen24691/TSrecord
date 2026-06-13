@@ -23,25 +23,30 @@ const nativeMergedUriToFile = async (fileUri: string, fileName: string) => {
   });
 };
 
+export interface MergeableAudioChunk {
+  tempFileUri?: string;
+  loadFile: () => Promise<File>;
+}
+
 export const mergeAudioChunkFiles = async ({
   chunks,
-  files,
   outputFileName,
 }: {
-  chunks?: Array<{ tempFileUri?: string }>;
-  files: File[];
+  chunks: MergeableAudioChunk[];
   outputFileName: string;
 }): Promise<MergedAudioBatchFile> => {
-  if (files.length === 0) {
+  if (chunks.length === 0) {
     throw new Error('Không có audio chunk nào để gộp.');
   }
 
   const nativeChunkUris =
     Capacitor.getPlatform() === 'android'
-      ? (chunks || []).map((chunk) => chunk.tempFileUri).filter((uri): uri is string => Boolean(uri))
+      ? chunks.map((chunk) => chunk.tempFileUri).filter((uri): uri is string => Boolean(uri))
       : [];
 
-  if (nativeChunkUris.length === files.length && nativeChunkUris.length > 0) {
+  // Đường nhanh trên Android: gộp trực tiếp từ các file WAV trên đĩa qua
+  // native plugin, KHÔNG nạp chunk nào vào RAM của WebView.
+  if (nativeChunkUris.length === chunks.length && nativeChunkUris.length > 0) {
     const merged = await AudioVad.mergeWavFiles({
       fileUris: nativeChunkUris,
       outputFileName,
@@ -52,14 +57,16 @@ export const mergeAudioChunkFiles = async ({
     };
   }
 
+  // Fallback web: nạp từng chunk lazy rồi decode tuần tự (chunk web vốn đã
+  // nằm sẵn trong RAM nên đây chỉ là trả về reference, không nhân đôi bộ nhớ).
   const audioContext = getAudioContext();
   try {
-    const decodedBuffers = await Promise.all(
-      files.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        return audioContext.decodeAudioData(arrayBuffer.slice(0));
-      })
-    );
+    const decodedBuffers: AudioBuffer[] = [];
+    for (const chunk of chunks) {
+      const file = await chunk.loadFile();
+      const arrayBuffer = await file.arrayBuffer();
+      decodedBuffers.push(await audioContext.decodeAudioData(arrayBuffer.slice(0)));
+    }
 
     const sampleRate = decodedBuffers[0].sampleRate;
     const totalLength = decodedBuffers.reduce((sum, buffer) => sum + buffer.length, 0);

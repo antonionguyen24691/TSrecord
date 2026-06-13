@@ -11,6 +11,7 @@ import { loadAiSettings, TranscriptionProvider, getDeviceId } from './aiSettings
 import { fileToBase64 } from './utils/audioUtils';
 
 import {
+  AudioChunkPart,
   canSplitFileIntoAudioChunks,
   cleanupNativeAudioChunkTemps,
   getMediaDurationSeconds,
@@ -400,9 +401,10 @@ const transcribeLongAudioIfNeeded = async ({
               })
             );
 
+            const chunkFile = await chunk.loadFile();
             const text = await transcribeWithProvider({
               provider,
-              file: chunk.file,
+              file: chunkFile,
               mode,
               assemblyaiApiKey: settings.assemblyaiApiKey,
               groqApiKey: settings.groqApiKey,
@@ -473,17 +475,19 @@ const transcribeLongAudioIfNeeded = async ({
   }
 };
 
+interface MacroBatchChunk {
+  loadFile: () => Promise<File>;
+  fileName: string;
+  index: number;
+  startSeconds: number;
+  endSeconds: number;
+  tempFileUri?: string;
+}
+
 interface MacroBatchPlan {
   batchIndex: number;
-  chunks: Array<{
-    file: File;
-    index: number;
-    startSeconds: number;
-    endSeconds: number;
-    tempFileUri?: string;
-  }>;
+  chunks: MacroBatchChunk[];
   chunkIndexes: number[];
-  files: File[];
   startSeconds: number;
   endSeconds: number;
 }
@@ -492,56 +496,44 @@ const buildMacroBatchPlans = ({
   chunks,
   targetBatchMinutes,
 }: {
-  chunks: Array<{
-    file: File;
-    index: number;
-    startSeconds: number;
-    endSeconds: number;
-    tempFileUri?: string;
-  }>;
+  chunks: AudioChunkPart[];
   targetBatchMinutes: number;
 }) => {
   const targetSeconds = Math.max(300, Math.floor(targetBatchMinutes * 60));
   const plans: MacroBatchPlan[] = [];
-  let currentFiles: File[] = [];
-  let currentIndexes: number[] = [];
+  // Chỉ giữ tham chiếu lazy (loadFile/URI) cho từng chunk — KHÔNG materialize
+  // File vào RAM. Nội dung audio nằm trên đĩa cho tới khi gộp/đọc batch.
+  let currentChunks: AudioChunkPart[] = [];
   let currentStartSeconds = 0;
   let currentEndSeconds = 0;
 
-  const chunkMap = new Map(chunks.map((chunk) => [chunk.index, chunk]));
-
   const flush = () => {
-    if (currentFiles.length === 0) return;
+    if (currentChunks.length === 0) return;
     plans.push({
       batchIndex: plans.length + 1,
-      chunks: currentIndexes.map((chunkIndex, index) => {
-        const foundChunk = chunkMap.get(chunkIndex);
-        return {
-          file: currentFiles[index],
-          index: chunkIndex,
-          startSeconds: foundChunk?.startSeconds || currentStartSeconds,
-          endSeconds: foundChunk?.endSeconds || currentEndSeconds,
-          tempFileUri: foundChunk?.tempFileUri,
-        };
-      }),
-      chunkIndexes: [...currentIndexes],
-      files: [...currentFiles],
+      chunks: currentChunks.map((chunk) => ({
+        loadFile: chunk.loadFile,
+        fileName: chunk.fileName,
+        index: chunk.index,
+        startSeconds: chunk.startSeconds,
+        endSeconds: chunk.endSeconds,
+        tempFileUri: chunk.tempFileUri,
+      })),
+      chunkIndexes: currentChunks.map((chunk) => chunk.index),
       startSeconds: currentStartSeconds,
       endSeconds: currentEndSeconds,
     });
-    currentFiles = [];
-    currentIndexes = [];
+    currentChunks = [];
     currentStartSeconds = 0;
     currentEndSeconds = 0;
   };
 
   chunks.forEach((chunk) => {
-    if (currentFiles.length === 0) {
+    if (currentChunks.length === 0) {
       currentStartSeconds = chunk.startSeconds;
     }
 
-    currentFiles.push(chunk.file);
-    currentIndexes.push(chunk.index);
+    currentChunks.push(chunk);
     currentEndSeconds = chunk.endSeconds;
 
     if (currentEndSeconds - currentStartSeconds >= targetSeconds) {
@@ -998,9 +990,10 @@ const transcribeMacroPlanAsSmallerChunks = async ({
       })
     );
 
+    const chunkFile = await chunk.loadFile();
     const text = await transcribeWithProvider({
       provider,
-      file: chunk.file,
+      file: chunkFile,
       mode,
       assemblyaiApiKey: settings.assemblyaiApiKey,
       groqApiKey: settings.groqApiKey,
@@ -1203,7 +1196,6 @@ export const transcribeSessionDraft = async (
 
                 const mergedBatchFile = await mergeAudioChunkFiles({
                   chunks: plan.chunks,
-                  files: plan.files,
                   outputFileName: `${rawTitle || 'audio'}-batch-${String(
                     plan.batchIndex
                   ).padStart(2, '0')}.wav`,

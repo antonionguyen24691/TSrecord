@@ -82,16 +82,54 @@ const readTextFile = async (path: string) => {
   }
 };
 
-const blobToBase64 = async (blob: Blob) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.includes(',') ? result.split(',')[1] : result);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const slice = bytes.subarray(index, Math.min(bytes.length, index + chunkSize));
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+};
+
+// Ghi blob lớn xuống đĩa theo lát ~1MB thay vì base64-hoá nguyên file rồi
+// đẩy một cục qua Capacitor bridge — tránh đỉnh RAM ~2.3x kích thước file
+// (vd file nguồn 85MB -> ~300MB) gây crash WebView Android.
+const writeBlobToWorkspaceStreamingly = async (blob: Blob, path: string) => {
+  const CHUNK_SIZE = 1047552; // chia hết cho 3 để base64 không lệch padding khi nối
+  let isFirst = true;
+
+  for (let offset = 0; offset < blob.size; offset += CHUNK_SIZE) {
+    const slice = blob.slice(offset, offset + CHUNK_SIZE);
+    const buffer = await slice.arrayBuffer();
+    const base64Chunk = bytesToBase64(new Uint8Array(buffer));
+
+    if (isFirst) {
+      await Filesystem.writeFile({
+        path,
+        data: base64Chunk,
+        directory: getAppStorageDirectory(),
+        recursive: true,
+      });
+      isFirst = false;
+    } else {
+      await Filesystem.appendFile({
+        path,
+        data: base64Chunk,
+        directory: getAppStorageDirectory(),
+      });
+    }
+  }
+
+  if (isFirst) {
+    await Filesystem.writeFile({
+      path,
+      data: '',
+      directory: getAppStorageDirectory(),
+      recursive: true,
+    });
+  }
+};
 
 const getJobRoot = (workspacePath: string) => `${workspacePath}/${PROCESSING_DIRECTORY}`;
 const getJobFilePath = (workspacePath: string) => `${getJobRoot(workspacePath)}/${JOB_FILE_NAME}`;
@@ -123,12 +161,7 @@ export const persistSourceFileToWorkspace = async ({
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.bin';
   const path = `${workspacePath}/${SOURCE_DIRECTORY}/${SOURCE_FILE_NAME}${extension}`;
   await ensureDirectory(`${workspacePath}/${SOURCE_DIRECTORY}`);
-  await Filesystem.writeFile({
-    path,
-    data: await blobToBase64(file),
-    directory: getAppStorageDirectory(),
-    recursive: true,
-  });
+  await writeBlobToWorkspaceStreamingly(file, path);
   const uri = await Filesystem.getUri({
     path,
     directory: getAppStorageDirectory(),
