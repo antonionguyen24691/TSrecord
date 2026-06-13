@@ -14,6 +14,23 @@ body,
   min-height: 100%;
 }
 
+/* Chặn cuộn ngang toàn trang: cac lop trang tri (blob/figure/orbit) co the
+   tran qua mep phai. Dung `clip` thay `hidden` de KHONG pha vo position:sticky
+   cua header. width:100% chong tran tren mobile. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* Media/SVG khong bao gio vuot khung cha -> an toan tren man hep */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
 body {
   margin: 0;
   font-family: 'Be Vietnam Pro', sans-serif;
@@ -401,7 +418,7 @@ pre,
 
 .site-hero__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(440px, 0.95fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: center;
   gap: 72px;
 }
