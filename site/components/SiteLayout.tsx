@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Menu, Mic2, X } from 'lucide-react';
+import { ArrowRight, Menu, X } from 'lucide-react';
 import { useSiteLocale } from '../hooks/useSiteLocale';
 import { SiteLanguageSwitcher } from './SiteLanguageSwitcher';
 
 type SiteLayoutProps = {
   children: React.ReactNode;
 };
+
+const BrandGlyph = () => (
+  <svg viewBox="0 0 36 36" aria-hidden="true">
+    <path d="M7 18h3M13 12v12M18 7v22M23 11v14M28 15v6M31 18h-1" />
+  </svg>
+);
 
 export const SiteLayout = ({ children }: SiteLayoutProps) => {
   const { copy } = useSiteLocale();
@@ -41,7 +47,7 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
         <div className="site-container site-header__inner">
           <a className="site-brand" href="/" aria-label={`TSrecord - ${copy.common.home}`}>
             <span className="site-brand__mark">
-              <Mic2 aria-hidden="true" />
+              <BrandGlyph />
             </span>
             <span>TSrecord</span>
           </a>
@@ -116,7 +122,7 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
           <div>
             <a className="site-brand site-brand--footer" href="/">
               <span className="site-brand__mark">
-                <Mic2 aria-hidden="true" />
+                <BrandGlyph />
               </span>
               <span>TSrecord</span>
             </a>

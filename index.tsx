@@ -5,7 +5,7 @@ import { initLanguagePersistence } from './i18n';
 import { initCrashReporter } from './services/utils/crashReporter';
 import { SiteRouter } from './site/SiteRouter';
 
-initCrashReporter();
+void initCrashReporter();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

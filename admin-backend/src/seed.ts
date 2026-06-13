@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import { getDb } from './database.js';
 import { createAdminUser } from './auth.js';
+import { getAdminPassword } from './config/production.js';
 
 const username = process.env.ADMIN_USERNAME || 'admin';
-const password = process.env.ADMIN_PASSWORD || 'admin123';
+const password = getAdminPassword();
 
 getDb();
 createAdminUser(username, password);

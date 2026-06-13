@@ -1,0 +1,176 @@
+openapi: 3.1.0
+info:
+  title: TSrecord Platform API v2
+  version: 1.4.6
+  description: Commerce, devices, uploads, CMS và admin API trên PostgreSQL.
+servers:
+  - url: https://api.tsrecord.vn/api/v2
+    description: Production
+  - url: http://localhost:4000/api/v2
+    description: Local
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service healthy
+
+  /devices/integrity/challenge:
+    get:
+      summary: Lấy nonce cho Play Integrity (Android)
+      responses:
+        '200':
+          description: Challenge nonce and optional cloud project number
+
+  /devices/register:
+    post:
+      summary: Đăng ký thiết bị và nhận device token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceKey]
+              properties:
+                deviceKey: { type: string, minLength: 8 }
+                platform: { type: string }
+                appVersion: { type: string }
+                integrityToken: { type: string, description: Play Integrity token (Android) }
+                integrityNonce: { type: string, description: Nonce from /devices/integrity/challenge }
+      responses:
+        '200':
+          description: Device registered with JWT token
+        '403':
+          description: Play Integrity verification failed
+
+  /orders:
+    post:
+      summary: Tạo đơn SePay hoặc Stripe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceKey, planCode, provider]
+              properties:
+                deviceKey: { type: string }
+                planCode: { type: string }
+                provider: { type: string, enum: [sepay, stripe] }
+      responses:
+        '201':
+          description: Order created
+
+  /uploads/init:
+    post:
+      summary: Khởi tạo phiên upload chunked
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceKey, fileName, mimeType, totalBytes]
+              properties:
+                deviceKey: { type: string }
+                fileName: { type: string }
+                mimeType: { type: string }
+                totalBytes: { type: integer }
+      responses:
+        '201':
+          description: Upload session created
+
+  /uploads/{sessionId}/chunk:
+    post:
+      summary: Gửi chunk base64
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceKey, chunkIndex, chunkBase64]
+              properties:
+                deviceKey: { type: string }
+                chunkIndex: { type: integer }
+                chunkBase64: { type: string }
+                isLast: { type: boolean }
+      responses:
+        '200':
+          description: Chunk accepted
+
+  /promo/redeem:
+    post:
+      summary: Kích hoạt mã promo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceKey, code]
+              properties:
+                deviceKey: { type: string }
+                code: { type: string }
+      responses:
+        '200':
+          description: Promo redeemed
+
+  /webhooks/sepay:
+    post:
+      summary: Webhook SePay
+      responses:
+        '200':
+          description: Processed
+
+  /webhooks/stripe:
+    post:
+      summary: Webhook Stripe
+      responses:
+        '200':
+          description: Processed
+
+  /admin/orders/{orderCode}/refund:
+    post:
+      summary: Hoàn tiền Stripe (admin)
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: orderCode
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Refund initiated
+
+  /admin/promo-codes:
+    get:
+      summary: Danh sách promo codes
+      security:
+        - AdminApiKey: []
+      responses:
+        '200':
+          description: Promo list
+    post:
+      summary: Tạo promo code
+      security:
+        - AdminApiKey: []
+      responses:
+        '201':
+          description: Created
+
+components:
+  securitySchemes:
+    AdminApiKey:
+      type: apiKey
+      in: header
+      name: X-Admin-Api-Key

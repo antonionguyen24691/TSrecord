@@ -1,20 +1,75 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# TSrecord — Trích xuất âm thanh AI
 
-# Run and deploy your AI Studio app
+Ứng dụng web/mobile chuyển giọng nói thành văn bản, hỗ trợ họp/phỏng vấn, xuất DOCX/PPTX, freemium với thanh toán SePay/Stripe.
 
-This contains everything you need to run your app locally.
+- **Web:** https://tsrecord.vn
+- **App:** `/app`
+- **API:** https://api.tsrecord.vn
 
-View your app in AI Studio: https://ai.studio/apps/drive/1EcRrU00Ek7xAm7EhrkJdP2SO1lPSWoIA
+## Yêu cầu
 
-## Run Locally
+- Node.js 22+
+- PostgreSQL (production backend)
+- Android Studio / Xcode (build mobile tùy chọn)
 
-**Prerequisites:**  Node.js
+## Chạy local
 
+### Frontend
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+API keys nhập trong **Settings** của app (lưu on-device). Không commit `.env.local`.
+
+### Backend (PostgreSQL v2)
+
+```bash
+cd admin-backend
+npm install
+cp .env.example .env
+npm run migrate:platform
+npm run dev
+```
+
+Set `VITE_BACKEND_URL=http://localhost:4000` trong `.env.local`.
+
+### Mobile
+
+```bash
+npm run build
+npm run android:sync   # hoặc ios:sync
+```
+
+## Scripts chính
+
+| Lệnh | Mô tả |
+|------|--------|
+| `npm run dev` | Frontend Vite :3000 |
+| `npm run build` | Build production |
+| `npm test` | Vitest frontend |
+| `cd admin-backend && npm run dev` | API :4000 |
+| `cd admin-backend && npm run migrate:platform` | Schema PostgreSQL |
+| `cd admin-backend && npx tsx scripts/migrate-sqlite-to-postgres.ts` | Migrate SQLite → Postgres |
+
+## Kiến trúc
+
+| Thành phần | Công nghệ |
+|------------|-----------|
+| Frontend | React 19, Vite 6, Tailwind 4, i18n |
+| Mobile | Capacitor 8 (Android/iOS) |
+| Backend v2 | Express, PostgreSQL (`/api/v2`) |
+| Backend v1 | SQLite legacy (local/Fly, đang retire) |
+
+Chi tiết deploy: [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md)  
+API v2: [`docs/openapi-v2.yaml`](docs/openapi-v2.yaml)  
+Roadmap: [`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md)
+
+## Biến môi trường quan trọng
+
+**Frontend:** `VITE_BACKEND_URL`, `VITE_SITE_URL`, `VITE_SENTRY_DSN`  
+**Backend:** `DATABASE_URL`, `ADMIN_API_KEY`, `JWT_SECRET`, `DEVICE_AUTH_SECRET`, `SENTRY_DSN`, `CORS_ALLOWED_ORIGINS`
+
+Xem đầy đủ trong `.env.example` và `admin-backend/.env.example`.

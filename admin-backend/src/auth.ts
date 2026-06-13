@@ -3,8 +3,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { getDb } from './database.js';
 import type { AdminUser } from './types.js';
+import { getJwtSecret } from './config/production.js';
 
-const getSecret = () => process.env.JWT_SECRET || 'dev-secret-change-me';
+const getSecret = () => getJwtSecret();
 
 export interface AuthRequest extends Request {
   adminId?: number;

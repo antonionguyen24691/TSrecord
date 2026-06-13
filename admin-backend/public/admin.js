@@ -1,11 +1,12 @@
 // ── TSrecord Admin SPA ───────────────────────────────────────
 const API = '';
 let token = localStorage.getItem('admin_token') || '';
+let v2AdminKey = localStorage.getItem('v2_admin_key') || '';
 let currentView = 'dashboard';
 let cmsState = { pages: [], articles: [] };
 
 const $ = (id) => document.getElementById(id);
-const app = document.getElementById('app');
+const getApp = () => document.getElementById('app');
 
 const api = async (path, opts = {}) => {
   const headers = { 'Content-Type': 'application/json' };
@@ -19,6 +20,24 @@ const jsonApi = async (path, opts) => {
   const res = await api(path, opts);
   if (!res) return null;
   return res.json();
+};
+
+const v2Api = async (path, opts = {}) => {
+  if (!v2AdminKey) return null;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Admin-Api-Key': v2AdminKey,
+    ...(opts.headers || {}),
+  };
+  const res = await fetch(`${API}${path}`, { ...opts, headers });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `API lỗi ${res.status}`);
+  }
+  if (res.status === 204) return null;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) return res.json();
+  return res.text();
 };
 
 const formatVND = (amount) => new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
@@ -43,6 +62,7 @@ const NAV_ITEMS = [
   { id: 'config', label: 'Cấu hình', icon: '⚙️' },
   { id: 'content', label: 'Nội dung website', icon: '📝' },
   { id: 'revenue', label: 'Doanh thu HKD', icon: '📈' },
+  { id: 'einvoices', label: 'Hóa đơn', icon: '🧾' },
 ];
 
 const renderNav = () => NAV_ITEMS.map(n =>
@@ -53,6 +73,8 @@ window.navigate = (view) => { currentView = view; renderApp(); };
 
 // ── Login ────────────────────────────────────────────────────
 const renderLogin = () => {
+  const app = getApp();
+  if (!app) return;
   app.innerHTML = `
     <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
       <div class="w-full max-w-sm bg-white rounded-3xl p-8 shadow-2xl fade-in">
@@ -83,6 +105,8 @@ const renderLogin = () => {
 // ── Main Layout ──────────────────────────────────────────────
 const renderApp = () => {
   if (!token) { renderLogin(); return; }
+  const app = getApp();
+  if (!app) return;
   app.innerHTML = `
     <div class="flex min-h-screen">
       <aside class="w-64 bg-white border-r border-slate-200 p-4 flex flex-col gap-1 shrink-0">
@@ -107,7 +131,7 @@ const renderView = async () => {
   if (!main) return;
   main.innerHTML = '<div class="flex items-center justify-center h-64 text-slate-400">Đang tải...</div>';
   try {
-    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, content: renderCms, revenue: renderRevenue };
+    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, content: renderCms, revenue: renderRevenue, einvoices: renderEinvoices };
     await (views[currentView] || renderDashboard)(main);
   } catch (err) { main.innerHTML = `<div class="text-red-500 p-8">Lỗi: ${err.message}</div>`; }
 };
@@ -702,9 +726,217 @@ const renderRevenue = async (el) => {
     </div>`;
 };
 
+// ── E-Invoices (v2 API) ──────────────────────────────────────
+const renderEinvoices = async (el) => {
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-black">Hóa đơn điện tử</h2>
+          <p class="text-sm text-slate-500 mt-1">Sinh hóa đơn thông thường (HTML) hoặc chuẩn bị ô API Viettel/MISA.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="issueAllPendingEinvoices()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">▶ Phát hành tất cả đơn chưa có HĐ</button>
+          <span class="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600" title="File: admin-backend/scripts/run-backend.bat">📂 Backend .bat</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="text-sm font-bold mb-3">Kết nối API v2 (PostgreSQL)</h3>
+        <p class="text-xs text-slate-500 mb-3">Nhập <code class="bg-slate-100 px-1 rounded">ADMIN_API_KEY</code> từ file <code class="bg-slate-100 px-1 rounded">.env</code> backend. Lưu trên trình duyệt này.</p>
+        <div class="flex flex-wrap gap-3">
+          <input id="v2-admin-key" type="password" value="${escapeHtml(v2AdminKey)}" placeholder="ADMIN_API_KEY" class="flex-1 min-w-[240px] px-4 py-2 rounded-xl border border-slate-200 text-sm" />
+          <button onclick="saveV2AdminKey()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold">Lưu key</button>
+          <button onclick="loadEinvoicePanel()" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold">Tải lại</button>
+        </div>
+        <p class="text-xs text-amber-700 mt-3">Chạy backend local: double-click <b>admin-backend/scripts/run-backend.bat</b> (giống mở .exe). Mở admin: <a class="text-emerald-700 font-semibold" href="/" target="_blank">http://localhost:4000</a></p>
+      </div>
+
+      <div id="einvoice-panel" class="text-sm text-slate-500">Nhập API key và bấm "Tải lại"...</div>
+    </div>`;
+  if (v2AdminKey) await loadEinvoicePanel();
+};
+
+window.saveV2AdminKey = () => {
+  v2AdminKey = $('v2-admin-key').value.trim();
+  localStorage.setItem('v2_admin_key', v2AdminKey);
+  loadEinvoicePanel();
+};
+
+window.loadEinvoicePanel = async () => {
+  const panel = $('einvoice-panel');
+  if (!panel) return;
+  if (!v2AdminKey) {
+    panel.innerHTML = '<div class="text-amber-700">Chưa có ADMIN_API_KEY.</div>';
+    return;
+  }
+  panel.innerHTML = '<div class="text-slate-400">Đang tải dữ liệu hóa đơn...</div>';
+  try {
+    const [config, invoices, pending] = await Promise.all([
+      v2Api('/api/v2/admin/einvoice/providers'),
+      v2Api('/api/v2/admin/einvoices?limit=100'),
+      v2Api('/api/v2/admin/einvoices/pending?limit=50'),
+    ]);
+    const org = config.organization;
+    panel.innerHTML = `
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6">
+          <h3 class="text-sm font-bold mb-4">Hồ sơ xuất hóa đơn</h3>
+          <form id="org-einvoice-form" class="space-y-3">
+            <input id="ei-legal-name" value="${escapeHtml(org?.legal_name || '')}" placeholder="Tên HKD / công ty *" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+            <input id="ei-tax-code" value="${escapeHtml(org?.tax_code || '')}" placeholder="Mã số thuế" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+            <input id="ei-address" value="${escapeHtml(org?.address || '')}" placeholder="Địa chỉ" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+            <select id="ei-entity-type" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm">
+              <option value="household_business" ${org?.entity_type === 'household_business' ? 'selected' : ''}>Hộ kinh doanh</option>
+              <option value="company" ${org?.entity_type === 'company' ? 'selected' : ''}>Công ty</option>
+            </select>
+            <input id="ei-vat-rate" type="number" step="0.01" value="${org?.vat_rate ?? ''}" placeholder="Thuế GTGT (%)" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" />
+            <select id="ei-provider" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm">
+              ${(config.providers || []).map((p) => `<option value="${p.id}" ${config.activeProvider === p.id ? 'selected' : ''}>${escapeHtml(p.label)}</option>`).join('')}
+            </select>
+            <label class="flex items-center gap-2 text-sm"><input id="ei-enabled" type="checkbox" ${config.einvoiceEnabled ? 'checked' : ''} /> Bật provider API (Viettel/MISA)</label>
+            <button type="button" onclick="saveOrgEinvoice()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold">Lưu hồ sơ</button>
+          </form>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-6">
+          <h3 class="text-sm font-bold mb-4">Ô cấu hình API provider</h3>
+          <div class="space-y-4">${(config.providers || []).filter((p) => p.fields?.length).map((p) => `
+            <div class="border border-slate-100 rounded-xl p-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="font-semibold">${escapeHtml(p.label)}</div>
+                ${p.ready ? badge('Sẵn sàng', 'bg-emerald-100 text-emerald-700') : badge('Chưa đủ ô', 'bg-amber-100 text-amber-700')}
+              </div>
+              <p class="text-xs text-slate-500 mb-3">${escapeHtml(p.description)}</p>
+              ${p.fields.map((f) => `
+                <label class="block text-xs text-slate-500 mb-1">${escapeHtml(f.label)}</label>
+                <input data-provider="${p.id}" data-field="${f.key}" value="${escapeHtml(p.values?.[f.key] || '')}" placeholder="${escapeHtml(f.placeholder || '')}" type="${f.secret ? 'password' : 'text'}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm mb-2" />`).join('')}
+              <button onclick="saveProviderConfig('${p.id}')" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold">Lưu ${escapeHtml(p.id)}</button>
+            </div>`).join('') || '<p class="text-slate-400">Chọn Viettel hoặc MISA để hiện ô cấu hình.</p>'}
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-bold">Đơn đã thanh toán — chưa có hóa đơn (${pending.length})</h3>
+        </div>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-slate-100 text-left text-xs text-slate-400 uppercase">
+            <th class="pb-3">Mã đơn</th><th class="pb-3">Gói</th><th class="pb-3">Số tiền</th><th class="pb-3">Email</th><th class="pb-3"></th>
+          </tr></thead>
+          <tbody>${pending.map((o) => `<tr class="border-b border-slate-50">
+            <td class="py-3 font-mono font-bold">${o.order_code}</td>
+            <td class="py-3">${o.plan_code}</td>
+            <td class="py-3">${formatVND(Number(o.amount_minor))}</td>
+            <td class="py-3 text-slate-500">${escapeHtml(o.email || '—')}</td>
+            <td class="py-3"><button onclick="issueEinvoice('${o.order_code}')" class="text-xs font-bold text-emerald-700 hover:underline">Phát hành</button></td>
+          </tr>`).join('') || '<tr><td colspan="5" class="py-6 text-center text-slate-400">Không còn đơn chờ xuất HĐ</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 font-bold text-sm">Hóa đơn đã phát hành (${invoices.length})</div>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-slate-100 text-left text-xs text-slate-400 uppercase bg-slate-50">
+            <th class="p-4">Số HĐ</th><th class="p-4">Đơn hàng</th><th class="p-4">Provider</th><th class="p-4">Trạng thái</th><th class="p-4">Ngày</th><th class="p-4"></th>
+          </tr></thead>
+          <tbody>${invoices.map((d) => `<tr class="border-b border-slate-50">
+            <td class="p-4 font-mono">${escapeHtml(d.invoice_number || '—')}</td>
+            <td class="p-4 font-mono">${d.order_code}</td>
+            <td class="p-4">${d.provider}</td>
+            <td class="p-4">${statusBadge(d.status)}</td>
+            <td class="p-4 text-slate-500">${formatDate(d.issued_at || d.created_at)}</td>
+            <td class="p-4">
+              <a href="/api/v2/admin/einvoices/${d.id}/view" target="_blank" onclick="return openEinvoiceView(event, '${d.id}')" class="text-xs font-bold text-emerald-700 hover:underline">Xem / In</a>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-400">Chưa có hóa đơn</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    panel.innerHTML = `<div class="text-red-600">Lỗi: ${escapeHtml(err.message)}</div>`;
+  }
+};
+
+window.openEinvoiceView = (event, id) => {
+  event.preventDefault();
+  const w = window.open('about:blank', '_blank');
+  if (!w) return false;
+  fetch(`/api/v2/admin/einvoices/${id}/view`, { headers: { 'X-Admin-Api-Key': v2AdminKey } })
+    .then((res) => res.text())
+    .then((html) => { w.document.open(); w.document.write(html); w.document.close(); })
+    .catch((err) => { w.document.body.textContent = err.message; });
+  return false;
+};
+
+window.saveOrgEinvoice = async () => {
+  const body = {
+    legalName: $('ei-legal-name').value.trim(),
+    entityType: $('ei-entity-type').value,
+    taxCode: $('ei-tax-code').value.trim(),
+    address: $('ei-address').value.trim(),
+    vatRate: $('ei-vat-rate').value ? Number($('ei-vat-rate').value) : null,
+    einvoiceProvider: $('ei-provider').value,
+    einvoiceEnabled: $('ei-enabled').checked,
+    accountingBasis: 'configured',
+  };
+  if (!body.legalName) { alert('Nhập tên HKD/công ty.'); return; }
+  await v2Api('/api/v2/admin/organization', { method: 'PUT', body: JSON.stringify(body) });
+  await v2Api('/api/v2/admin/organization/einvoice-settings', {
+    method: 'PUT',
+    body: JSON.stringify({ einvoiceProvider: body.einvoiceProvider, einvoiceEnabled: body.einvoiceEnabled }),
+  });
+  loadEinvoicePanel();
+};
+
+window.saveProviderConfig = async (providerId) => {
+  const inputs = document.querySelectorAll(`[data-provider="${providerId}"]`);
+  const providerValues = {};
+  inputs.forEach((input) => { providerValues[input.dataset.field] = input.value; });
+  await v2Api('/api/v2/admin/organization/einvoice-settings', {
+    method: 'PUT',
+    body: JSON.stringify({ providerId, providerValues }),
+  });
+  alert(`Đã lưu cấu hình ${providerId}.`);
+  loadEinvoicePanel();
+};
+
+window.issueEinvoice = async (orderCode) => {
+  if (!confirm(`Phát hành hóa đơn cho ${orderCode}?`)) return;
+  await v2Api(`/api/v2/admin/orders/${orderCode}/einvoice`, { method: 'POST', body: '{}' });
+  loadEinvoicePanel();
+};
+
+window.issueAllPendingEinvoices = async () => {
+  if (!v2AdminKey) { alert('Nhập ADMIN_API_KEY trước.'); return; }
+  if (!confirm('Phát hành hóa đơn cho tất cả đơn đã thanh toán chưa có HĐ?')) return;
+  const result = await v2Api('/api/v2/admin/einvoices/issue-pending', { method: 'POST', body: JSON.stringify({ limit: 100 }) });
+  alert(`Xong: ${result.issued} thành công, ${result.failed} lỗi / ${result.scanned} đơn quét.`);
+  loadEinvoicePanel();
+};
+
 // ── Utilities ────────────────────────────────────────────────
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const escapeHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // ── Boot ─────────────────────────────────────────────────────
-if (token) renderApp(); else renderLogin();
+const bootAdmin = () => {
+  try {
+    if (token) renderApp();
+    else renderLogin();
+  } catch (error) {
+    const app = getApp();
+    if (app) {
+      app.innerHTML = `<div style="padding:24px;font-family:sans-serif;color:#b91c1c;">
+        <h2>Không tải được Admin</h2>
+        <p>${error instanceof Error ? error.message : String(error)}</p>
+        <p style="margin-top:12px;color:#64748b;">Thử Ctrl+F5 hoặc mở DevTools (F12) → Console.</p>
+      </div>`;
+    }
+    console.error('[TSrecord Admin]', error);
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootAdmin);
+} else {
+  bootAdmin();
+}

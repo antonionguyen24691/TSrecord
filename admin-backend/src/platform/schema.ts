@@ -155,6 +155,33 @@ CREATE TABLE IF NOT EXISTS ledger_entries_v2 (
 CREATE INDEX IF NOT EXISTS ledger_entries_v2_occurred_idx
   ON ledger_entries_v2(occurred_at DESC);
 
+CREATE TABLE IF NOT EXISTS einvoice_documents_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL REFERENCES orders_v2(id) ON DELETE CASCADE,
+  organization_id uuid REFERENCES organization_profiles_v2(id),
+  provider text NOT NULL DEFAULT 'manual',
+  status text NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft', 'issued', 'failed', 'cancelled')),
+  invoice_number text,
+  provider_reference text,
+  buyer_name text,
+  buyer_tax_code text,
+  amount_minor bigint NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'VND',
+  vat_rate numeric(9,6),
+  tax_amount_minor bigint NOT NULL DEFAULT 0,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  issued_at timestamptz,
+  error_message text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS einvoice_documents_v2_order_idx
+  ON einvoice_documents_v2(order_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS einvoice_documents_v2_status_idx
+  ON einvoice_documents_v2(status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS ad_campaigns_v2 (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -184,6 +211,83 @@ CREATE TABLE IF NOT EXISTS ad_rules_v2 (
 );
 
 CREATE INDEX IF NOT EXISTS ad_rules_v2_trigger_idx ON ad_rules_v2(trigger_key, enabled);
+
+CREATE TABLE IF NOT EXISTS ad_rewards_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES app_users_v2(id) ON DELETE CASCADE,
+  device_id uuid NOT NULL REFERENCES devices_v2(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'consumed')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  consumed_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS ad_rewards_v2_pending_idx
+  ON ad_rewards_v2(device_id, created_at ASC)
+  WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS usage_logs_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES app_users_v2(id) ON DELETE SET NULL,
+  device_id uuid REFERENCES devices_v2(id) ON DELETE SET NULL,
+  action text NOT NULL,
+  provider text,
+  duration_seconds integer,
+  file_size_bytes bigint,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS usage_logs_v2_created_idx
+  ON usage_logs_v2(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_key_hash text,
+  action text NOT NULL,
+  resource text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ip_address text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS admin_audit_logs_v2_created_idx
+  ON admin_audit_logs_v2(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS promo_codes_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text NOT NULL UNIQUE,
+  description text,
+  plan_code text NOT NULL REFERENCES plans_v2(code),
+  duration_months integer,
+  max_uses integer NOT NULL DEFAULT 1 CHECK (max_uses >= 0),
+  used_count integer NOT NULL DEFAULT 0 CHECK (used_count >= 0),
+  is_active boolean NOT NULL DEFAULT true,
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS promo_codes_v2_active_idx
+  ON promo_codes_v2(is_active, expires_at);
+
+CREATE TABLE IF NOT EXISTS upload_sessions_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_key text NOT NULL,
+  file_name text NOT NULL,
+  mime_type text NOT NULL,
+  expected_bytes bigint NOT NULL CHECK (expected_bytes > 0),
+  received_bytes bigint NOT NULL DEFAULT 0,
+  max_bytes bigint NOT NULL,
+  chunk_count integer NOT NULL DEFAULT 0,
+  payload bytea,
+  status text NOT NULL DEFAULT 'open'
+    CHECK (status IN ('open', 'ready', 'consumed', 'expired')),
+  expires_at timestamptz NOT NULL,
+  consumed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS upload_sessions_v2_device_idx
+  ON upload_sessions_v2(device_key, status, expires_at DESC);
 
 CREATE TABLE IF NOT EXISTS ad_events_v2 (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

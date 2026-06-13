@@ -2,6 +2,21 @@ import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import { getDb } from '../database.js';
 import type { PromoCode } from '../types.js';
+import { usePostgresBackend } from '../runtime.js';
+import { getPlatformSystemConfig } from '../platform/systemConfig.js';
+import { sanitizeUpstreamError } from '../utils/errorSanitizer.js';
+import {
+  authorizeAndPrepareRequestPostgres,
+  completeRequestUsagePostgres,
+  getLicenseSnapshotPostgres,
+  getPaymentInfoPostgres,
+  getRuntimeConfigPostgres,
+  recordAdWatchedPostgres,
+  recordUsagePostgres,
+  type PostgresAuthResult,
+} from '../platform/clientService.js';
+import { redeemPromoCodePostgres } from '../platform/promoService.js';
+import { consumeUploadSession } from '../platform/uploadSessions.js';
 
 const router = Router();
 
@@ -96,14 +111,17 @@ const getLicenseSnapshot = (deviceId: string): LicenseSnapshot => {
 
 // ── GET /api/client/license?device_id= ───────────────────────
 // Main app gọi API này để kiểm tra trạng thái subscription
-router.get('/license', (req: Request, res: Response) => {
+router.get('/license', async (req: Request, res: Response) => {
   const deviceId = req.query.device_id as string;
   if (!deviceId) {
     res.status(400).json({ valid: false, error: 'Thiếu device_id.' });
     return;
   }
 
-  const snapshot = getLicenseSnapshot(deviceId);
+  const snapshot = usePostgresBackend()
+    ? await getLicenseSnapshotPostgres(deviceId)
+    : getLicenseSnapshot(deviceId);
+
   res.json({
     valid: snapshot.valid,
     plan: snapshot.plan,
@@ -118,15 +136,19 @@ router.get('/license', (req: Request, res: Response) => {
 
 // ── GET /api/client/runtime-config?device_id= ────────────────
 // Trả về các cấu hình hệ thống được phép dùng theo entitlement của thiết bị.
-router.get('/runtime-config', (req: Request, res: Response) => {
+router.get('/runtime-config', async (req: Request, res: Response) => {
   const deviceId = req.query.device_id as string;
   if (!deviceId) {
     res.status(400).json({ error: 'Thiếu device_id.' });
     return;
   }
 
-  const snapshot = getLicenseSnapshot(deviceId);
+  if (usePostgresBackend()) {
+    res.json(await getRuntimeConfigPostgres(deviceId));
+    return;
+  }
 
+  const snapshot = getLicenseSnapshot(deviceId);
   res.json({
     features: snapshot.features,
     googleClientId: getSystemConfig('system_google_client_id'),
@@ -145,11 +167,23 @@ router.get('/runtime-config', (req: Request, res: Response) => {
 
 // ── POST /api/client/redeem ──────────────────────────────────
 // User nhập promo code trong app
-router.post('/redeem', (req: Request, res: Response) => {
+router.post('/redeem', async (req: Request, res: Response) => {
   const { deviceId, code } = req.body;
 
   if (!deviceId || !code) {
     res.status(400).json({ ok: false, error: 'Thiếu device_id hoặc mã code.' });
+    return;
+  }
+
+  if (usePostgresBackend()) {
+    try {
+      const result = await redeemPromoCodePostgres(String(deviceId), String(code));
+      res.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể kích hoạt mã promo.';
+      const status = message.includes('không tồn tại') ? 404 : 410;
+      res.status(status).json({ ok: false, error: message });
+    }
     return;
   }
 
@@ -207,11 +241,17 @@ router.post('/redeem', (req: Request, res: Response) => {
 
 // ── POST /api/client/usage ───────────────────────────────────
 // Main app gửi log sử dụng
-router.post('/usage', (req: Request, res: Response) => {
+router.post('/usage', async (req: Request, res: Response) => {
   const { deviceId, action, provider, durationSeconds, fileSizeBytes } = req.body;
 
   if (!action) {
     res.status(400).json({ error: 'Thiếu action.' });
+    return;
+  }
+
+  if (usePostgresBackend()) {
+    await recordUsagePostgres(deviceId, action, provider, durationSeconds, fileSizeBytes);
+    res.json({ ok: true });
     return;
   }
 
@@ -229,12 +269,19 @@ router.post('/usage', (req: Request, res: Response) => {
 });
 
 // ── POST /api/client/ads/watched ──────────────────────────────
-router.post('/ads/watched', (req: Request, res: Response) => {
+router.post('/ads/watched', async (req: Request, res: Response) => {
   const { deviceId } = req.body;
   if (!deviceId) {
     res.status(400).json({ error: 'Thiếu deviceId.' });
     return;
   }
+
+  if (usePostgresBackend()) {
+    await recordAdWatchedPostgres(deviceId);
+    res.json({ ok: true, message: 'Xem quảng cáo thành công. Đã cộng 1 lượt dùng thử 5 phút.' });
+    return;
+  }
+
   const db = getDb();
   let user = db.prepare('SELECT id FROM users WHERE device_id = ?').get(deviceId) as { id: number } | undefined;
   if (!user) {
@@ -344,9 +391,35 @@ export const completeRequestUsage = (
 
 // Helper to get system config value
 const getSystemConfig = (key: string): string => {
+  if (usePostgresBackend()) {
+    return getPlatformSystemConfig(key);
+  }
   const db = getDb();
   const row = db.prepare('SELECT value FROM system_config WHERE key = ?').get(key) as { value: string } | undefined;
   return row?.value || '';
+};
+
+const authorizeProxyRequest = async (
+  deviceId: string,
+  durationSeconds?: number,
+  context?: string
+): Promise<RequestAuthResult | PostgresAuthResult> => {
+  if (usePostgresBackend()) {
+    return authorizeAndPrepareRequestPostgres(deviceId, durationSeconds, context);
+  }
+  return authorizeAndPrepareRequest(getDb(), deviceId, durationSeconds, context);
+};
+
+const completeProxyUsage = async (
+  auth: RequestAuthResult | PostgresAuthResult,
+  durationSeconds?: number,
+  isGeminiAnalysis = false
+) => {
+  if (usePostgresBackend()) {
+    await completeRequestUsagePostgres(auth as PostgresAuthResult, durationSeconds, isGeminiAnalysis);
+    return;
+  }
+  completeRequestUsage(getDb(), auth as RequestAuthResult, durationSeconds, isGeminiAnalysis);
 };
 
 const sanitizeJsonText = (value: string) =>
@@ -583,10 +656,9 @@ router.post('/proxy/gemini', async (req: Request, res: Response) => {
     return;
   }
 
-  const db = getDb();
-  let auth: RequestAuthResult;
+  let auth: RequestAuthResult | PostgresAuthResult;
   try {
-    auth = authorizeAndPrepareRequest(db, deviceId, undefined, undefined);
+    auth = await authorizeProxyRequest(deviceId, undefined, undefined);
   } catch (err: any) {
     res.status(402).json({ error: err.message });
     return;
@@ -615,7 +687,7 @@ router.post('/proxy/gemini', async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      res.status(response.status).json({ error: `Gemini API error: ${errText}` });
+      res.status(response.status).json({ error: sanitizeUpstreamError(response.status, errText) });
       return;
     }
 
@@ -628,7 +700,7 @@ router.post('/proxy/gemini', async (req: Request, res: Response) => {
 
     try {
       const parsed = JSON.parse(sanitizeJsonText(rawText));
-      completeRequestUsage(db, auth, undefined, true);
+      await completeProxyUsage(auth, undefined, true);
       res.json(parsed);
     } catch {
       res.status(502).json({ error: `Gemini API trả về JSON không hợp lệ: ${rawText}` });
@@ -641,25 +713,51 @@ router.post('/proxy/gemini', async (req: Request, res: Response) => {
 // ── POST /api/client/proxy/transcribe ─────────────────────────
 // Proxy cho các cuộc gọi nhận diện giọng nói (Gemini, Groq, OpenAI, AssemblyAI)
 router.post('/proxy/transcribe', async (req: Request, res: Response) => {
-  const { deviceId, provider, fileBase64, fileName, fileType, mode, language, preferredModelId, durationSeconds, context } = req.body;
+  const {
+    deviceId,
+    provider,
+    fileBase64,
+    uploadSessionId,
+    fileName: bodyFileName,
+    fileType: bodyFileType,
+    mode,
+    language,
+    preferredModelId,
+    durationSeconds,
+    context,
+  } = req.body;
   const normalizedMode = typeof mode === 'string' ? mode.toUpperCase() : 'TIMELINE';
 
-  if (!deviceId || !provider || !fileBase64) {
-    res.status(400).json({ error: 'Thiếu thông số bắt buộc (deviceId, provider, fileBase64).' });
+  if (!deviceId || !provider || (!fileBase64 && !uploadSessionId)) {
+    res.status(400).json({ error: 'Thiếu deviceId, provider và fileBase64 hoặc uploadSessionId.' });
     return;
   }
 
-  const db = getDb();
-  let auth: RequestAuthResult;
+  let auth: RequestAuthResult | PostgresAuthResult;
   try {
-    auth = authorizeAndPrepareRequest(db, deviceId, durationSeconds, context);
+    auth = await authorizeProxyRequest(deviceId, durationSeconds, context);
   } catch (err: any) {
     res.status(402).json({ error: err.message });
     return;
   }
 
   try {
-    const buffer = Buffer.from(fileBase64, 'base64');
+    let buffer: Buffer;
+    let fileName = typeof bodyFileName === 'string' ? bodyFileName : 'audio.wav';
+    let fileType = typeof bodyFileType === 'string' ? bodyFileType : 'audio/wav';
+
+    if (uploadSessionId) {
+      if (!usePostgresBackend()) {
+        res.status(400).json({ error: 'uploadSessionId chỉ hỗ trợ trên backend PostgreSQL.' });
+        return;
+      }
+      const session = await consumeUploadSession(String(uploadSessionId), String(deviceId));
+      buffer = session.buffer;
+      fileName = session.fileName;
+      fileType = session.mimeType;
+    } else {
+      buffer = Buffer.from(fileBase64, 'base64');
+    }
 
     if (provider === 'gemini') {
       const geminiApiKey = getSystemConfig('admin_gemini_api_key');
@@ -748,7 +846,7 @@ Rang buoc:
         const transcript = extractTranscriptFromModelText(text);
 
         if (transcript.trim()) {
-          completeRequestUsage(db, auth, durationSeconds, false);
+          await completeProxyUsage(auth, durationSeconds, false);
           res.json({ transcript, modelId });
           return;
         }
@@ -757,7 +855,7 @@ Rang buoc:
         lastError = `Gemini STT returned empty transcript (${modelId}).`;
       }
 
-      res.status(lastStatus).json({ error: lastError });
+      res.status(lastStatus).json({ error: sanitizeUpstreamError(lastStatus, lastError) });
       return;
     }
 
@@ -791,7 +889,7 @@ Rang buoc:
 
       if (!response.ok) {
         const errText = await response.text();
-        res.status(response.status).json({ error: `${provider} STT error: ${errText}` });
+        res.status(response.status).json({ error: sanitizeUpstreamError(response.status, `${provider} STT: ${errText}`) });
         return;
       }
 
@@ -813,7 +911,7 @@ Rang buoc:
         transcript = data.text || '';
       }
 
-      completeRequestUsage(db, auth, durationSeconds, false);
+      await completeProxyUsage(auth, durationSeconds, false);
       res.json({ transcript });
       return;
     }
@@ -837,7 +935,7 @@ Rang buoc:
 
       if (!uploadRes.ok) {
         const errText = await uploadRes.text();
-        res.status(uploadRes.status).json({ error: `AssemblyAI upload error: ${errText}` });
+        res.status(uploadRes.status).json({ error: sanitizeUpstreamError(uploadRes.status, `AssemblyAI upload: ${errText}`) });
         return;
       }
 
@@ -860,7 +958,7 @@ Rang buoc:
 
       if (!submitRes.ok) {
         const errText = await submitRes.text();
-        res.status(submitRes.status).json({ error: `AssemblyAI submit error: ${errText}` });
+        res.status(submitRes.status).json({ error: sanitizeUpstreamError(submitRes.status, `AssemblyAI submit: ${errText}`) });
         return;
       }
 
@@ -900,7 +998,7 @@ Rang buoc:
           } else {
             transcriptText = pollData.text || '';
           }
-          completeRequestUsage(db, auth, durationSeconds, false);
+          await completeProxyUsage(auth, durationSeconds, false);
           res.json({ transcript: transcriptText });
           return;
         } else if (status === 'error') {
@@ -920,7 +1018,12 @@ Rang buoc:
 });
 
 // ── GET /api/client/payment-info ──────────────────────────────
-router.get('/payment-info', (req: Request, res: Response) => {
+router.get('/payment-info', async (_req: Request, res: Response) => {
+  if (usePostgresBackend()) {
+    res.json(await getPaymentInfoPostgres());
+    return;
+  }
+
   res.json({
     sepayEnabled: getSystemConfig('sepay_enabled') === 'true',
     bankName: getSystemConfig('sepay_bank_name'),

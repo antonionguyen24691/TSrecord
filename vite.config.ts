@@ -18,37 +18,22 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
 
+          if (id.includes('react-dom')) return 'react-dom-vendor';
+          if (id.includes('/react/') || id.endsWith('\\react\\index.js')) return 'react-vendor';
+
           if (id.includes('react-markdown') || id.includes('remark-gfm') || id.includes('mermaid')) {
             return 'preview-vendor';
           }
 
-          if (id.includes('@google/genai')) {
-            return 'ai-vendor';
-          }
-
-          if (id.includes('docx')) {
-            return 'docx-vendor';
-          }
-
-          if (id.includes('pptxgenjs')) {
-            return 'pptx-vendor';
-          }
-
-          if (id.includes('lucide-react')) {
-            return 'icons-vendor';
-          }
-
-          if (id.includes('i18next') || id.includes('react-i18next')) {
-            return 'i18n-vendor';
-          }
-
-          if (id.includes('wavesurfer.js')) {
-            return 'audio-waveform-vendor';
-          }
-
-          if (id.includes('@capacitor')) {
-            return 'capacitor-vendor';
-          }
+          if (id.includes('@google/genai')) return 'ai-vendor';
+          if (id.includes('docx')) return 'docx-vendor';
+          if (id.includes('pptxgenjs')) return 'pptx-vendor';
+          if (id.includes('lucide-react')) return 'icons-vendor';
+          if (id.includes('i18next') || id.includes('react-i18next')) return 'i18n-vendor';
+          if (id.includes('wavesurfer.js')) return 'audio-waveform-vendor';
+          if (id.includes('@capacitor')) return 'capacitor-vendor';
+          if (id.includes('@sentry')) return 'sentry-vendor';
+          if (id.includes('jszip') || id.includes('mammoth')) return 'archive-vendor';
 
           return 'vendor';
         },

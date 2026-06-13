@@ -102,6 +102,8 @@ const App: React.FC = () => {
 
   const fetchLicenseAndSettings = useCallback(async () => {
     try {
+      const { registerBackendDevice } = await import('./services/backendClient');
+      await registerBackendDevice();
       const { checkLicenseStatus, loadAiSettings, getRuntimeConfig } = await import('./services/aiSettingsService');
       const [info, s, rtc] = await Promise.all([
         checkLicenseStatus(),
@@ -506,11 +508,10 @@ const App: React.FC = () => {
   const handleAdFinished = useCallback(async () => {
     try {
       const { getDeviceId } = await import('./services/aiSettingsService');
+      const { backendFetch } = await import('./services/backendClient');
       const deviceId = await getDeviceId();
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      const response = await fetch(`${backendUrl}/api/client/ads/watched`, {
+      const response = await backendFetch('/api/client/ads/watched', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deviceId }),
       });
       if (!response.ok) {

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import crypto from 'crypto';
 import Stripe from 'stripe';
+import { verifyLegacySepaySignature } from '../platform/webhookAuth.js';
 import { getDb, generateInvoiceNumber, updateRevenueSummary } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -103,14 +103,17 @@ const findOrCreateUser = (identifier: string): number => {
 // SePay gửi webhook khi có giao dịch chuyển khoản khớp
 router.post('/sepay', (req: Request, res: Response) => {
   const secret = getConfig('sepay_webhook_secret');
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // Verify webhook signature if secret is configured
-  if (secret) {
+  if (!secret) {
+    if (isProduction) {
+      res.status(503).json({ error: 'SePay webhook secret is not configured.' });
+      return;
+    }
+  } else {
     const signature = req.headers['x-sepay-signature'] as string || '';
     const body = JSON.stringify(req.body);
-    const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
-
-    if (signature !== expected) {
+    if (!verifyLegacySepaySignature(body, signature, secret)) {
       console.error('[SePay] Invalid webhook signature');
       res.status(401).json({ error: 'Invalid signature' });
       return;
@@ -253,9 +256,7 @@ router.post('/generic', (req: Request, res: Response) => {
   if (secret) {
     const signature = req.headers['x-webhook-signature'] as string || '';
     const body = JSON.stringify(req.body);
-    const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
-
-    if (signature !== expected) {
+    if (!verifyLegacySepaySignature(body, signature, secret)) {
       res.status(401).json({ error: 'Invalid signature' });
       return;
     }

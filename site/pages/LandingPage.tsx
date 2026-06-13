@@ -67,6 +67,8 @@ export const LandingPage = () => {
       />
 
       <section className="site-hero">
+        <div className="site-hero__orbit site-hero__orbit--one" aria-hidden="true" />
+        <div className="site-hero__orbit site-hero__orbit--two" aria-hidden="true" />
         <div className="site-container site-hero__grid">
           <div className="site-hero__copy">
             <div className="site-eyebrow">
@@ -91,6 +93,12 @@ export const LandingPage = () => {
           </div>
 
           <div className="product-scene" aria-label={text.sceneLabel}>
+            <div className="product-scene__halo" aria-hidden="true" />
+            <div className="product-scene__signal" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
             <div className="product-scene__top">
               <span className="product-scene__dot" />
               <span>{text.session}</span>
@@ -143,6 +151,11 @@ export const LandingPage = () => {
           <div className="feature-layout">
             <article className="feature-panel feature-panel--large">
               <span className="feature-panel__icon"><FileAudio /></span>
+              <div className="feature-panel__art feature-panel__art--wave" aria-hidden="true">
+                {Array.from({ length: 20 }).map((_, index) => (
+                  <i key={index} style={{ height: `${20 + ((index * 23) % 72)}%` }} />
+                ))}
+              </div>
               <div>
                 <span className="feature-panel__number">01</span>
                 <h3>{text.features[0][0]}</h3>
@@ -151,12 +164,22 @@ export const LandingPage = () => {
             </article>
             <article className="feature-panel">
               <span className="feature-panel__icon"><Sparkles /></span>
+              <div className="feature-panel__art feature-panel__art--orbit" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </div>
               <span className="feature-panel__number">02</span>
               <h3>{text.features[1][0]}</h3>
               <p>{text.features[1][1]}</p>
             </article>
             <article className="feature-panel feature-panel--dark">
               <span className="feature-panel__icon"><FolderKanban /></span>
+              <div className="feature-panel__art feature-panel__art--stack" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </div>
               <span className="feature-panel__number">03</span>
               <h3>{text.features[2][0]}</h3>
               <p>{text.features[2][1]}</p>
@@ -215,7 +238,11 @@ export const LandingPage = () => {
               <article className={index === 0 ? 'article-card article-card--featured' : 'article-card'} key={article.slug}>
                 <div className="article-card__visual" aria-hidden="true">
                   <span>{String(index + 1).padStart(2, '0')}</span>
-                  <AudioLines />
+                  <div className="article-card__wave">
+                    {Array.from({ length: 9 }).map((_, waveIndex) => (
+                      <i key={waveIndex} style={{ height: `${24 + ((waveIndex * 31) % 68)}%` }} />
+                    ))}
+                  </div>
                 </div>
                 <div className="article-card__body">
                   <span>{article.category} · {article.readingMinutes} {text.minutesRead}</span>
@@ -230,6 +257,9 @@ export const LandingPage = () => {
       </section>
 
       <section className="site-cta">
+        <div className="site-cta__wave" aria-hidden="true">
+          {Array.from({ length: 28 }).map((_, index) => <i key={index} />)}
+        </div>
         <div className="site-container site-cta__inner">
           <div>
             <span className="site-kicker">{text.ctaKicker}</span>

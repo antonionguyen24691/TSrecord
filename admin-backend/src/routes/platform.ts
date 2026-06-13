@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import Stripe from 'stripe';
 import { requirePlatformAdmin } from '../platform/auth.js';
@@ -11,6 +10,37 @@ import {
 } from '../platform/commerce.js';
 import { one, query } from '../platform/database.js';
 import { ensurePlatformSchema } from '../platform/schema.js';
+import { issueDeviceToken } from '../platform/deviceAuth.js';
+import { adminAuditMiddleware } from '../platform/auditLog.js';
+import { verifyHmacSignature, verifySepayApiKey } from '../platform/webhookAuth.js';
+import { usePostgresBackend } from '../runtime.js';
+import { captureBackendException } from '../observability/sentry.js';
+import { logger } from '../utils/logger.js';
+import { createPromoCode, redeemPromoCodePostgres } from '../platform/promoService.js';
+import {
+  appendUploadChunk,
+  createUploadSession,
+  purgeExpiredUploadSessions,
+} from '../platform/uploadSessions.js';
+import { rateLimitBackend } from '../middleware/rateLimit.js';
+import { getOrderForAdmin, refundOrder } from '../platform/refunds.js';
+import {
+  createIntegrityNonce,
+  getPlayIntegrityCloudProjectNumber,
+  isPlayIntegrityRequired,
+  verifyPlayIntegrityToken,
+} from '../platform/playIntegrity.js';
+import {
+  getDefaultOrganizationProfile,
+  getEinvoiceById,
+  getEinvoiceByOrderCode,
+  getEinvoiceProviderConfig,
+  issueEinvoiceForOrder,
+  issuePendingEinvoices,
+  listEinvoices,
+  listPendingEinvoiceOrders,
+  renderEinvoiceHtml,
+} from '../platform/einvoiceService.js';
 
 const router = Router();
 
@@ -18,7 +48,12 @@ const asyncRoute = (
   handler: (req: Request, res: Response) => Promise<void>
 ) => (req: Request, res: Response) => {
   handler(req, res).catch((error: unknown) => {
-    console.error('[Platform API]', error);
+    captureBackendException(error, { route: req.path, method: req.method });
+    logger.error('Platform API error', {
+      route: req.path,
+      method: req.method,
+      error: error instanceof Error ? error.message : String(error),
+    });
     if (!res.headersSent) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Internal server error',
@@ -26,6 +61,74 @@ const asyncRoute = (
     }
   });
 };
+
+router.get('/health', asyncRoute(async (_req, res) => {
+  const payload: Record<string, unknown> = {
+    ok: true,
+    backend: usePostgresBackend() ? 'postgres' : 'sqlite',
+    version: process.env.APP_VERSION || '1.4.6',
+    timestamp: new Date().toISOString(),
+    rateLimitBackend,
+  };
+
+  if (usePostgresBackend()) {
+    await one('SELECT 1 AS ok');
+    payload.database = 'connected';
+    payload.uploadSessionsPurged = await purgeExpiredUploadSessions();
+  }
+
+  res.json(payload);
+}));
+
+router.post('/uploads/init', asyncRoute(async (req, res) => {
+  const { deviceKey, fileName, mimeType, totalBytes } = req.body;
+  if (!deviceKey || !fileName || !mimeType || !totalBytes) {
+    res.status(400).json({ error: 'Thiếu deviceKey, fileName, mimeType hoặc totalBytes.' });
+    return;
+  }
+  const session = await createUploadSession({
+    deviceKey: String(deviceKey).trim(),
+    fileName: String(fileName),
+    mimeType: String(mimeType),
+    totalBytes: Number(totalBytes),
+  });
+  res.status(201).json({
+    sessionId: session.id,
+    expiresAt: session.expires_at,
+  });
+}));
+
+router.post('/uploads/:sessionId/chunk', asyncRoute(async (req, res) => {
+  const { deviceKey, chunkIndex, chunkBase64, isLast } = req.body;
+  if (!deviceKey || chunkBase64 === undefined || chunkIndex === undefined) {
+    res.status(400).json({ error: 'Thiếu deviceKey, chunkIndex hoặc chunkBase64.' });
+    return;
+  }
+  const result = await appendUploadChunk({
+    sessionId: String(req.params.sessionId),
+    deviceKey: String(deviceKey).trim(),
+    chunkIndex: Number(chunkIndex),
+    chunkBase64: String(chunkBase64),
+    isLast: Boolean(isLast),
+  });
+  res.json(result);
+}));
+
+router.post('/promo/redeem', asyncRoute(async (req, res) => {
+  const { deviceKey, code } = req.body;
+  if (!deviceKey || !code) {
+    res.status(400).json({ ok: false, error: 'Thiếu deviceKey hoặc code.' });
+    return;
+  }
+  try {
+    const result = await redeemPromoCodePostgres(String(deviceKey).trim(), String(code));
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không thể kích hoạt mã promo.';
+    const status = message.includes('không tồn tại') ? 404 : 410;
+    res.status(status).json({ ok: false, error: message });
+  }
+}));
 
 router.use((req, res, next) => {
   ensurePlatformSchema()
@@ -41,24 +144,14 @@ router.use((req, res, next) => {
 const getRawBody = (req: Request) =>
   (req as Request & { rawBody?: Buffer }).rawBody ?? Buffer.from(JSON.stringify(req.body));
 
-const verifyHmac = (payload: Buffer, signature: string, secret: string) => {
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  const provided = signature.replace(/^sha256=/i, '');
-  const left = Buffer.from(expected);
-  const right = Buffer.from(provided);
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
-};
-
 const verifySepayRequest = (req: Request) => {
   const apiKey = process.env.SEPAY_WEBHOOK_API_KEY;
   const hmacSecret = process.env.SEPAY_WEBHOOK_HMAC_SECRET;
   if (!apiKey && !hmacSecret) return false;
 
   if (apiKey) {
-    const authorization = req.headers.authorization || '';
-    if (authorization === `Apikey ${apiKey}` || authorization === `Bearer ${apiKey}`) {
-      return true;
-    }
+    const authorization = String(req.headers.authorization || '');
+    if (verifySepayApiKey(authorization, apiKey)) return true;
   }
 
   if (hmacSecret) {
@@ -67,17 +160,54 @@ const verifySepayRequest = (req: Request) => {
       || req.headers['x-webhook-signature']
       || ''
     );
-    return Boolean(signature) && verifyHmac(getRawBody(req), signature, hmacSecret);
+    return Boolean(signature) && verifyHmacSignature(getRawBody(req), signature, hmacSecret);
   }
 
   return false;
 };
+
+router.get('/devices/integrity/challenge', asyncRoute(async (_req, res) => {
+  const nonce = createIntegrityNonce();
+  res.json({
+    nonce,
+    cloudProjectNumber: getPlayIntegrityCloudProjectNumber() || null,
+    required: isPlayIntegrityRequired(),
+  });
+}));
 
 router.post('/devices/register', asyncRoute(async (req, res) => {
   const { deviceKey } = req.body;
   if (typeof deviceKey !== 'string' || deviceKey.trim().length < 8) {
     res.status(400).json({ error: 'deviceKey phải có ít nhất 8 ký tự.' });
     return;
+  }
+
+  const platform = typeof req.body.platform === 'string' ? req.body.platform : '';
+  const integrityToken = typeof req.body.integrityToken === 'string' ? req.body.integrityToken : '';
+  const integrityNonce = typeof req.body.integrityNonce === 'string' ? req.body.integrityNonce : '';
+
+  if (isPlayIntegrityRequired() && platform === 'android') {
+    if (!integrityToken || !integrityNonce) {
+      res.status(403).json({ error: 'Thiếu Play Integrity token cho thiết bị Android.' });
+      return;
+    }
+    const verdict = await verifyPlayIntegrityToken(integrityToken, integrityNonce);
+    if (!verdict.valid) {
+      res.status(403).json({
+        error: verdict.error || 'Play Integrity không hợp lệ.',
+        verdict,
+      });
+      return;
+    }
+  } else if (integrityToken && integrityNonce) {
+    const verdict = await verifyPlayIntegrityToken(integrityToken, integrityNonce);
+    if (!verdict.valid) {
+      res.status(403).json({
+        error: verdict.error || 'Play Integrity không hợp lệ.',
+        verdict,
+      });
+      return;
+    }
   }
 
   const device = await registerDevice({
@@ -89,9 +219,24 @@ router.post('/devices/register', asyncRoute(async (req, res) => {
     locale: req.body.locale,
     model: req.body.model,
     osVersion: req.body.osVersion,
-    metadata: req.body.metadata,
+    metadata: {
+      ...(req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {}),
+      ...(integrityToken
+        ? {
+            playIntegrity: {
+              verifiedAt: new Date().toISOString(),
+              nonce: integrityNonce,
+            },
+          }
+        : {}),
+    },
   });
-  res.json({ ok: true, deviceId: device.id, userId: device.user_id });
+  res.json({
+    ok: true,
+    deviceId: device.id,
+    userId: device.user_id,
+    deviceToken: issueDeviceToken(device.device_key),
+  });
 }));
 
 router.post('/orders', asyncRoute(async (req, res) => {
@@ -190,6 +335,14 @@ router.get('/orders/:orderCode', asyncRoute(async (req, res) => {
 }));
 
 router.post('/webhooks/sepay', asyncRoute(async (req, res) => {
+  const hasWebhookSecret = Boolean(
+    process.env.SEPAY_WEBHOOK_API_KEY?.trim()
+    || process.env.SEPAY_WEBHOOK_HMAC_SECRET?.trim()
+  );
+  if (!hasWebhookSecret && process.env.NODE_ENV === 'production') {
+    res.status(503).json({ success: false, error: 'SePay webhook secret chưa được cấu hình.' });
+    return;
+  }
   if (!verifySepayRequest(req)) {
     res.status(401).json({ success: false, error: 'Webhook SePay không hợp lệ.' });
     return;
@@ -390,7 +543,7 @@ router.post('/ads/events', asyncRoute(async (req, res) => {
   res.json({ ok: true });
 }));
 
-router.use('/admin', requirePlatformAdmin);
+router.use('/admin', requirePlatformAdmin, adminAuditMiddleware);
 
 router.get('/admin/devices', asyncRoute(async (req, res) => {
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
@@ -532,6 +685,165 @@ router.patch('/admin/ads/campaigns/:id/status', asyncRoute(async (req, res) => {
     [req.params.id, status]
   );
   res.json(campaign);
+}));
+
+router.get('/admin/orders/:orderCode', asyncRoute(async (req, res) => {
+  const order = await getOrderForAdmin(String(req.params.orderCode).toUpperCase());
+  if (!order) {
+    res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
+    return;
+  }
+  res.json(order);
+}));
+
+router.post('/admin/orders/:orderCode/refund', asyncRoute(async (req, res) => {
+  try {
+    const result = await refundOrder({
+      orderCode: String(req.params.orderCode),
+      reason: req.body.reason,
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Không thể hoàn tiền.',
+    });
+  }
+}));
+
+router.get('/admin/promo-codes', asyncRoute(async (_req, res) => {
+  res.json(await query(
+    'SELECT * FROM promo_codes_v2 ORDER BY created_at DESC LIMIT 500'
+  ));
+}));
+
+router.post('/admin/promo-codes', asyncRoute(async (req, res) => {
+  const { code, planCode, description, durationMonths, maxUses, expiresAt } = req.body;
+  if (!code || !planCode) {
+    res.status(400).json({ error: 'Thiếu code hoặc planCode.' });
+    return;
+  }
+  const promo = await createPromoCode({
+    code: String(code),
+    planCode: String(planCode),
+    description: description ? String(description) : undefined,
+    durationMonths: durationMonths ? Number(durationMonths) : undefined,
+    maxUses: maxUses ? Number(maxUses) : undefined,
+    expiresAt: expiresAt ? String(expiresAt) : undefined,
+  });
+  res.status(201).json(promo);
+}));
+
+router.get('/admin/organization', asyncRoute(async (_req, res) => {
+  const profile = await getDefaultOrganizationProfile();
+  if (!profile) {
+    res.status(404).json({ error: 'Chưa có hồ sơ tổ chức mặc định.' });
+    return;
+  }
+  res.json(profile);
+}));
+
+router.get('/admin/einvoice/providers', asyncRoute(async (_req, res) => {
+  res.json(await getEinvoiceProviderConfig());
+}));
+
+router.put('/admin/organization/einvoice-settings', asyncRoute(async (req, res) => {
+  const profile = await getDefaultOrganizationProfile();
+  if (!profile) {
+    res.status(404).json({ error: 'Chưa có hồ sơ tổ chức. Tạo qua PUT /admin/organization trước.' });
+    return;
+  }
+
+  const {
+    einvoiceProvider,
+    einvoiceEnabled,
+    providerId,
+    providerValues,
+  } = req.body;
+
+  const nextSettings = { ...(profile.settings || {}) } as Record<string, unknown>;
+  const einvoiceSettings = {
+    ...((nextSettings.einvoice as Record<string, unknown>) || {}),
+  };
+
+  if (providerId && providerValues && typeof providerValues === 'object') {
+    einvoiceSettings[String(providerId)] = providerValues;
+    nextSettings.einvoice = einvoiceSettings;
+  }
+
+  const updated = await one(
+    `UPDATE organization_profiles_v2
+     SET einvoice_provider = COALESCE($2, einvoice_provider),
+         einvoice_enabled = COALESCE($3, einvoice_enabled),
+         settings = $4::jsonb,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [
+      profile.id,
+      einvoiceProvider ? String(einvoiceProvider) : null,
+      typeof einvoiceEnabled === 'boolean' ? einvoiceEnabled : null,
+      JSON.stringify(nextSettings),
+    ]
+  );
+  res.json(updated);
+}));
+
+router.get('/admin/einvoices', asyncRoute(async (req, res) => {
+  const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+  res.json(await listEinvoices(limit));
+}));
+
+router.get('/admin/einvoices/pending', asyncRoute(async (req, res) => {
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+  res.json(await listPendingEinvoiceOrders(limit));
+}));
+
+router.post('/admin/einvoices/issue-pending', asyncRoute(async (req, res) => {
+  const limit = Math.min(200, Math.max(1, Number(req.body.limit) || 50));
+  res.json(await issuePendingEinvoices(limit));
+}));
+
+router.get('/admin/einvoices/:id/view', asyncRoute(async (req, res) => {
+  const doc = await getEinvoiceById(String(req.params.id));
+  if (!doc) {
+    res.status(404).send('Không tìm thấy hóa đơn.');
+    return;
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderEinvoiceHtml(doc));
+}));
+
+router.get('/admin/orders/:orderCode/einvoice', asyncRoute(async (req, res) => {
+  const doc = await getEinvoiceByOrderCode(String(req.params.orderCode));
+  if (!doc) {
+    res.status(404).json({ error: 'Chưa có hóa đơn cho đơn hàng này.' });
+    return;
+  }
+  res.json(doc);
+}));
+
+router.post('/admin/orders/:orderCode/einvoice', asyncRoute(async (req, res) => {
+  const order = await getOrderByCode(String(req.params.orderCode).toUpperCase());
+  if (!order) {
+    res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
+    return;
+  }
+  if (order.status !== 'paid') {
+    res.status(400).json({ error: 'Chỉ phát hành hóa đơn cho đơn đã thanh toán.' });
+    return;
+  }
+  try {
+    const doc = await issueEinvoiceForOrder(order.id, { force: Boolean(req.body.force) });
+    if (!doc) {
+      res.status(400).json({ error: 'Không thể phát hành hóa đơn.' });
+      return;
+    }
+    res.status(201).json(doc);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Không thể phát hành hóa đơn.',
+    });
+  }
 }));
 
 router.put('/admin/organization', asyncRoute(async (req, res) => {

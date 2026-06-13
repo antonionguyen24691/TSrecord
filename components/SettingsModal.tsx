@@ -237,6 +237,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [selectedDuration, setSelectedDuration] = useState<1 | 3 | 6 | 12>(1);
   const [paymentGateway, setPaymentGateway] = useState<'vietqr' | 'stripe'>('vietqr');
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [sepayOrder, setSepayOrder] = useState<{
+    qrUrl?: string;
+    transferContent?: string;
+    accountName?: string;
+    amountMinor?: number;
+  } | null>(null);
+
+  const resolvePlanKey = () =>
+    pricingMode === 'adminKey' ? selectedPlan : selectedOwnKeyPlan;
+
+  const handleStripeCheckout = async () => {
+    setStripeLoading(true);
+    try {
+      const { createV2Order } = await import('../services/backendClient');
+      const data = await createV2Order(resolvePlanKey(), 'stripe');
+      if (data.checkoutUrl) {
+        window.open(data.checkoutUrl, '_blank');
+      } else {
+        throw new Error('Không nhận được checkout URL.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Lỗi thanh toán Stripe.');
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  const handleCreateSepayOrder = async () => {
+    try {
+      const { createV2Order } = await import('../services/backendClient');
+      const data = await createV2Order(resolvePlanKey(), 'sepay');
+      setSepayOrder(data);
+    } catch (err: any) {
+      alert(err.message || 'Không thể tạo mã chuyển khoản.');
+    }
+  };
+
+  useEffect(() => {
+    setSepayOrder(null);
+  }, [pricingMode, selectedPlan, selectedOwnKeyPlan, paymentGateway]);
 
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -1070,33 +1110,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             const finalPrice = Math.round(rawPrice * (1 - discountPercent / 100));
             const syntax = `TSRECORD ${deviceId} ${planKey.toUpperCase()} ${duration}M`;
 
-            const handleStripeCheckout = async () => {
-              setStripeLoading(true);
-              try {
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-                const response = await fetch(`${backendUrl}/api/client/payments/create-stripe-session`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    deviceId,
-                    plan: planKey,
-                    durationMonths: duration,
-                  }),
-                });
-                if (!response.ok) {
-                  throw new Error('Không thể khởi tạo Stripe session.');
-                }
-                const data = await response.json();
-                if (data.url) {
-                  window.open(data.url, '_blank');
-                }
-              } catch (err: any) {
-                alert(err.message || 'Lỗi thanh toán Stripe.');
-              } finally {
-                setStripeLoading(false);
-              }
-            };
-
             return (
               <div className="space-y-5 animate-in fade-in duration-200">
                 {/* Status card */}
@@ -1393,57 +1406,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {/* QR code / Stripe instructions */}
                     <div className="border-t border-gray-100 pt-2.5">
                       {paymentGateway === 'vietqr' ? (
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                          <div className="w-24 h-24 bg-white border border-gray-200 rounded-lg p-1 flex flex-col items-center justify-center relative shadow-sm shrink-0">
-                            <img
-                              src={`https://img.vietqr.io/image/${paymentInfo?.bankName || 'MB'}-${paymentInfo?.accountNumber || '3457777878'}-compact.png?amount=${finalPrice}&addInfo=${encodeURIComponent(syntax)}&accountName=${encodeURIComponent(paymentInfo?.accountName || 'NGUYEN HOANG HUYNH')}`}
-                              alt="VietQR Payment Code"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                          <div className="flex-1 w-full space-y-1 text-xs text-gray-600">
-                            <div className="grid grid-cols-3 gap-0.5">
-                              <span className="text-gray-400">Ngân hàng:</span>
-                              <span className="col-span-2 font-bold text-gray-800">{paymentInfo?.bankName || 'MB BANK'}</span>
+                        <div className="flex flex-col gap-3">
+                          {!sepayOrder ? (
+                            <button
+                              type="button"
+                              onClick={handleCreateSepayOrder}
+                              className="rounded-xl border border-[#006b68] bg-[#006b68]/5 px-4 py-2.5 text-xs font-bold text-[#006b68] hover:bg-[#006b68]/10"
+                            >
+                              Tạo mã VietQR / nội dung chuyển khoản
+                            </button>
+                          ) : (
+                            <div className="flex flex-col sm:flex-row gap-3 items-center">
+                              <div className="w-24 h-24 bg-white border border-gray-200 rounded-lg p-1 flex flex-col items-center justify-center relative shadow-sm shrink-0">
+                                {sepayOrder.qrUrl ? (
+                                  <img
+                                    src={sepayOrder.qrUrl}
+                                    alt="VietQR Payment Code"
+                                    className="w-full h-full object-contain"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] text-gray-400 text-center px-1">QR chưa khả dụng</span>
+                                )}
+                              </div>
+                              <div className="flex-1 w-full space-y-1 text-xs text-gray-600">
+                                <div className="grid grid-cols-3 gap-0.5">
+                                  <span className="text-gray-400">Số tiền:</span>
+                                  <span className="col-span-2 font-bold text-gray-800">
+                                    {(sepayOrder.amountMinor || finalPrice).toLocaleString('vi-VN')} VND
+                                  </span>
 
-                              <span className="text-gray-400">Số tài khoản:</span>
-                              <span className="col-span-2 font-bold text-gray-800 flex items-center gap-1">
-                                {paymentInfo?.accountNumber || '3457777878'}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(paymentInfo?.accountNumber || '3457777878');
-                                    setCopiedField('bank_acc');
-                                    setTimeout(() => setCopiedField(null), 2000);
-                                  }}
-                                  className="text-[#006b68] hover:underline"
-                                >
-                                  {copiedField === 'bank_acc' ? 'Đã chép' : 'Copy'}
-                                </button>
-                              </span>
+                                  <span className="text-gray-400">Cú pháp CK:</span>
+                                  <span className="col-span-2 font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 flex items-center justify-between gap-1">
+                                    <span className="font-mono text-[9px] break-all select-all">
+                                      {sepayOrder.transferContent || syntax}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(sepayOrder.transferContent || syntax);
+                                        setCopiedField('memo_ck');
+                                        setTimeout(() => setCopiedField(null), 2000);
+                                      }}
+                                      className="text-[#006b68] text-[9px] hover:underline flex-shrink-0"
+                                    >
+                                      {copiedField === 'memo_ck' ? 'Đã chép' : 'Copy'}
+                                    </button>
+                                  </span>
 
-                              <span className="text-gray-400">Cú pháp CK:</span>
-                              <span className="col-span-2 font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 flex items-center justify-between gap-1">
-                                <span className="font-mono text-[9px] break-all select-all">
-                                  {syntax}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(syntax);
-                                    setCopiedField('memo_ck');
-                                    setTimeout(() => setCopiedField(null), 2000);
-                                  }}
-                                  className="text-[#006b68] text-[9px] hover:underline flex-shrink-0"
-                                >
-                                  {copiedField === 'memo_ck' ? 'Đã chép' : 'Copy'}
-                                </button>
-                              </span>
+                                  {sepayOrder.accountName ? (
+                                    <>
+                                      <span className="text-gray-400">Chủ TK:</span>
+                                      <span className="col-span-2 font-bold text-gray-800">{sepayOrder.accountName}</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                                <p className="text-[9px] text-amber-600 bg-amber-50 p-1.5 rounded leading-normal mt-1 font-semibold">
+                                  ⚠️ Chỉ ghi đúng mã đơn hàng trong nội dung chuyển khoản để kích hoạt tự động.
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-[9px] text-amber-600 bg-amber-50 p-1.5 rounded leading-normal mt-1 font-semibold">
-                              ⚠️ Vui lòng chuyển khoản đúng số tiền và ghi chính xác cú pháp chuyển khoản ở trên để kích hoạt tự động.
-                            </p>
-                          </div>
+                          )}
                         </div>
                       ) : (
                         <div className="flex flex-col items-center py-2 space-y-2 text-center">

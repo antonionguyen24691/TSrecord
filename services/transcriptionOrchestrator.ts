@@ -210,22 +210,18 @@ const transcribeWithProvider = async ({
   if (settings.useAdminKey) {
     onStageChange?.('processing');
     const deviceId = await getDeviceId();
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-    const fileBase64 = await fileToBase64(preparedFile);
-    const response = await fetch(`${backendUrl}/api/client/proxy/transcribe`, {
+    const { backendFetch } = await import('./backendClient');
+    const { buildProxyTranscribeBody } = await import('./proxyUploadService');
+    const body = await buildProxyTranscribeBody(preparedFile, deviceId, {
+      provider,
+      mode,
+      language: getSpeechRecognitionLanguage(),
+      durationSeconds,
+      context,
+    });
+    const response = await backendFetch('/api/client/proxy/transcribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deviceId,
-        provider,
-        fileBase64,
-        fileName: preparedFile.name,
-        fileType: preparedFile.type,
-        mode,
-        language: getSpeechRecognitionLanguage(),
-        durationSeconds,
-        context,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

@@ -884,21 +884,17 @@ export const transcribeAudioWithGemini = async ({
   const settings = passedSettings || (await loadAiSettings());
   if (settings.useAdminKey) {
     const deviceId = await getDeviceId();
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-    const fileBase64 = await fileToBase64(file);
-    const response = await fetch(`${backendUrl}/api/client/proxy/transcribe`, {
+    const { backendFetch } = await import('./backendClient');
+    const { buildProxyTranscribeBody } = await import('./proxyUploadService');
+    const body = await buildProxyTranscribeBody(file, deviceId, {
+      provider: 'gemini',
+      mode,
+      language: getSpeechRecognitionLanguage(),
+      preferredModelId: settings.realtimeModelId || DEFAULT_REALTIME_MODEL_ID,
+    });
+    const response = await backendFetch('/api/client/proxy/transcribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deviceId,
-        provider: 'gemini',
-        fileBase64,
-        fileName: file.name,
-        fileType: file.type,
-        mode,
-        language: getSpeechRecognitionLanguage(),
-        preferredModelId: settings.realtimeModelId || DEFAULT_REALTIME_MODEL_ID,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -1085,12 +1081,11 @@ Chu y: Co ${additionalPdfFiles.length} tai lieu PDF duoc dinh kem duoi dang cac 
 
       const parts = [...pdfParts, { text: prompt }];
       const deviceId = await getDeviceId();
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      const { backendFetch } = await import('./backendClient');
       const model = settings.analysisModelId || DEFAULT_ANALYSIS_MODEL_ID;
 
-      const response = await fetch(`${backendUrl}/api/client/proxy/gemini`, {
+      const response = await backendFetch('/api/client/proxy/gemini', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deviceId,
           model,

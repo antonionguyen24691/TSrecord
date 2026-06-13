@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ProcessingCheckpointStorePlugin.class);
         registerPlugin(SecureKeyStorePlugin.class);
         registerPlugin(MicrophonePermissionPlugin.class);
+        registerPlugin(PlayIntegrityPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

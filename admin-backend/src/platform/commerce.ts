@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { one, withTransaction } from './database.js';
+import { scheduleEinvoiceIssue } from './einvoiceService.js';
 
 type DeviceRow = {
   id: string;
@@ -164,7 +165,8 @@ export const fulfillOrder = async (input: {
   eventType: string;
   payload: unknown;
   signatureValid: boolean;
-}) => withTransaction(async (client) => {
+}) => {
+  const result = await withTransaction(async (client) => {
   const duplicate = await client.query(
     `SELECT id FROM payment_events_v2
      WHERE provider = $1 AND provider_event_id = $2`,
@@ -317,7 +319,14 @@ export const fulfillOrder = async (input: {
   );
 
   return { duplicate: false, orderId: order.id, planCode: order.plan_code };
-});
+  });
+
+  if (!result.duplicate && result.orderId) {
+    scheduleEinvoiceIssue(result.orderId);
+  }
+
+  return result;
+};
 
 export const getOrderByCode = (orderCode: string) =>
   one<OrderRow>(

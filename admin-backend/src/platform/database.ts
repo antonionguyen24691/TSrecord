@@ -18,7 +18,9 @@ const createPool = () => {
     max: Number(process.env.DATABASE_POOL_MAX || 5),
     ssl: process.env.DATABASE_SSL === 'disable'
       ? false
-      : { rejectUnauthorized: false },
+      : {
+          rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+        },
   });
 
   attachDatabasePool(pool);

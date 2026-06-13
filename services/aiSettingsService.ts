@@ -1,6 +1,4 @@
-import { Capacitor } from '@capacitor/core';
-import { Preferences } from '@capacitor/preferences';
-import { SecureKeyStore } from '../plugins/secureKeyStore';
+import { getSecureValue, removeSecureValue, setSecureValue } from './secureStorage';
 
 // --- Storage Keys ---
 const API_KEY_KEY = 'gemini_api_key';
@@ -25,8 +23,6 @@ const CHUNK_CONCURRENCY_KEY = 'chunk_concurrency';
 const USE_ADMIN_KEY_KEY = 'use_admin_key';
 const GOOGLE_CLIENT_ID_KEY = 'google_client_id';
 const GOOGLE_API_KEY_KEY = 'google_api_key';
-
-const SECURE_KEYSTORE_SUPPORTED = Capacitor.getPlatform() === 'android';
 
 // --- Defaults ---
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
@@ -99,29 +95,14 @@ const VALID_SAMPLE_RATES: PreferredSampleRate[] = [16000, 24000, 44100, 48000];
 const VALID_CHANNEL_COUNTS: PreferredChannelCount[] = [1, 2];
 
 // --- Storage Helpers ---
-const getStoredValue = async (key: string) => {
-  if (SECURE_KEYSTORE_SUPPORTED) {
-    const result = await SecureKeyStore.get({ key });
-    return result.value?.trim() || '';
-  }
-  const result = await Preferences.get({ key });
-  return result.value?.trim() || '';
-};
+const getStoredValue = async (key: string) => (await getSecureValue(key)) || '';
 
 const setStoredValue = async (key: string, value: string) => {
-  if (SECURE_KEYSTORE_SUPPORTED) {
-    await SecureKeyStore.set({ key, value });
-    return;
-  }
-  await Preferences.set({ key, value });
+  await setSecureValue(key, value);
 };
 
 const removeStoredValue = async (key: string) => {
-  if (SECURE_KEYSTORE_SUPPORTED) {
-    await SecureKeyStore.remove({ key });
-    return;
-  }
-  await Preferences.remove({ key });
+  await removeSecureValue(key);
 };
 
 // --- In-memory cache ---
@@ -350,20 +331,11 @@ export const clearAiApiKey = async () => {
 
 export const getDeviceId = async (): Promise<string> => {
   const key = 'device_id';
-  if (SECURE_KEYSTORE_SUPPORTED) {
-    const result = await SecureKeyStore.get({ key });
-    if (result.value) return result.value.trim();
-  }
-  const result = await Preferences.get({ key });
-  if (result.value) return result.value.trim();
-  
-  // Generate random device ID
+  const existing = await getSecureValue(key);
+  if (existing) return existing;
+
   const newId = 'dev-' + Math.random().toString(36).slice(2, 11) + '-' + Date.now().toString(36);
-  if (SECURE_KEYSTORE_SUPPORTED) {
-    await SecureKeyStore.set({ key, value: newId });
-  } else {
-    await Preferences.set({ key, value: newId });
-  }
+  await setSecureValue(key, newId);
   return newId;
 };
 
@@ -398,8 +370,8 @@ export interface RuntimeConfig {
 export const checkLicenseStatus = async (): Promise<LicenseInfo> => {
   try {
     const deviceId = await getDeviceId();
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/client/license?device_id=${deviceId}`);
+    const { backendFetch } = await import('./backendClient');
+    const response = await backendFetch(`/api/client/license?device_id=${encodeURIComponent(deviceId)}`);
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}`);
     }
@@ -413,8 +385,8 @@ export const checkLicenseStatus = async (): Promise<LicenseInfo> => {
 export const getRuntimeConfig = async (): Promise<RuntimeConfig> => {
   try {
     const deviceId = await getDeviceId();
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/client/runtime-config?device_id=${deviceId}`);
+    const { backendFetch } = await import('./backendClient');
+    const response = await backendFetch(`/api/client/runtime-config?device_id=${encodeURIComponent(deviceId)}`);
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}`);
     }
@@ -428,11 +400,10 @@ export const getRuntimeConfig = async (): Promise<RuntimeConfig> => {
 export const redeemPromoCode = async (code: string): Promise<{ ok: boolean; plan?: string; expiresAt?: string; message?: string; error?: string }> => {
   try {
     const deviceId = await getDeviceId();
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/client/redeem`, {
+    const { backendFetch } = await import('./backendClient');
+    const response = await backendFetch('/api/client/redeem', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId, code })
+      body: JSON.stringify({ deviceId, code }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -447,8 +418,8 @@ export const redeemPromoCode = async (code: string): Promise<{ ok: boolean; plan
 
 export const getPaymentInfo = async (): Promise<any> => {
   try {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/client/payment-info`);
+    const { backendFetch } = await import('./backendClient');
+    const response = await backendFetch('/api/client/payment-info', {}, { includeDeviceAuth: false });
     if (!response.ok) {
       throw new Error('Get payment info failed');
     }
