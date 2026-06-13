@@ -34,6 +34,7 @@ import {
 } from '../services/aiSettingsService';
 import { clearAppStorage } from '../services/sessionPackageService';
 import { getAppStorageLabel, getLegacyStorageLabel } from '../services/storagePaths';
+import { isWebDemo } from '../services/platformMode';
 import { HardDrive, Trash2 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -280,9 +281,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Web demo: chi cho phep tab "Goi dich vu" (mua/nang cap). Cac tab ky thuat
+  // (Nguon STT / Model AI / File dai / Realtime / Thu am / Bo nho) bi an vi web
+  // luon chay bang key admin qua proxy. Native (Android/iOS) giu nguyen.
+  const webDemo = isWebDemo();
   const [activeTab, setActiveTab] = useState<
     'provider' | 'gemini' | 'chunking' | 'realtime' | 'recording' | 'storage' | 'license' | 'google-drive'
-  >('provider');
+  >(webDemo ? 'license' : 'provider');
 
   useEffect(() => {
     let active = true;
@@ -464,24 +469,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="scroll-fade-right flex-shrink-0">
           <div className="thin-scrollbar px-4 sm:px-6 pt-3 sm:pt-4 pb-2">
             <div className="flex min-w-max gap-1">
-              <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
-                {t('SettingsModal.tabs.provider')}
-              </button>
-              <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
-                {t('SettingsModal.tabs.models')}
-              </button>
-              <button className={tabBtnCls('chunking')} onClick={() => setActiveTab('chunking')}>
-                {t('SettingsModal.tabs.chunking')}
-              </button>
-              <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
-                {t('SettingsModal.tabs.realtime')}
-              </button>
-              <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
-                {t('SettingsModal.tabs.recording')}
-              </button>
-              <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
-                {t('SettingsModal.tabs.storage')}
-              </button>
+              {!webDemo && (
+                <>
+                  <button className={tabBtnCls('provider')} onClick={() => setActiveTab('provider')}>
+                    {t('SettingsModal.tabs.provider')}
+                  </button>
+                  <button className={tabBtnCls('gemini')} onClick={() => setActiveTab('gemini')}>
+                    {t('SettingsModal.tabs.models')}
+                  </button>
+                  <button className={tabBtnCls('chunking')} onClick={() => setActiveTab('chunking')}>
+                    {t('SettingsModal.tabs.chunking')}
+                  </button>
+                  <button className={tabBtnCls('realtime')} onClick={() => setActiveTab('realtime')}>
+                    {t('SettingsModal.tabs.realtime')}
+                  </button>
+                  <button className={tabBtnCls('recording')} onClick={() => setActiveTab('recording')}>
+                    {t('SettingsModal.tabs.recording')}
+                  </button>
+                  <button className={tabBtnCls('storage')} onClick={() => setActiveTab('storage')}>
+                    {t('SettingsModal.tabs.storage')}
+                  </button>
+                </>
+              )}
               <button className={tabBtnCls('license')} onClick={() => setActiveTab('license')}>
                 {t('SettingsModal.tabs.license')}
               </button>

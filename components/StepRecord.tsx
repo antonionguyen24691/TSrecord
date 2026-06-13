@@ -289,7 +289,10 @@ export const StepRecord: React.FC<StepRecordProps> = ({
         const settings = await loadAiSettings();
         realtimeMode = settings.realtimeMode;
         realtimeModeRef.current = realtimeMode;
-        realtimeEnabled = realtimeMode !== 'OFF' && Boolean(settings.apiKey.trim());
+        // Khi dung key admin qua proxy (luon dung tren web demo), khong co apiKey
+        // cuc bo nhung van duoc phep realtime vi key nam o backend.
+        realtimeEnabled =
+          realtimeMode !== 'OFF' && (Boolean(settings.apiKey.trim()) || settings.useAdminKey);
         resetLiveMeetingState(
           realtimeEnabled
             ? realtimeMode === 'HYBRID'

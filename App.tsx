@@ -18,6 +18,7 @@ import {
   WorkspaceSessionSummary,
 } from './types';
 import type { ReleaseInfo } from './services/updateService';
+import { isWebDemo } from './services/platformMode';
 import {
   assignSessionToProject,
   createWorkspaceProject,
@@ -298,7 +299,12 @@ const App: React.FC = () => {
 
   const activateModule = useCallback((module: AppModule) => {
     if (isFreeAdTier && module === AppModule.RECORD_NOTES) {
-      alert('Bản dùng thử qua quảng cáo không hỗ trợ Ghi âm cuộc họp. Vui lòng mua gói hoặc tự điền API Key riêng.');
+      // Tren web demo nguoi dung khong the tu dien API key rieng -> chi goi y mua goi.
+      alert(
+        isWebDemo()
+          ? 'Bản dùng thử không hỗ trợ Ghi âm cuộc họp. Vui lòng mua gói để sử dụng.'
+          : 'Bản dùng thử qua quảng cáo không hỗ trợ Ghi âm cuộc họp. Vui lòng mua gói hoặc tự điền API Key riêng.'
+      );
       return;
     }
     setShowWorkspace(false);

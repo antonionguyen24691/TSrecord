@@ -1,4 +1,5 @@
 import { getSecureValue, removeSecureValue, setSecureValue } from './secureStorage';
+import { isWebDemo } from './platformMode';
 
 // --- Storage Keys ---
 const API_KEY_KEY = 'gemini_api_key';
@@ -241,7 +242,9 @@ export const loadAiSettings = async (): Promise<AiSettings> => {
         : DEFAULT_CHUNK_STAGGER_SECONDS,
     chunkConcurrency:
       1,
-    useAdminKey: useAdminKeyResult === 'true',
+    // Web demo: luon dung key admin qua proxy (nguoi dung web khong cau hinh key
+    // rieng). Native (Android/iOS) ton trong lua chon da luu cua nguoi dung.
+    useAdminKey: isWebDemo() ? true : useAdminKeyResult === 'true',
     googleClientId: googleClientIdResult || import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
     googleApiKey: googleApiKeyResult || import.meta.env.VITE_GOOGLE_API_KEY || '',
   };
