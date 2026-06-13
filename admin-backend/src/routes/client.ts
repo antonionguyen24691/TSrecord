@@ -17,6 +17,13 @@ import {
 } from '../platform/clientService.js';
 import { redeemPromoCodePostgres } from '../platform/promoService.js';
 import { consumeUploadSession } from '../platform/uploadSessions.js';
+import {
+  getKeyCandidates,
+  reportKeySuccess,
+  reportKeyFailure,
+  classifyKeyError,
+  type KeyProvider,
+} from '../platform/providerKeys.js';
 
 const router = Router();
 
@@ -399,6 +406,72 @@ const getSystemConfig = (key: string): string => {
   return row?.value || '';
 };
 
+// ── Pool nhiều key + xoay vòng / failover ─────────────────────
+// Mỗi provider có thể có nhiều key (Postgres). Khi gọi upstream, lần lượt thử
+// từng key; key lỗi do quota/auth bị đánh dấu cooldown/disabled và thử key kế.
+// Key ENV cũ (system_config) luôn được thêm làm fallback cuối để không gãy khi
+// pool trống.
+type ResolvedKey = { id: string | null; value: string };
+
+const resolveProviderKeys = async (
+  provider: KeyProvider,
+  envConfigKey: string
+): Promise<ResolvedKey[]> => {
+  const out: ResolvedKey[] = [];
+  if (usePostgresBackend()) {
+    try {
+      for (const k of await getKeyCandidates(provider)) {
+        out.push({ id: k.id, value: k.keyValue });
+      }
+    } catch {
+      // Pool lỗi (vd bảng chưa tạo) -> dùng env fallback bên dưới.
+    }
+  }
+  const envKey = getSystemConfig(envConfigKey);
+  if (envKey && !out.some((k) => k.value === envKey)) {
+    out.push({ id: null, value: envKey });
+  }
+  return out;
+};
+
+type KeyAttemptResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; status: number; error: string; keyError?: boolean };
+
+// Lần lượt thử các key cho tới khi thành công.
+// attempt trả keyError:false để báo "lỗi này KHÔNG do key" (dừng, không failover).
+const runKeyFailover = async <T>(
+  keys: ResolvedKey[],
+  attempt: (key: string) => Promise<KeyAttemptResult<T>>
+): Promise<KeyAttemptResult<T>> => {
+  if (keys.length === 0) {
+    return { ok: false, status: 500, error: 'Key hệ thống chưa được cấu hình.' };
+  }
+  let last: KeyAttemptResult<T> = { ok: false, status: 500, error: 'Tất cả key đều lỗi.' };
+  for (const k of keys) {
+    let r: KeyAttemptResult<T>;
+    try {
+      r = await attempt(k.value);
+    } catch (err: any) {
+      r = { ok: false, status: 500, error: err?.message || 'Lỗi gọi upstream.' };
+    }
+    if (r.ok) {
+      if (k.id) await reportKeySuccess(k.id).catch(() => {});
+      return r;
+    }
+    last = r;
+    if (r.keyError === false) return r; // lỗi thật sự, không phải do key
+    const cls = k.id ? classifyKeyError(r.status, r.error) : null;
+    if (k.id && cls) {
+      await reportKeyFailure(k.id, { ...cls, error: r.error }).catch(() => {});
+      continue; // thử key kế tiếp
+    }
+    // Key ENV (id null) hoặc lỗi không phải do key -> dừng, trả lỗi thật.
+    return r;
+  }
+  return last;
+};
+
 const authorizeProxyRequest = async (
   deviceId: string,
   durationSeconds?: number,
@@ -664,46 +737,51 @@ router.post('/proxy/gemini', async (req: Request, res: Response) => {
     return;
   }
 
-  const geminiApiKey = getSystemConfig('admin_gemini_api_key');
-  if (!geminiApiKey) {
+  const geminiKeys = await resolveProviderKeys('gemini', 'admin_gemini_api_key');
+  if (geminiKeys.length === 0) {
     res.status(500).json({ error: 'Key hệ thống Gemini chưa được cấu hình.' });
     return;
   }
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
-    const response = await fetchGeminiProxyResponse(
-      geminiUrl,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: normalizeGenerationConfigForRest(generationConfig),
-        })
-      },
-      `proxy/gemini:${model}`
-    );
+    const result = await runKeyFailover<string>(geminiKeys, async (apiKey) => {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetchGeminiProxyResponse(
+        geminiUrl,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents,
+            generationConfig: normalizeGenerationConfigForRest(generationConfig),
+          })
+        },
+        `proxy/gemini:${model}`
+      );
 
-    if (!response.ok) {
-      const errText = await response.text();
-      res.status(response.status).json({ error: sanitizeUpstreamError(response.status, errText) });
-      return;
-    }
+      if (!response.ok) {
+        return { ok: false, status: response.status, error: await response.text() };
+      }
 
-    const data = await response.json();
-    const rawText = extractGeminiCandidateText(data);
-    if (!rawText) {
-      res.status(502).json({ error: 'Gemini API không trả về nội dung hợp lệ.' });
+      const data = await response.json();
+      const rawText = extractGeminiCandidateText(data);
+      if (!rawText) {
+        return { ok: false, status: 502, error: 'Gemini API không trả về nội dung hợp lệ.', keyError: false };
+      }
+      return { ok: true, value: rawText };
+    });
+
+    if (!result.ok) {
+      res.status(result.status).json({ error: sanitizeUpstreamError(result.status, result.error) });
       return;
     }
 
     try {
-      const parsed = JSON.parse(sanitizeJsonText(rawText));
+      const parsed = JSON.parse(sanitizeJsonText(result.value));
       await completeProxyUsage(auth, undefined, true);
       res.json(parsed);
     } catch {
-      res.status(502).json({ error: `Gemini API trả về JSON không hợp lệ: ${rawText}` });
+      res.status(502).json({ error: `Gemini API trả về JSON không hợp lệ: ${result.value}` });
     }
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Lỗi khi gọi proxy Gemini.' });
@@ -760,34 +838,10 @@ router.post('/proxy/transcribe', async (req: Request, res: Response) => {
     }
 
     if (provider === 'gemini') {
-      const geminiApiKey = getSystemConfig('admin_gemini_api_key');
-      if (!geminiApiKey) {
+      const geminiKeys = await resolveProviderKeys('gemini', 'admin_gemini_api_key');
+      if (geminiKeys.length === 0) {
         res.status(500).json({ error: 'Key hệ thống Gemini chưa được cấu hình.' });
         return;
-      }
-
-      // Check file size, if > 8MB, upload via Files API
-      let filePart: any;
-      if (buffer.length > 8 * 1024 * 1024) {
-        const fileUri = await uploadToGeminiFiles(
-          buffer,
-          fileType || 'audio/wav',
-          fileName || 'audio.wav',
-          geminiApiKey
-        );
-        filePart = {
-          fileData: {
-            fileUri,
-            mimeType: fileType || 'audio/wav'
-          }
-        };
-      } else {
-        filePart = {
-          inlineData: {
-            data: fileBase64,
-            mimeType: fileType || 'audio/wav'
-          }
-        };
       }
 
       const prompt = `Vai tro: cong cu speech-to-text.
@@ -807,93 +861,111 @@ Rang buoc:
       const candidateModels = buildGeminiTranscriptionModelCandidates(
         typeof preferredModelId === 'string' ? preferredModelId : undefined
       );
-      let lastStatus = 500;
-      let lastError = 'Gemini STT request failed.';
+      const isLargeFile = buffer.length > 8 * 1024 * 1024;
 
-      for (const modelId of candidateModels) {
-        const response = await fetchGeminiProxyResponse(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${geminiApiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    filePart,
-                    {
-                      text: prompt
-                    }
-                  ]
-                }
-              ],
-              generationConfig: {
-                temperature: 0.1,
-              }
-            })
-          },
-          `proxy/transcribe:${modelId}`
-        );
+      // Mỗi key thử lần lượt các model. File >8MB phải upload bằng CHÍNH key đó
+      // (Gemini Files gắn với key/project) nên upload nằm trong attempt theo key.
+      const result = await runKeyFailover<{ transcript: string; modelId: string }>(
+        geminiKeys,
+        async (apiKey) => {
+          let filePart: any;
+          if (isLargeFile) {
+            const fileUri = await uploadToGeminiFiles(
+              buffer,
+              fileType || 'audio/wav',
+              fileName || 'audio.wav',
+              apiKey
+            );
+            filePart = { fileData: { fileUri, mimeType: fileType || 'audio/wav' } };
+          } else {
+            filePart = { inlineData: { data: fileBase64, mimeType: fileType || 'audio/wav' } };
+          }
 
-        if (!response.ok) {
-          lastStatus = response.status;
-          lastError = `Gemini STT error (${modelId}): ${await response.text()}`;
-          continue;
+          let lastStatus = 500;
+          let lastError = 'Gemini STT request failed.';
+          for (const modelId of candidateModels) {
+            const response = await fetchGeminiProxyResponse(
+              `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [filePart, { text: prompt }] }],
+                  generationConfig: { temperature: 0.1 },
+                })
+              },
+              `proxy/transcribe:${modelId}`
+            );
+
+            if (!response.ok) {
+              lastStatus = response.status;
+              lastError = `Gemini STT error (${modelId}): ${await response.text()}`;
+              continue;
+            }
+
+            const data = await response.json();
+            const transcript = extractTranscriptFromModelText(extractGeminiCandidateText(data));
+            if (transcript.trim()) {
+              return { ok: true, value: { transcript, modelId } };
+            }
+            lastStatus = 502;
+            lastError = `Gemini STT returned empty transcript (${modelId}).`;
+          }
+          return { ok: false, status: lastStatus, error: lastError };
         }
+      );
 
-        const data = await response.json();
-        const text = extractGeminiCandidateText(data);
-        const transcript = extractTranscriptFromModelText(text);
-
-        if (transcript.trim()) {
-          await completeProxyUsage(auth, durationSeconds, false);
-          res.json({ transcript, modelId });
-          return;
-        }
-
-        lastStatus = 502;
-        lastError = `Gemini STT returned empty transcript (${modelId}).`;
+      if (!result.ok) {
+        res.status(result.status).json({ error: sanitizeUpstreamError(result.status, result.error) });
+        return;
       }
-
-      res.status(lastStatus).json({ error: sanitizeUpstreamError(lastStatus, lastError) });
+      await completeProxyUsage(auth, durationSeconds, false);
+      res.json({ transcript: result.value.transcript, modelId: result.value.modelId });
       return;
     }
 
     if (provider === 'groq' || provider === 'openai') {
       const configKey = provider === 'groq' ? 'admin_groq_api_key' : 'admin_openai_api_key';
-      const apiKey = getSystemConfig(configKey);
-      if (!apiKey) {
+      const sttKeys = await resolveProviderKeys(provider as KeyProvider, configKey);
+      if (sttKeys.length === 0) {
         res.status(500).json({ error: `Key hệ thống ${provider} chưa được cấu hình.` });
         return;
-      }
-
-      const blob = new Blob([buffer], { type: fileType || 'audio/wav' });
-      const formData = new FormData();
-      formData.append('file', blob, fileName || 'audio.wav');
-      formData.append('model', provider === 'groq' ? 'whisper-large-v3-turbo' : 'whisper-1');
-      formData.append('response_format', 'verbose_json');
-      formData.append('timestamp_granularities[]', 'segment');
-      if (typeof language === 'string' && language.trim()) {
-        formData.append('language', language.trim());
       }
 
       const url = provider === 'groq'
         ? 'https://api.groq.com/openai/v1/audio/transcriptions'
         : 'https://api.openai.com/v1/audio/transcriptions';
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: formData
+      const result = await runKeyFailover<any>(sttKeys, async (apiKey) => {
+        // Dựng lại FormData mỗi lần thử (body stream chỉ đọc được 1 lần).
+        const blob = new Blob([buffer], { type: fileType || 'audio/wav' });
+        const formData = new FormData();
+        formData.append('file', blob, fileName || 'audio.wav');
+        formData.append('model', provider === 'groq' ? 'whisper-large-v3-turbo' : 'whisper-1');
+        formData.append('response_format', 'verbose_json');
+        formData.append('timestamp_granularities[]', 'segment');
+        if (typeof language === 'string' && language.trim()) {
+          formData.append('language', language.trim());
+        }
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: formData
+        });
+
+        if (!response.ok) {
+          return { ok: false, status: response.status, error: await response.text() };
+        }
+        return { ok: true, value: await response.json() };
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        res.status(response.status).json({ error: sanitizeUpstreamError(response.status, `${provider} STT: ${errText}`) });
+      if (!result.ok) {
+        res.status(result.status).json({ error: sanitizeUpstreamError(result.status, `${provider} STT: ${result.error}`) });
         return;
       }
 
-      const data = await response.json();
+      const data = result.value;
       let transcript = '';
       if (data.segments && data.segments.length > 0) {
         if (normalizedMode === 'PLAIN') {
@@ -917,53 +989,51 @@ Rang buoc:
     }
 
     if (provider === 'assemblyai') {
-      const apiKey = getSystemConfig('admin_assemblyai_api_key');
-      if (!apiKey) {
+      const aaiKeys = await resolveProviderKeys('assemblyai', 'admin_assemblyai_api_key');
+      if (aaiKeys.length === 0) {
         res.status(500).json({ error: 'Key hệ thống AssemblyAI chưa được cấu hình.' });
         return;
       }
 
-      // Upload audio
-      const uploadRes = await fetch('https://api.assemblyai.com/v2/upload', {
-        method: 'POST',
-        headers: {
-          authorization: apiKey,
-          'content-type': 'application/octet-stream'
-        },
-        body: buffer
-      });
+      // Upload + submit phải dùng cùng 1 key; failover qua pool nếu key lỗi.
+      const submit = await runKeyFailover<{ transcriptId: string; status: string; apiKey: string }>(
+        aaiKeys,
+        async (apiKey) => {
+          const uploadRes = await fetch('https://api.assemblyai.com/v2/upload', {
+            method: 'POST',
+            headers: { authorization: apiKey, 'content-type': 'application/octet-stream' },
+            body: buffer
+          });
+          if (!uploadRes.ok) {
+            return { ok: false, status: uploadRes.status, error: `upload: ${await uploadRes.text()}` };
+          }
+          const uploadData = await uploadRes.json();
 
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text();
-        res.status(uploadRes.status).json({ error: sanitizeUpstreamError(uploadRes.status, `AssemblyAI upload: ${errText}`) });
+          const submitRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+            method: 'POST',
+            headers: { authorization: apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+              audio_url: uploadData.upload_url,
+              language_detection: true,
+              speaker_labels: true
+            })
+          });
+          if (!submitRes.ok) {
+            return { ok: false, status: submitRes.status, error: `submit: ${await submitRes.text()}` };
+          }
+          const submitData = await submitRes.json();
+          return { ok: true, value: { transcriptId: submitData.id, status: submitData.status, apiKey } };
+        }
+      );
+
+      if (!submit.ok) {
+        res.status(submit.status).json({ error: sanitizeUpstreamError(submit.status, `AssemblyAI: ${submit.error}`) });
         return;
       }
 
-      const uploadData = await uploadRes.json();
-      const audioUrl = uploadData.upload_url;
-
-      // Submit job
-      const submitRes = await fetch('https://api.assemblyai.com/v2/transcript', {
-        method: 'POST',
-        headers: {
-          authorization: apiKey,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          audio_url: audioUrl,
-          language_detection: true,
-          speaker_labels: true
-        })
-      });
-
-      if (!submitRes.ok) {
-        const errText = await submitRes.text();
-        res.status(submitRes.status).json({ error: sanitizeUpstreamError(submitRes.status, `AssemblyAI submit: ${errText}`) });
-        return;
-      }
-
-      const submitData = await submitRes.json();
-      const transcriptId = submitData.id;
+      const transcriptId = submit.value.transcriptId;
+      const aaiKey = submit.value.apiKey;
+      const submitData = { status: submit.value.status };
 
       // Poll until done
       let status = submitData.status;
@@ -979,7 +1049,7 @@ Rang buoc:
         await new Promise(r => setTimeout(r, 4000));
         
         const pollRes = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
-          headers: { authorization: apiKey }
+          headers: { authorization: aaiKey }
         });
         
         if (!pollRes.ok) {

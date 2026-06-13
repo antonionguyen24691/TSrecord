@@ -348,6 +348,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS cms_articles_v2_locale_slug_unique
 CREATE INDEX IF NOT EXISTS cms_articles_v2_locale_public_idx
   ON cms_articles_v2(locale, status, published_at DESC, updated_at DESC);
 
+-- Pool nhieu API key cho moi provider (Gemini/Groq/OpenAI/AssemblyAI).
+-- Admin co the gan nhieu key, proxy xoay vong + tu failover khi 1 key loi.
+CREATE TABLE IF NOT EXISTS provider_keys_v2 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL CHECK (provider IN ('gemini', 'groq', 'openai', 'assemblyai')),
+  label text,
+  key_value text NOT NULL,
+  enabled boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'ok' CHECK (status IN ('ok', 'cooldown', 'disabled')),
+  cooldown_until timestamptz,
+  last_used_at timestamptz,
+  last_error text,
+  use_count bigint NOT NULL DEFAULT 0,
+  fail_count bigint NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS provider_keys_v2_pick_idx
+  ON provider_keys_v2(provider, enabled, status, sort_order, last_used_at);
+
+-- Gioi han so key moi provider (mac dinh 10), co the mo rong qua admin UI.
+CREATE TABLE IF NOT EXISTS provider_key_limits_v2 (
+  provider text PRIMARY KEY CHECK (provider IN ('gemini', 'groq', 'openai', 'assemblyai')),
+  max_keys integer NOT NULL DEFAULT 10 CHECK (max_keys >= 1),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO provider_key_limits_v2 (provider, max_keys) VALUES
+  ('gemini', 10), ('groq', 10), ('openai', 10), ('assemblyai', 10)
+ON CONFLICT (provider) DO NOTHING;
+
 INSERT INTO plans_v2
   (code, name, duration_months, request_limit, price_vnd, price_usd_minor, ads_enabled, own_key_enabled, features)
 VALUES

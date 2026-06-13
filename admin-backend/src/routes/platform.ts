@@ -31,6 +31,15 @@ import {
   verifyPlayIntegrityToken,
 } from '../platform/playIntegrity.js';
 import {
+  KEY_PROVIDERS,
+  isKeyProvider,
+  listProviderKeysGrouped,
+  addProviderKey,
+  updateProviderKey,
+  deleteProviderKey,
+  setMaxKeys,
+} from '../platform/providerKeys.js';
+import {
   getDefaultOrganizationProfile,
   getEinvoiceById,
   getEinvoiceByOrderCode,
@@ -878,6 +887,77 @@ router.put('/admin/organization', asyncRoute(async (req, res) => {
     ]
   );
   res.json(profile);
+}));
+
+// ── Pool API key cho moi provider (Gemini/Groq/OpenAI/AssemblyAI) ──
+// Tinh nang pool chi chay tren PostgreSQL. Local SQLite van dung 1 key o muc Cau hinh.
+router.use('/admin/provider-keys', (_req, res, next) => {
+  if (!usePostgresBackend()) {
+    res.status(501).json({
+      error: 'Pool nhiều key chỉ khả dụng trên backend PostgreSQL. Local SQLite dùng 1 key ở mục Cấu hình.',
+    });
+    return;
+  }
+  next();
+});
+
+router.get('/admin/provider-keys', asyncRoute(async (_req, res) => {
+  res.json({ providers: KEY_PROVIDERS, groups: await listProviderKeysGrouped() });
+}));
+
+router.post('/admin/provider-keys', asyncRoute(async (req, res) => {
+  const { provider, key, label } = req.body;
+  if (!isKeyProvider(provider)) {
+    res.status(400).json({ error: 'Provider không hợp lệ.' });
+    return;
+  }
+  if (typeof key !== 'string' || !key.trim()) {
+    res.status(400).json({ error: 'Thiếu API key.' });
+    return;
+  }
+  try {
+    const created = await addProviderKey(provider, key, typeof label === 'string' ? label : undefined);
+    res.status(201).json(created);
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'Không thể thêm key.' });
+  }
+}));
+
+router.patch('/admin/provider-keys/:id', asyncRoute(async (req, res) => {
+  const { enabled, label, resetStatus } = req.body;
+  const updated = await updateProviderKey(String(req.params.id), {
+    enabled: typeof enabled === 'boolean' ? enabled : undefined,
+    label: typeof label === 'string' ? label : undefined,
+    resetStatus: Boolean(resetStatus),
+  });
+  if (!updated) {
+    res.status(404).json({ error: 'Không tìm thấy key.' });
+    return;
+  }
+  res.json(updated);
+}));
+
+router.delete('/admin/provider-keys/:id', asyncRoute(async (req, res) => {
+  const ok = await deleteProviderKey(String(req.params.id));
+  if (!ok) {
+    res.status(404).json({ error: 'Không tìm thấy key.' });
+    return;
+  }
+  res.status(204).end();
+}));
+
+router.post('/admin/provider-keys/limit', asyncRoute(async (req, res) => {
+  const { provider, maxKeys } = req.body;
+  if (!isKeyProvider(provider)) {
+    res.status(400).json({ error: 'Provider không hợp lệ.' });
+    return;
+  }
+  const n = Number(maxKeys);
+  if (!Number.isFinite(n) || n < 1) {
+    res.status(400).json({ error: 'maxKeys không hợp lệ.' });
+    return;
+  }
+  res.json({ provider, maxKeys: await setMaxKeys(provider, n) });
 }));
 
 export default router;

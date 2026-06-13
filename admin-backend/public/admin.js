@@ -60,6 +60,7 @@ const NAV_ITEMS = [
   { id: 'payments', label: 'Thanh toán', icon: '💳' },
   { id: 'promo', label: 'Mã code', icon: '🎟️' },
   { id: 'config', label: 'Cấu hình', icon: '⚙️' },
+  { id: 'apikeys', label: 'API Keys', icon: '🔑' },
   { id: 'content', label: 'Nội dung website', icon: '📝' },
   { id: 'revenue', label: 'Doanh thu HKD', icon: '📈' },
   { id: 'einvoices', label: 'Hóa đơn', icon: '🧾' },
@@ -131,7 +132,7 @@ const renderView = async () => {
   if (!main) return;
   main.innerHTML = '<div class="flex items-center justify-center h-64 text-slate-400">Đang tải...</div>';
   try {
-    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, content: renderCms, revenue: renderRevenue, einvoices: renderEinvoices };
+    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, apikeys: renderApiKeys, content: renderCms, revenue: renderRevenue, einvoices: renderEinvoices };
     await (views[currentView] || renderDashboard)(main);
   } catch (err) { main.innerHTML = `<div class="text-red-500 p-8">Lỗi: ${err.message}</div>`; }
 };
@@ -453,6 +454,137 @@ window.saveConfig = async () => {
   const updates = Array.from(inputs).map(input => ({ key: input.dataset.configKey, value: input.value }));
   const res = await jsonApi('/api/config', { method: 'PUT', body: JSON.stringify(updates) });
   if (res?.ok) alert('Đã lưu cấu hình!');
+};
+
+// ── API Keys: pool nhiều key mỗi provider (Postgres v2) ───────
+const PROVIDER_LABELS = {
+  gemini: 'Google Gemini',
+  groq: 'Groq Whisper',
+  openai: 'OpenAI Whisper',
+  assemblyai: 'AssemblyAI',
+};
+const KEY_STATUS_BADGE = {
+  ok: badge('OK', 'bg-emerald-100 text-emerald-700'),
+  cooldown: badge('Tạm nghỉ', 'bg-amber-100 text-amber-700'),
+  disabled: badge('Vô hiệu', 'bg-rose-100 text-rose-700'),
+};
+
+const renderApiKeys = async (el) => {
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div>
+        <h2 class="text-2xl font-black">API Keys (pool nhiều key)</h2>
+        <p class="text-sm text-slate-500 mt-1">Mỗi provider gắn được nhiều key. Hệ thống xoay vòng và tự chuyển key khi 1 key hết quota / lỗi. Key chỉ hiện 4 ký tự cuối.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="text-sm font-bold mb-3">Kết nối API v2 (PostgreSQL)</h3>
+        <p class="text-xs text-slate-500 mb-3">Nhập <code class="bg-slate-100 px-1 rounded">ADMIN_API_KEY</code> từ <code class="bg-slate-100 px-1 rounded">.env</code> backend.</p>
+        <div class="flex flex-wrap gap-3">
+          <input id="v2-admin-key" type="password" value="${escapeHtml(v2AdminKey)}" placeholder="ADMIN_API_KEY" class="flex-1 min-w-[240px] px-4 py-2 rounded-xl border border-slate-200 text-sm" />
+          <button onclick="saveV2AdminKeyAndReload()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold">Lưu key</button>
+          <button onclick="loadProviderKeysPanel()" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold">Tải lại</button>
+        </div>
+      </div>
+      <div id="provider-keys-panel" class="text-sm text-slate-500">Nhập API key và bấm "Tải lại"...</div>
+    </div>`;
+  if (v2AdminKey) await loadProviderKeysPanel();
+};
+
+window.saveV2AdminKeyAndReload = () => {
+  v2AdminKey = $('v2-admin-key').value.trim();
+  localStorage.setItem('v2_admin_key', v2AdminKey);
+  loadProviderKeysPanel();
+};
+
+window.loadProviderKeysPanel = async () => {
+  const panel = $('provider-keys-panel');
+  if (!panel) return;
+  if (!v2AdminKey) {
+    panel.innerHTML = '<div class="text-amber-700">Chưa có ADMIN_API_KEY.</div>';
+    return;
+  }
+  panel.innerHTML = '<div class="text-slate-400">Đang tải pool key...</div>';
+  try {
+    const data = await v2Api('/api/v2/admin/provider-keys');
+    const providers = data.providers || Object.keys(data.groups || {});
+    panel.innerHTML = providers.map((p) => {
+      const g = data.groups[p] || { max: 10, count: 0, keys: [] };
+      const full = g.count >= g.max;
+      return `
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">${PROVIDER_LABELS[p] || p}</h3>
+              <p class="text-[11px] text-slate-400">${g.count}/${g.max} key · xoay vòng + tự failover</p>
+            </div>
+            <button onclick="expandProviderLimit('${p}', ${g.max})" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold hover:bg-slate-50">＋ Mở rộng giới hạn</button>
+          </div>
+          <div class="space-y-2 mb-4">
+            ${g.keys.length === 0 ? '<p class="text-xs text-slate-400">Chưa có key nào — đang dùng key ENV (nếu có).</p>' : g.keys.map((k) => `
+              <div class="flex items-center gap-3 border border-slate-100 rounded-xl px-3 py-2">
+                <code class="text-xs text-slate-700">${escapeHtml(k.maskedKey)}</code>
+                ${KEY_STATUS_BADGE[k.status] || ''}
+                <span class="text-[11px] text-slate-400">${escapeHtml(k.label || '')}</span>
+                <span class="text-[11px] text-slate-400 ml-auto">dùng ${k.useCount} · lỗi ${k.failCount}</span>
+                <label class="flex items-center gap-1 text-[11px] text-slate-500"><input type="checkbox" ${k.enabled ? 'checked' : ''} onchange="toggleProviderKey('${k.id}', this.checked)" /> bật</label>
+                ${k.status !== 'ok' ? `<button onclick="resetProviderKey('${k.id}')" class="text-[11px] text-emerald-700 font-semibold">reset</button>` : ''}
+                <button onclick="deleteProviderKey('${k.id}')" class="text-[11px] text-rose-600 font-semibold">xóa</button>
+              </div>`).join('')}
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <input id="newkey-${p}" type="password" placeholder="Dán API key ${PROVIDER_LABELS[p] || p}" ${full ? 'disabled' : ''} class="flex-1 min-w-[220px] px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50" />
+            <input id="newlabel-${p}" placeholder="Nhãn (tuỳ chọn)" ${full ? 'disabled' : ''} class="w-40 px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50" />
+            <button onclick="addProviderKey('${p}')" ${full ? 'disabled' : ''} class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-50">Thêm key</button>
+          </div>
+          ${full ? '<p class="text-[11px] text-amber-700 mt-2">Đã đạt giới hạn — mở rộng để thêm.</p>' : ''}
+        </div>`;
+    }).join('');
+  } catch (err) {
+    panel.innerHTML = `<div class="text-rose-600 bg-rose-50 rounded-xl p-4">${escapeHtml(err.message || 'Lỗi tải pool key.')}</div>`;
+  }
+};
+
+window.addProviderKey = async (provider) => {
+  const key = $(`newkey-${provider}`)?.value.trim();
+  const label = $(`newlabel-${provider}`)?.value.trim();
+  if (!key) { alert('Chưa nhập key.'); return; }
+  try {
+    await v2Api('/api/v2/admin/provider-keys', { method: 'POST', body: JSON.stringify({ provider, key, label }) });
+    await loadProviderKeysPanel();
+  } catch (err) { alert(err.message || 'Không thêm được key.'); }
+};
+
+window.toggleProviderKey = async (id, enabled) => {
+  try {
+    await v2Api(`/api/v2/admin/provider-keys/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+    await loadProviderKeysPanel();
+  } catch (err) { alert(err.message); }
+};
+
+window.resetProviderKey = async (id) => {
+  try {
+    await v2Api(`/api/v2/admin/provider-keys/${id}`, { method: 'PATCH', body: JSON.stringify({ resetStatus: true }) });
+    await loadProviderKeysPanel();
+  } catch (err) { alert(err.message); }
+};
+
+window.deleteProviderKey = async (id) => {
+  if (!confirm('Xóa key này?')) return;
+  try {
+    await v2Api(`/api/v2/admin/provider-keys/${id}`, { method: 'DELETE' });
+    await loadProviderKeysPanel();
+  } catch (err) { alert(err.message); }
+};
+
+window.expandProviderLimit = async (provider, currentMax) => {
+  const input = prompt(`Giới hạn số key cho ${PROVIDER_LABELS[provider] || provider} (hiện ${currentMax}):`, String(currentMax + 5));
+  if (input === null) return;
+  const maxKeys = Number(input);
+  if (!Number.isFinite(maxKeys) || maxKeys < 1) { alert('Số không hợp lệ.'); return; }
+  try {
+    await v2Api('/api/v2/admin/provider-keys/limit', { method: 'POST', body: JSON.stringify({ provider, maxKeys }) });
+    await loadProviderKeysPanel();
+  } catch (err) { alert(err.message); }
 };
 
 // ── Website CMS ──────────────────────────────────────────────
