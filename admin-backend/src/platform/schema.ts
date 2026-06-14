@@ -357,6 +357,7 @@ CREATE TABLE IF NOT EXISTS provider_keys_v2 (
   key_value text NOT NULL,
   enabled boolean NOT NULL DEFAULT true,
   sort_order integer NOT NULL DEFAULT 0,
+  tier smallint NOT NULL DEFAULT 0,
   status text NOT NULL DEFAULT 'ok' CHECK (status IN ('ok', 'cooldown', 'disabled')),
   cooldown_until timestamptz,
   last_used_at timestamptz,
@@ -367,8 +368,16 @@ CREATE TABLE IF NOT EXISTS provider_keys_v2 (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- tier: 0 = key free (uu tien dung truoc de giam chi phi), 1 = key tra phi (du phong).
+-- ADD COLUMN IF NOT EXISTS de nang cap DB cu khong gay loi.
+ALTER TABLE provider_keys_v2 ADD COLUMN IF NOT EXISTS tier smallint NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS provider_keys_v2_pick_idx
   ON provider_keys_v2(provider, enabled, status, sort_order, last_used_at);
+
+-- Index moi uu tien theo tier (free truoc), roi den last_used_at (xoay vong trong cung hang).
+CREATE INDEX IF NOT EXISTS provider_keys_v2_pick_tier_idx
+  ON provider_keys_v2(provider, enabled, status, tier, last_used_at);
 
 -- Gioi han so key moi provider (mac dinh 10), co the mo rong qua admin UI.
 CREATE TABLE IF NOT EXISTS provider_key_limits_v2 (

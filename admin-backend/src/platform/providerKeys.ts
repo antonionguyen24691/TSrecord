@@ -7,6 +7,9 @@ export const KEY_PROVIDERS: KeyProvider[] = ['gemini', 'groq', 'openai', 'assemb
 export const isKeyProvider = (value: unknown): value is KeyProvider =>
   typeof value === 'string' && (KEY_PROVIDERS as string[]).includes(value);
 
+/** 0 = key free (ưu tiên dùng trước để giảm chi phí), 1 = key trả phí (dự phòng). */
+export type KeyTier = 0 | 1;
+
 export interface ProviderKeyRow {
   id: string;
   provider: KeyProvider;
@@ -14,6 +17,7 @@ export interface ProviderKeyRow {
   key_value: string;
   enabled: boolean;
   sort_order: number;
+  tier: number;
   status: 'ok' | 'cooldown' | 'disabled';
   cooldown_until: string | null;
   last_used_at: string | null;
@@ -30,6 +34,7 @@ export interface ProviderKeyPublic {
   label: string | null;
   maskedKey: string;
   enabled: boolean;
+  tier: number;
   status: 'ok' | 'cooldown' | 'disabled';
   cooldownUntil: string | null;
   lastUsedAt: string | null;
@@ -58,6 +63,7 @@ const toPublic = (row: ProviderKeyRow): ProviderKeyPublic => ({
   label: row.label,
   maskedKey: maskKey(row.key_value),
   enabled: row.enabled,
+  tier: Number(row.tier) || 0,
   status: row.status,
   cooldownUntil: row.cooldown_until,
   lastUsedAt: row.last_used_at,
@@ -111,10 +117,12 @@ export const listProviderKeysGrouped = async (): Promise<
 export const addProviderKey = async (
   provider: KeyProvider,
   keyValue: string,
-  label?: string
+  label?: string,
+  tier: number = 0
 ): Promise<ProviderKeyPublic> => {
   const trimmed = (keyValue || '').trim();
   if (!trimmed) throw new Error('Key trống.');
+  const normalizedTier = tier === 1 ? 1 : 0;
 
   const [max, current] = await Promise.all([getMaxKeys(provider), countKeys(provider)]);
   if (current >= max) {
@@ -126,17 +134,17 @@ export const addProviderKey = async (
     [provider]
   );
   const row = await one<ProviderKeyRow>(
-    `INSERT INTO provider_keys_v2 (provider, label, key_value, sort_order)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO provider_keys_v2 (provider, label, key_value, sort_order, tier)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [provider, label?.trim() || null, trimmed, orderRow?.next ?? 1]
+    [provider, label?.trim() || null, trimmed, orderRow?.next ?? 1, normalizedTier]
   );
   return toPublic(row as ProviderKeyRow);
 };
 
 export const updateProviderKey = async (
   id: string,
-  patch: { enabled?: boolean; label?: string; resetStatus?: boolean }
+  patch: { enabled?: boolean; label?: string; resetStatus?: boolean; tier?: number }
 ): Promise<ProviderKeyPublic | null> => {
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -148,6 +156,10 @@ export const updateProviderKey = async (
   if (typeof patch.label === 'string') {
     sets.push(`label = $${idx++}`);
     values.push(patch.label.trim() || null);
+  }
+  if (patch.tier === 0 || patch.tier === 1) {
+    sets.push(`tier = $${idx++}`);
+    values.push(patch.tier);
   }
   if (patch.resetStatus) {
     sets.push(`status = 'ok'`, `cooldown_until = NULL`, `last_error = NULL`);
@@ -174,9 +186,12 @@ export const deleteProviderKey = async (id: string): Promise<boolean> => {
 };
 
 /**
- * Tra ve danh sach key kha dung cua provider, da sap xep round-robin
- * (it dung gan nhat truoc). Proxy se lan luot thu tung key (failover) trong
- * cung 1 request. Key dang cooldown se duoc dung lai khi het han.
+ * Tra ve danh sach key kha dung cua provider, sap xep theo:
+ *  1. tier ASC  -> key FREE (tier 0) duoc dung het truoc key TRA PHI (tier 1) => giam chi phi.
+ *  2. last_used_at ASC -> trong cung mot hang, xoay vong (it dung gan nhat truoc).
+ *  3. sort_order ASC -> tie-breaker on dinh.
+ * Proxy se lan luot thu tung key (failover) trong cung 1 request. Key dang
+ * cooldown se duoc dung lai khi het han.
  */
 export const getKeyCandidates = async (provider: KeyProvider): Promise<ProviderKeyCandidate[]> => {
   const rows = await query<{ id: string; key_value: string }>(
@@ -184,7 +199,7 @@ export const getKeyCandidates = async (provider: KeyProvider): Promise<ProviderK
      WHERE provider = $1
        AND enabled = true
        AND (status = 'ok' OR (status = 'cooldown' AND (cooldown_until IS NULL OR cooldown_until <= now())))
-     ORDER BY last_used_at ASC NULLS FIRST, sort_order ASC`,
+     ORDER BY tier ASC, last_used_at ASC NULLS FIRST, sort_order ASC`,
     [provider]
   );
   return rows.map((r) => ({ id: r.id, keyValue: r.key_value }));

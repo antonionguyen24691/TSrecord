@@ -906,7 +906,7 @@ router.get('/admin/provider-keys', asyncRoute(async (_req, res) => {
 }));
 
 router.post('/admin/provider-keys', asyncRoute(async (req, res) => {
-  const { provider, key, label } = req.body;
+  const { provider, key, label, tier } = req.body;
   if (!isKeyProvider(provider)) {
     res.status(400).json({ error: 'Provider không hợp lệ.' });
     return;
@@ -916,7 +916,12 @@ router.post('/admin/provider-keys', asyncRoute(async (req, res) => {
     return;
   }
   try {
-    const created = await addProviderKey(provider, key, typeof label === 'string' ? label : undefined);
+    const created = await addProviderKey(
+      provider,
+      key,
+      typeof label === 'string' ? label : undefined,
+      Number(tier) === 1 ? 1 : 0
+    );
     res.status(201).json(created);
   } catch (err: any) {
     res.status(400).json({ error: err?.message || 'Không thể thêm key.' });
@@ -924,11 +929,12 @@ router.post('/admin/provider-keys', asyncRoute(async (req, res) => {
 }));
 
 router.patch('/admin/provider-keys/:id', asyncRoute(async (req, res) => {
-  const { enabled, label, resetStatus } = req.body;
+  const { enabled, label, resetStatus, tier } = req.body;
   const updated = await updateProviderKey(String(req.params.id), {
     enabled: typeof enabled === 'boolean' ? enabled : undefined,
     label: typeof label === 'string' ? label : undefined,
     resetStatus: Boolean(resetStatus),
+    tier: Number(tier) === 0 || Number(tier) === 1 ? (Number(tier) as 0 | 1) : undefined,
   });
   if (!updated) {
     res.status(404).json({ error: 'Không tìm thấy key.' });

@@ -468,6 +468,11 @@ const KEY_STATUS_BADGE = {
   cooldown: badge('Tạm nghỉ', 'bg-amber-100 text-amber-700'),
   disabled: badge('Vô hiệu', 'bg-rose-100 text-rose-700'),
 };
+// Hạng key: 0 = free (ưu tiên dùng trước để giảm chi phí), 1 = trả phí (dự phòng).
+const KEY_TIER_BADGE = {
+  0: badge('FREE', 'bg-sky-100 text-sky-700'),
+  1: badge('Trả phí', 'bg-violet-100 text-violet-700'),
+};
 
 const renderApiKeys = async (el) => {
   el.innerHTML = `
@@ -475,6 +480,7 @@ const renderApiKeys = async (el) => {
       <div>
         <h2 class="text-2xl font-black">API Keys (pool nhiều key)</h2>
         <p class="text-sm text-slate-500 mt-1">Mỗi provider gắn được nhiều key. Hệ thống xoay vòng và tự chuyển key khi 1 key hết quota / lỗi. Key chỉ hiện 4 ký tự cuối.</p>
+        <p class="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2 mt-2">💡 <b>Tối ưu chi phí:</b> key <b>FREE</b> luôn được dùng hết trước, chỉ khi hết quota mới chuyển sang key <b>Trả phí</b>. Hãy nạp thật nhiều key FREE (Gemini, Groq) và để key trả phí làm dự phòng.</p>
       </div>
       <div class="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 class="text-sm font-bold mb-3">Kết nối API v2 (PostgreSQL)</h3>
@@ -510,30 +516,40 @@ window.loadProviderKeysPanel = async () => {
     panel.innerHTML = providers.map((p) => {
       const g = data.groups[p] || { max: 10, count: 0, keys: [] };
       const full = g.count >= g.max;
+      // Hiển thị key FREE trước, trả phí sau (đúng thứ tự được dùng).
+      const sortedKeys = [...(g.keys || [])].sort((a, b) => (a.tier || 0) - (b.tier || 0));
+      const freeCount = sortedKeys.filter((k) => (k.tier || 0) === 0).length;
+      const paidCount = sortedKeys.length - freeCount;
       return `
         <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
           <div class="flex items-center justify-between mb-4">
             <div>
               <h3 class="text-sm font-bold text-slate-900">${PROVIDER_LABELS[p] || p}</h3>
-              <p class="text-[11px] text-slate-400">${g.count}/${g.max} key · xoay vòng + tự failover</p>
+              <p class="text-[11px] text-slate-400">${g.count}/${g.max} key · <span class="text-sky-600 font-semibold">${freeCount} free</span> · <span class="text-violet-600 font-semibold">${paidCount} trả phí</span> · ưu tiên free → failover</p>
             </div>
             <button onclick="expandProviderLimit('${p}', ${g.max})" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold hover:bg-slate-50">＋ Mở rộng giới hạn</button>
           </div>
           <div class="space-y-2 mb-4">
-            ${g.keys.length === 0 ? '<p class="text-xs text-slate-400">Chưa có key nào — đang dùng key ENV (nếu có).</p>' : g.keys.map((k) => `
+            ${sortedKeys.length === 0 ? '<p class="text-xs text-slate-400">Chưa có key nào — đang dùng key ENV (nếu có).</p>' : sortedKeys.map((k) => `
               <div class="flex items-center gap-3 border border-slate-100 rounded-xl px-3 py-2">
                 <code class="text-xs text-slate-700">${escapeHtml(k.maskedKey)}</code>
+                ${KEY_TIER_BADGE[k.tier || 0] || ''}
                 ${KEY_STATUS_BADGE[k.status] || ''}
                 <span class="text-[11px] text-slate-400">${escapeHtml(k.label || '')}</span>
                 <span class="text-[11px] text-slate-400 ml-auto">dùng ${k.useCount} · lỗi ${k.failCount}</span>
+                <button onclick="setProviderKeyTier('${k.id}', ${(k.tier || 0) === 0 ? 1 : 0})" class="text-[11px] font-semibold ${(k.tier || 0) === 0 ? 'text-violet-600' : 'text-sky-600'}" title="Đổi hạng key">${(k.tier || 0) === 0 ? '→ trả phí' : '→ free'}</button>
                 <label class="flex items-center gap-1 text-[11px] text-slate-500"><input type="checkbox" ${k.enabled ? 'checked' : ''} onchange="toggleProviderKey('${k.id}', this.checked)" /> bật</label>
                 ${k.status !== 'ok' ? `<button onclick="resetProviderKey('${k.id}')" class="text-[11px] text-emerald-700 font-semibold">reset</button>` : ''}
                 <button onclick="deleteProviderKey('${k.id}')" class="text-[11px] text-rose-600 font-semibold">xóa</button>
               </div>`).join('')}
           </div>
           <div class="flex flex-wrap gap-2">
-            <input id="newkey-${p}" type="password" placeholder="Dán API key ${PROVIDER_LABELS[p] || p}" ${full ? 'disabled' : ''} class="flex-1 min-w-[220px] px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50" />
-            <input id="newlabel-${p}" placeholder="Nhãn (tuỳ chọn)" ${full ? 'disabled' : ''} class="w-40 px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50" />
+            <input id="newkey-${p}" type="password" placeholder="Dán API key ${PROVIDER_LABELS[p] || p}" ${full ? 'disabled' : ''} class="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50" />
+            <input id="newlabel-${p}" placeholder="Nhãn (tuỳ chọn)" ${full ? 'disabled' : ''} class="w-32 px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50" />
+            <select id="newtier-${p}" ${full ? 'disabled' : ''} class="w-32 px-3 py-2 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50">
+              <option value="0">FREE (ưu tiên)</option>
+              <option value="1">Trả phí</option>
+            </select>
             <button onclick="addProviderKey('${p}')" ${full ? 'disabled' : ''} class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-50">Thêm key</button>
           </div>
           ${full ? '<p class="text-[11px] text-amber-700 mt-2">Đã đạt giới hạn — mở rộng để thêm.</p>' : ''}
@@ -547,9 +563,10 @@ window.loadProviderKeysPanel = async () => {
 window.addProviderKey = async (provider) => {
   const key = $(`newkey-${provider}`)?.value.trim();
   const label = $(`newlabel-${provider}`)?.value.trim();
+  const tier = Number($(`newtier-${provider}`)?.value) === 1 ? 1 : 0;
   if (!key) { alert('Chưa nhập key.'); return; }
   try {
-    await v2Api('/api/v2/admin/provider-keys', { method: 'POST', body: JSON.stringify({ provider, key, label }) });
+    await v2Api('/api/v2/admin/provider-keys', { method: 'POST', body: JSON.stringify({ provider, key, label, tier }) });
     await loadProviderKeysPanel();
   } catch (err) { alert(err.message || 'Không thêm được key.'); }
 };
@@ -557,6 +574,13 @@ window.addProviderKey = async (provider) => {
 window.toggleProviderKey = async (id, enabled) => {
   try {
     await v2Api(`/api/v2/admin/provider-keys/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+    await loadProviderKeysPanel();
+  } catch (err) { alert(err.message); }
+};
+
+window.setProviderKeyTier = async (id, tier) => {
+  try {
+    await v2Api(`/api/v2/admin/provider-keys/${id}`, { method: 'PATCH', body: JSON.stringify({ tier }) });
     await loadProviderKeysPanel();
   } catch (err) { alert(err.message); }
 };
