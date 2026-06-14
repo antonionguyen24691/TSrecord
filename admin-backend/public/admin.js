@@ -61,6 +61,7 @@ const NAV_ITEMS = [
   { id: 'promo', label: 'Mã code', icon: '🎟️' },
   { id: 'config', label: 'Cấu hình', icon: '⚙️' },
   { id: 'apikeys', label: 'API Keys', icon: '🔑' },
+  { id: 'release', label: 'Phiên bản app', icon: '🚀' },
   { id: 'content', label: 'Nội dung website', icon: '📝' },
   { id: 'revenue', label: 'Doanh thu HKD', icon: '📈' },
   { id: 'einvoices', label: 'Hóa đơn', icon: '🧾' },
@@ -132,7 +133,7 @@ const renderView = async () => {
   if (!main) return;
   main.innerHTML = '<div class="flex items-center justify-center h-64 text-slate-400">Đang tải...</div>';
   try {
-    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, apikeys: renderApiKeys, content: renderCms, revenue: renderRevenue, einvoices: renderEinvoices };
+    const views = { dashboard: renderDashboard, users: renderUsers, payments: renderPayments, promo: renderPromo, config: renderConfig, apikeys: renderApiKeys, release: renderRelease, content: renderCms, revenue: renderRevenue, einvoices: renderEinvoices };
     await (views[currentView] || renderDashboard)(main);
   } catch (err) { main.innerHTML = `<div class="text-red-500 p-8">Lỗi: ${err.message}</div>`; }
 };
@@ -609,6 +610,86 @@ window.expandProviderLimit = async (provider, currentMax) => {
     await v2Api('/api/v2/admin/provider-keys/limit', { method: 'POST', body: JSON.stringify({ provider, maxKeys }) });
     await loadProviderKeysPanel();
   } catch (err) { alert(err.message); }
+};
+
+// ── Phiên bản app (version-check / bắt buộc cập nhật) ─────────
+const renderRelease = async (el) => {
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div>
+        <h2 class="text-2xl font-black">Phiên bản app</h2>
+        <p class="text-sm text-slate-500 mt-1">Điều khiển kiểm tra phiên bản cho app di động. App gọi <code class="bg-slate-100 px-1 rounded">/api/client/app-version</code> để biết có bản mới hay phải bắt buộc cập nhật.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="text-sm font-bold mb-3">Kết nối API v2 (PostgreSQL)</h3>
+        <div class="flex flex-wrap gap-3">
+          <input id="v2-admin-key-rel" type="password" value="${escapeHtml(v2AdminKey)}" placeholder="ADMIN_API_KEY" class="flex-1 min-w-[240px] px-4 py-2 rounded-xl border border-slate-200 text-sm" />
+          <button onclick="saveV2KeyRelAndLoad()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold">Lưu & tải</button>
+          <button onclick="loadAppReleasePanel()" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold">Tải lại</button>
+        </div>
+      </div>
+      <div id="app-release-panel" class="text-sm text-slate-500">Nhập ADMIN_API_KEY rồi bấm "Lưu & tải"...</div>
+    </div>`;
+  if (v2AdminKey) await loadAppReleasePanel();
+};
+
+window.saveV2KeyRelAndLoad = () => {
+  v2AdminKey = $('v2-admin-key-rel').value.trim();
+  localStorage.setItem('v2_admin_key', v2AdminKey);
+  loadAppReleasePanel();
+};
+
+window.loadAppReleasePanel = async () => {
+  const panel = $('app-release-panel');
+  if (!panel) return;
+  if (!v2AdminKey) { panel.innerHTML = '<div class="text-amber-700">Chưa có ADMIN_API_KEY.</div>'; return; }
+  panel.innerHTML = '<div class="text-slate-400">Đang tải cấu hình...</div>';
+  try {
+    const c = await v2Api('/api/v2/admin/app-release');
+    const field = (label, id, value, ph = '', type = 'text') =>
+      `<label class="block"><span class="block text-xs font-bold text-slate-600 mb-1.5">${label}</span>
+        <input id="${id}" type="${type}" value="${escapeHtml(value ?? '')}" placeholder="${ph}" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" /></label>`;
+    panel.innerHTML = `
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          ${field('Phiên bản mới nhất (latestVersion)', 'rel-latest', c.latestVersion, '1.4.6')}
+          ${field('Phiên bản tối thiểu (minVersion)', 'rel-min', c.minVersion, '1.0.0')}
+        </div>
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input id="rel-force" type="checkbox" ${c.forceUpdate ? 'checked' : ''} />
+          Bắt buộc cập nhật (chặn app dưới phiên bản tối thiểu)
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          ${field('URL cập nhật Android', 'rel-android', c.androidUrl, 'https://play.google.com/...')}
+          ${field('URL cập nhật iOS', 'rel-ios', c.iosUrl, 'https://apps.apple.com/...')}
+        </div>
+        <label class="block"><span class="block text-xs font-bold text-slate-600 mb-1.5">Ghi chú phiên bản (changelog)</span>
+          <textarea id="rel-notes" rows="4" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">${escapeHtml(c.notes || '')}</textarea></label>
+        <div class="flex items-center gap-3">
+          <button onclick="saveAppRelease()" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Lưu cấu hình</button>
+          <span class="text-[11px] text-slate-400">${c.updatedAt ? 'Cập nhật: ' + new Date(c.updatedAt).toLocaleString('vi-VN') : ''}</span>
+        </div>
+        <p class="text-[11px] text-slate-400">Lưu ý: bật "bắt buộc cập nhật" sẽ chặn người dùng đang ở phiên bản thấp hơn minVersion — chỉ bật khi đã có bản mới trên store/URL.</p>
+      </div>`;
+  } catch (err) {
+    panel.innerHTML = `<div class="text-rose-600 bg-rose-50 rounded-xl p-4">${escapeHtml(err.message || 'Lỗi tải cấu hình.')}</div>`;
+  }
+};
+
+window.saveAppRelease = async () => {
+  const body = {
+    latestVersion: $('rel-latest')?.value.trim(),
+    minVersion: $('rel-min')?.value.trim(),
+    forceUpdate: $('rel-force')?.checked,
+    androidUrl: $('rel-android')?.value.trim(),
+    iosUrl: $('rel-ios')?.value.trim(),
+    notes: $('rel-notes')?.value,
+  };
+  try {
+    await v2Api('/api/v2/admin/app-release', { method: 'PUT', body: JSON.stringify(body) });
+    alert('Đã lưu cấu hình phiên bản!');
+    await loadAppReleasePanel();
+  } catch (err) { alert(err.message || 'Không lưu được.'); }
 };
 
 // ── Website CMS ──────────────────────────────────────────────

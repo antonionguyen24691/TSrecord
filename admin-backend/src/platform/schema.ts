@@ -390,6 +390,19 @@ INSERT INTO provider_key_limits_v2 (provider, max_keys) VALUES
   ('gemini', 10), ('groq', 10), ('openai', 10), ('assemblyai', 10)
 ON CONFLICT (provider) DO NOTHING;
 
+-- Cau hinh phien ban app (admin chinh duoc, khong can sua ENV). Mot dong duy nhat.
+CREATE TABLE IF NOT EXISTS app_release_config_v2 (
+  id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  min_version text NOT NULL DEFAULT '0.0.0',
+  latest_version text NOT NULL DEFAULT '1.4.6',
+  force_update boolean NOT NULL DEFAULT false,
+  android_url text NOT NULL DEFAULT '',
+  ios_url text NOT NULL DEFAULT '',
+  notes text NOT NULL DEFAULT '',
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO app_release_config_v2 (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO plans_v2
   (code, name, duration_months, request_limit, price_vnd, price_usd_minor, ads_enabled, own_key_enabled, features)
 VALUES

@@ -5,6 +5,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { AppUpdate } from '../plugins/appUpdate';
+import { getBackendUrl } from './backendClient';
 
 const GITHUB_OWNER: string = 'antonionguyen24691';
 const GITHUB_REPO: string = 'TSrecord';
@@ -105,6 +106,48 @@ export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
       currentVersionCode: Number(installed.versionCode || 0),
       apkFileName: apkAsset?.name || buildApkFileName(latestVersion),
     };
+  } catch {
+    return null;
+  }
+};
+
+// ── Cổng kiểm tra phiên bản do admin điều khiển (server-driven) ──────────────
+export interface ServerVersionGate {
+  minVersion: string;
+  latestVersion: string;
+  forceUpdate: boolean;
+  notes: string;
+  updateUrl: string;
+  updateRequired: boolean;
+  updateAvailable: boolean;
+}
+
+const getCurrentAppVersion = async (): Promise<string> => {
+  if (Capacitor.getPlatform() === 'android') {
+    try {
+      return (await getInstalledVersion()).versionName;
+    } catch {
+      return '';
+    }
+  }
+  return (import.meta.env.VITE_APP_VERSION as string) || '';
+};
+
+/**
+ * Hỏi backend xem phiên bản hiện tại có cần/được cập nhật không.
+ * Chỉ chạy trên native (web tự cập nhật khi tải lại). Fail-open: trả null nếu lỗi.
+ */
+export const checkServerVersionGate = async (): Promise<ServerVersionGate | null> => {
+  if (Capacitor.getPlatform() === 'web') return null;
+  try {
+    const platform = Capacitor.getPlatform();
+    const version = await getCurrentAppVersion();
+    const url = `${getBackendUrl()}/api/client/app-version?platform=${encodeURIComponent(
+      platform
+    )}&version=${encodeURIComponent(version)}`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return (await response.json()) as ServerVersionGate;
   } catch {
     return null;
   }

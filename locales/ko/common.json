@@ -56,6 +56,13 @@
       "sessionLoadError": "이 세션을 다시 열 수 없습니다. 최신 버전에서 패키지를 다시 저장해 보세요.",
       "backgroundResumeTriggered": "앱이 백그라운드 스케줄러를 통해 전사 작업 하나를 복구했고, 워크스페이스를 새로고침했습니다."
     },
+    "update": {
+      "requiredTitle": "업데이트 필요",
+      "requiredBody": "사용 중인 버전은 더 이상 지원되지 않습니다. 계속하려면 업데이트하세요.",
+      "latest": "최신 버전",
+      "cta": "지금 업데이트",
+      "noUrl": "스토어에서 앱을 업데이트해 주세요."
+    },
     "errors": {
       "processFile": "파일을 처리하는 중 오류가 발생했습니다.",
       "reanalyzeTranscript": "저장된 전사를 다시 분석할 수 없습니다.",

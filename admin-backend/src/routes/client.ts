@@ -16,6 +16,11 @@ import {
   type PostgresAuthResult,
 } from '../platform/clientService.js';
 import { redeemPromoCodePostgres } from '../platform/promoService.js';
+import {
+  getAppReleaseConfig,
+  buildConfigFromValues,
+  evaluateVersionGate,
+} from '../platform/appReleaseConfig.js';
 import { consumeUploadSession } from '../platform/uploadSessions.js';
 import {
   getKeyCandidates,
@@ -170,6 +175,32 @@ router.get('/runtime-config', async (req: Request, res: Response) => {
     customBannerHtml: getSystemConfig('custom_banner_html'),
     customBannerEnabled: getSystemConfig('custom_banner_enabled') === 'true',
   });
+});
+
+// ── GET /api/client/app-version ───────────────────────────────
+// Cổng kiểm tra phiên bản app: trả minVersion/latestVersion/forceUpdate + URL
+// cập nhật + ghi chú. Nếu client gửi ?platform=&version= thì backend tự tính
+// updateRequired / updateAvailable. Fail-open: lỗi -> app vẫn chạy bình thường.
+router.get('/app-version', async (req: Request, res: Response) => {
+  const platform = String(req.query.platform || '').toLowerCase();
+  const version = String(req.query.version || '').trim();
+
+  try {
+    const config = usePostgresBackend()
+      ? await getAppReleaseConfig()
+      : buildConfigFromValues(getSystemConfig);
+    res.json(evaluateVersionGate(config, platform, version));
+  } catch {
+    res.json({
+      minVersion: '0.0.0',
+      latestVersion: '0.0.0',
+      forceUpdate: false,
+      notes: '',
+      updateUrl: '',
+      updateRequired: false,
+      updateAvailable: false,
+    });
+  }
 });
 
 // ── POST /api/client/redeem ──────────────────────────────────

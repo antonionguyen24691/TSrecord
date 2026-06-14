@@ -32,11 +32,19 @@ Khi client không chỉ định provider, backend tự chọn theo thứ tự r�
 - Endpoint `/proxy/transcribe` thử provider theo thứ tự đó nếu client gửi `provider: 'auto'`.
 - Cần đồng bộ phía app để gửi `auto` hoặc danh sách ưu tiên.
 
-## 🚧 3. Version-check + màn hình cập nhật app
+## ✅ 3. Version-check + màn hình bắt buộc cập nhật app — ĐÃ LÀM
 
-- Backend: `GET /api/client/app-version` → `{ minVersion, latestVersion, forceUpdate, url, notes }` (đọc từ ENV/system_config).
-- App: so phiên bản hiện tại; nếu `< minVersion` → chặn + nút cập nhật; nếu có bản mới → banner mềm.
-- Admin: ô nhập version + changelog (system_config hoặc CMS).
+- Bảng `app_release_config_v2` (1 dòng, admin chỉnh được, không cần sửa ENV) + module `appReleaseConfig.ts` (so sánh phiên bản, đánh giá gate).
+  → [schema.ts](../admin-backend/src/platform/schema.ts) · [appReleaseConfig.ts](../admin-backend/src/platform/appReleaseConfig.ts)
+- Public: `GET /api/client/app-version?platform=&version=` → `{ minVersion, latestVersion, forceUpdate, notes, updateUrl, updateRequired, updateAvailable }`. Fail-open.
+  → [routes/client.ts](../admin-backend/src/routes/client.ts)
+- Admin: `GET/PUT /api/v2/admin/app-release` + tab **"Phiên bản app"** (nhập minVersion/latestVersion/forceUpdate/URL Android-iOS/changelog).
+  → [routes/platform.ts](../admin-backend/src/routes/platform.ts) · [public/admin.js](../admin-backend/public/admin.js)
+- App: `checkServerVersionGate()` chạy lúc mở app (chỉ native); nếu `updateRequired` → overlay **chặn, không bỏ qua được** + nút cập nhật; nếu chỉ `updateAvailable` thì để luồng GitHub release cũ xử lý (tùy chọn).
+  → [services/updateService.ts](../services/updateService.ts) · [App.tsx](../App.tsx)
+- i18n: thêm khóa `App.update.*` cho vi/en/zh/ko.
+
+**Lưu ý vận hành:** chỉ bật `forceUpdate` khi đã có bản mới trên store/URL. Web không bị gate (tự cập nhật khi tải lại).
 
 ## ⏳ 4. Cảnh báo khi pool key sắp cạn
 
@@ -60,7 +68,6 @@ Khi client không chỉ định provider, backend tự chọn theo thứ tự r�
 ---
 
 ### Thứ tự đề xuất triển khai tiếp
-1. (#3) Version-check — kiểm soát phát hành, vá lỗi gấp.
-2. (#2) Provider rẻ-trước — cộng hưởng với #1 để giảm chi phí thêm.
-3. (#4) Cảnh báo cạn pool — giữ dịch vụ không gián đoạn.
-4. (#5, #6, #7) theo nguồn lực.
+1. (#2) Provider rẻ-trước — cộng hưởng với #1 để giảm chi phí thêm.
+2. (#4) Cảnh báo cạn pool — giữ dịch vụ không gián đoạn.
+3. (#5, #6, #7) theo nguồn lực.

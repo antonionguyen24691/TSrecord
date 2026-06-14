@@ -17,7 +17,7 @@ import {
   WorkspaceProject,
   WorkspaceSessionSummary,
 } from './types';
-import type { ReleaseInfo } from './services/updateService';
+import type { ReleaseInfo, ServerVersionGate } from './services/updateService';
 import { isWebDemo } from './services/platformMode';
 import {
   assignSessionToProject,
@@ -93,6 +93,7 @@ const App: React.FC = () => {
   const [email, setEmail] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
   const [updateRelease, setUpdateRelease] = useState<ReleaseInfo | null>(null);
+  const [forcedUpdate, setForcedUpdate] = useState<ServerVersionGate | null>(null);
 
   const [licenseInfo, setLicenseInfo] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -186,8 +187,15 @@ const App: React.FC = () => {
 
     const timer = setTimeout(() => {
       loadUpdateService()
-        .then(({ checkForUpdate }) => checkForUpdate())
-        .then((release) => {
+        .then(async ({ checkForUpdate, checkServerVersionGate }) => {
+          // Cổng phiên bản do admin điều khiển: nếu bắt buộc cập nhật -> chặn.
+          const gate = await checkServerVersionGate();
+          if (gate?.updateRequired) {
+            setForcedUpdate(gate);
+            return;
+          }
+          // Ngược lại, kiểm tra bản cập nhật tùy chọn (Android, GitHub release).
+          const release = await checkForUpdate();
           if (release) setUpdateRelease(release);
         })
         .catch(() => undefined);
@@ -1072,6 +1080,34 @@ const App: React.FC = () => {
         <Suspense fallback={null}>
           <UpdateDialog release={updateRelease} onDismiss={() => setUpdateRelease(null)} />
         </Suspense>
+      )}
+
+      {/* Bắt buộc cập nhật (server-driven, không thể bỏ qua) */}
+      {forcedUpdate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-7 shadow-2xl text-center">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-600 text-white text-2xl mb-4">⬆️</div>
+            <h2 className="text-xl font-black text-slate-900">{t('App.update.requiredTitle')}</h2>
+            <p className="text-sm text-slate-500 mt-2 whitespace-pre-line">
+              {forcedUpdate.notes?.trim() || t('App.update.requiredBody')}
+            </p>
+            {forcedUpdate.latestVersion && (
+              <p className="text-xs text-slate-400 mt-2">{t('App.update.latest')}: {forcedUpdate.latestVersion}</p>
+            )}
+            {forcedUpdate.updateUrl ? (
+              <a
+                href={forcedUpdate.updateUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-5 block w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700"
+              >
+                {t('App.update.cta')}
+              </a>
+            ) : (
+              <p className="mt-5 text-xs text-amber-600">{t('App.update.noUrl')}</p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Bottom Ad Banner */}

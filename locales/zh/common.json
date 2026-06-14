@@ -56,6 +56,13 @@
       "sessionLoadError": "无法重新打开该会话。请尝试在较新版本中重新保存包。",
       "backgroundResumeTriggered": "应用刚刚通过后台调度器恢复了一个转写任务，工作区已刷新。"
     },
+    "update": {
+      "requiredTitle": "需要更新",
+      "requiredBody": "您正在使用的版本已不再受支持。请更新后继续。",
+      "latest": "最新版本",
+      "cta": "立即更新",
+      "noUrl": "请通过应用商店更新应用。"
+    },
     "errors": {
       "processFile": "处理文件时发生错误。",
       "reanalyzeTranscript": "无法重新分析已保存的转写。",

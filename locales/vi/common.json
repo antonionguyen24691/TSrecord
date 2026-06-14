@@ -56,6 +56,13 @@
       "sessionLoadError": "Không thể mở lại session này. Vui lòng thử lưu package lại ở phiên mới hơn.",
       "backgroundResumeTriggered": "App vừa khôi phục một job transcript từ background scheduler. Workspace đã được làm mới."
     },
+    "update": {
+      "requiredTitle": "Cần cập nhật ứng dụng",
+      "requiredBody": "Phiên bản bạn đang dùng không còn được hỗ trợ. Vui lòng cập nhật để tiếp tục sử dụng.",
+      "latest": "Phiên bản mới nhất",
+      "cta": "Cập nhật ngay",
+      "noUrl": "Vui lòng cập nhật ứng dụng qua cửa hàng."
+    },
     "errors": {
       "processFile": "Đã xảy ra lỗi khi xử lý file.",
       "reanalyzeTranscript": "Không thể phân tích lại transcript đã lưu.",

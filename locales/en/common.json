@@ -56,6 +56,13 @@
       "sessionLoadError": "Cannot reopen this session. Please try saving the package in a newer version.",
       "backgroundResumeTriggered": "The app just restored a transcription job from the background scheduler. The workspace has been refreshed."
     },
+    "update": {
+      "requiredTitle": "Update required",
+      "requiredBody": "The version you are using is no longer supported. Please update to continue.",
+      "latest": "Latest version",
+      "cta": "Update now",
+      "noUrl": "Please update the app from your store."
+    },
     "errors": {
       "processFile": "An error occurred while processing the file.",
       "reanalyzeTranscript": "Cannot reanalyze the saved transcript.",

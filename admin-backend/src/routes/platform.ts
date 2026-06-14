@@ -40,6 +40,10 @@ import {
   setMaxKeys,
 } from '../platform/providerKeys.js';
 import {
+  getAppReleaseConfig,
+  updateAppReleaseConfig,
+} from '../platform/appReleaseConfig.js';
+import {
   getDefaultOrganizationProfile,
   getEinvoiceById,
   getEinvoiceByOrderCode,
@@ -950,6 +954,23 @@ router.delete('/admin/provider-keys/:id', asyncRoute(async (req, res) => {
     return;
   }
   res.status(204).end();
+}));
+
+router.get('/admin/app-release', asyncRoute(async (_req, res) => {
+  res.json(await getAppReleaseConfig());
+}));
+
+router.put('/admin/app-release', asyncRoute(async (req, res) => {
+  const { minVersion, latestVersion, forceUpdate, androidUrl, iosUrl, notes } = req.body || {};
+  const updated = await updateAppReleaseConfig({
+    minVersion: typeof minVersion === 'string' ? minVersion : undefined,
+    latestVersion: typeof latestVersion === 'string' ? latestVersion : undefined,
+    forceUpdate: typeof forceUpdate === 'boolean' ? forceUpdate : undefined,
+    androidUrl: typeof androidUrl === 'string' ? androidUrl : undefined,
+    iosUrl: typeof iosUrl === 'string' ? iosUrl : undefined,
+    notes: typeof notes === 'string' ? notes : undefined,
+  });
+  res.json(updated);
 }));
 
 router.post('/admin/provider-keys/limit', asyncRoute(async (req, res) => {

@@ -310,7 +310,12 @@ num('Android: gradlew bundleRelease (AAB đã ký) → upload Play Console. iOS:
 num('Chờ store duyệt → người dùng cập nhật qua store. Đảm bảo VITE_BACKEND_URL trỏ backend production khi build.', 'rel');
 
 H3('Khuyến nghị hoàn thiện luồng cập nhật');
-bullet([b('Thêm endpoint kiểm tra phiên bản, '), t('ví dụ /api/client/app-version trả {minVersion, latestVersion, forceUpdate, url}. App so sánh với phiên bản hiện tại để hiện thông báo "có bản mới" hoặc chặn nếu dưới minVersion.')]);
+callout('✅ ĐÃ TRIỂN KHAI: cổng kiểm tra phiên bản (server-driven)', [
+  'Endpoint công khai GET /api/client/app-version?platform=&version= trả {minVersion, latestVersion, forceUpdate, notes, updateUrl, updateRequired, updateAvailable}.',
+  'App (native) gọi lúc khởi động: nếu updateRequired -> hiện overlay BẮT BUỘC cập nhật (không bỏ qua được) + nút mở updateUrl. Web không bị chặn.',
+  'Admin chỉnh tại tab "Phiên bản app" (minVersion / latestVersion / bật forceUpdate / URL Android-iOS / changelog) — lưu vào bảng app_release_config_v2, KHÔNG cần sửa ENV.',
+  'Chỉ bật forceUpdate khi bản mới đã có trên store/URL.',
+]);
 bullet([b('Cân nhắc OTA/live-update '), t('(Capacitor live updates / @capgo/capacitor-updater) để vá phần web không cần chờ store duyệt — rất hữu ích cho sửa lỗi gấp.')]);
 bullet([b('Quản lý changelog trong admin '), t('(qua system_config hoặc CMS) để cập nhật nội dung "Có gì mới" mà không cần build lại.')]);
 
@@ -320,7 +325,7 @@ table(['Ưu tiên', 'Hạng mục', 'Lợi ích'],
 [
   ['✅ Xong', 'Tier free/paid cho pool key + ưu tiên free trước', 'Giảm chi phí AI rõ rệt (đã triển khai)'],
   ['Cao', 'Thứ tự provider rẻ-trước ở server', 'Tự chọn nguồn rẻ nhất còn hạn mức'],
-  ['Cao', 'Endpoint version-check + màn hình cập nhật app', 'Kiểm soát phiên bản, vá lỗi gấp'],
+  ['✅ Xong', 'Endpoint version-check + màn hình bắt buộc cập nhật', 'Kiểm soát phiên bản (đã triển khai)'],
   ['Vừa', 'Cảnh báo khi pool key sắp cạn', 'Tránh gián đoạn dịch vụ'],
   ['Vừa', 'OTA/live-update cho app', 'Cập nhật web không chờ store'],
   ['Vừa', 'Theo dõi chi phí theo key/provider', 'Tối ưu ngân sách'],
