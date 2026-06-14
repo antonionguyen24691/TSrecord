@@ -3,6 +3,7 @@ import { getArticleForLocale } from './content/localizedContent';
 import { useSiteLocale } from './hooks/useSiteLocale';
 import { ArticlePage } from './pages/ArticlePage';
 import { ArticlesPage } from './pages/ArticlesPage';
+import { DownloadPage } from './pages/DownloadPage';
 import { AboutPage, ContactPage, PrivacyPage, TermsPage } from './pages/InfoPages';
 import { LandingPage } from './pages/LandingPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -41,6 +42,7 @@ export const SiteRouter = () => {
   if (path === '/lien-he' || path === '/contact') return <ContactPage />;
   if (path === '/chinh-sach-bao-mat') return <PrivacyPage />;
   if (path === '/dieu-khoan') return <TermsPage />;
+  if (path === '/tai-app' || path === '/download' || path === '/tai-ung-dung') return <DownloadPage />;
 
   if (path.startsWith('/tin-tuc/') || path.startsWith('/bai-viet/')) {
     const slug = path.split('/').filter(Boolean).at(-1) || '';

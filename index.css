@@ -2684,3 +2684,211 @@ pre,
     animation: none !important;
   }
 }
+
+/* Download page */
+.page-hero--download {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(122, 242, 209, 0.3), transparent 36%),
+    linear-gradient(105deg, rgba(122, 242, 209, 0.18), transparent 52%),
+    #eef6f2;
+}
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.download-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 32px 28px;
+  border: 1px solid var(--site-line);
+  border-radius: 24px 24px 24px 8px;
+  background: var(--site-paper);
+  box-shadow: 0 18px 45px rgba(51, 61, 56, 0.06);
+  transition: transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease;
+}
+
+.download-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(12, 103, 89, 0.28);
+  box-shadow: 0 28px 60px rgba(51, 61, 56, 0.13);
+}
+
+.download-card--featured {
+  color: #f2fff9;
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 84% 12%, rgba(120, 242, 207, 0.3), transparent 36%),
+    linear-gradient(135deg, #08705f, #06483f);
+}
+
+.download-card--featured p {
+  color: #c4d8d1;
+}
+
+.download-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 22px;
+}
+
+.download-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(12, 103, 89, 0.1);
+  color: var(--site-green);
+}
+
+.download-card--featured .download-card__icon {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--site-mint);
+}
+
+.download-card__icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.download-badge {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+.download-badge--live {
+  color: var(--site-green-dark);
+  background: rgba(122, 242, 209, 0.42);
+}
+
+.download-card--featured .download-badge--live {
+  color: var(--site-green-dark);
+  background: var(--site-mint);
+}
+
+.download-badge--soon {
+  color: #8a6d1f;
+  background: rgba(240, 198, 73, 0.28);
+}
+
+.download-card__meta {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--site-muted);
+}
+
+.download-card--featured .download-card__meta {
+  color: var(--site-mint);
+}
+
+.download-card h2 {
+  margin: 4px 0 10px;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+
+.download-card p {
+  margin: 0 0 22px;
+  color: var(--site-muted);
+  line-height: 1.7;
+}
+
+.download-card__tag {
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--site-mint);
+}
+
+.download-card__cta {
+  margin-top: auto;
+}
+
+.download-card__cta--disabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--site-muted);
+  background: rgba(82, 103, 96, 0.1);
+  cursor: not-allowed;
+}
+
+.download-info {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.download-requirements {
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.download-requirements li {
+  position: relative;
+  padding-left: 26px;
+  color: #c4d8d1;
+  line-height: 1.6;
+}
+
+.download-requirements li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--site-mint);
+}
+
+.download-version {
+  margin-top: 26px;
+  color: #b9cbc5;
+}
+
+.download-version strong {
+  color: #f2fff9;
+}
+
+.download-help h2 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+
+.download-help p {
+  margin: 0 0 22px;
+  color: #b9cbc5;
+  line-height: 1.7;
+}
+
+@media (max-width: 960px) {
+  .download-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .download-info {
+    grid-template-columns: 1fr;
+    gap: 44px;
+  }
+}

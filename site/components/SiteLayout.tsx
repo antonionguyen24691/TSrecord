@@ -20,6 +20,7 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
   const navItems = [
     { href: '/', label: copy.common.home },
     { href: '/tin-tuc', label: copy.common.articles },
+    { href: '/tai-app', label: copy.common.download },
     { href: '/gioi-thieu', label: copy.common.about },
     { href: '/lien-he', label: copy.common.contact },
   ];
@@ -131,6 +132,7 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
           <div>
             <strong>{copy.common.product}</strong>
             <a href="/app">{copy.common.webApp}</a>
+            <a href="/tai-app">{copy.common.download}</a>
             <a href="/tin-tuc">{copy.common.guides}</a>
           </div>
           <div>
