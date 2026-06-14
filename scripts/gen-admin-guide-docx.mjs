@@ -2,7 +2,7 @@
 // Chạy: node scripts/gen-admin-guide-docx.mjs
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
-  Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, ExternalHyperlink,
+  Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
 } from 'docx';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -17,7 +17,6 @@ const H1 = (t) => children.push(new Paragraph({ heading: HeadingLevel.HEADING_1,
 const H2 = (t) => children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 100 }, children: [new TextRun({ text: t, color: INK, bold: true })] }));
 const H3 = (t) => children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, spacing: { before: 180, after: 80 }, children: [new TextRun({ text: t, color: INK, bold: true })] }));
 const P = (t, opts = {}) => children.push(new Paragraph({ spacing: { after: 100 }, children: typeof t === 'string' ? [new TextRun({ text: t, ...opts })] : t }));
-const runs = (arr) => children.push(new Paragraph({ spacing: { after: 100 }, children: arr }));
 const code = (t) => new TextRun({ text: t, font: 'Consolas', size: 19 });
 const b = (t) => new TextRun({ text: t, bold: true });
 const t = (t) => new TextRun({ text: t });

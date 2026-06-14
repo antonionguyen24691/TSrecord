@@ -1100,7 +1100,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             const discounts = paymentInfo?.discounts || defaultDiscounts;
 
             let basePrice: number;
-            let planKey = '';
+            let planKey: string;
             if (pricingMode === 'adminKey') {
               basePrice = pricing[selectedPlan] || 0;
               planKey = selectedPlan;

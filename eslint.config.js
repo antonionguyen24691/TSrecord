@@ -52,5 +52,25 @@ export default tseslint.config(
       'preserve-caught-error': 'off',
     },
   },
+  {
+    // admin-backend la Node/Express, khong phai React. "usePostgresBackend"
+    // chi la ham thuong (ten bat dau bang "use") nen react-hooks bao nham.
+    files: ['admin-backend/**/*.{ts,tsx}'],
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+    },
+  },
+  {
+    // Dashboard admin la script trinh duyet, dung pattern window.fn = ... roi
+    // goi bare fn() -> no-undef bao nham. Khai bao moi truong browser.
+    files: ['admin-backend/public/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: { ...globals.browser },
+    },
+    rules: {
+      'no-undef': 'off',
+    },
+  },
   eslintConfigPrettier
 );
