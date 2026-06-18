@@ -7,6 +7,7 @@ import { DownloadPage } from './pages/DownloadPage';
 import { AboutPage, ContactPage, PrivacyPage, TermsPage } from './pages/InfoPages';
 import { LandingPage } from './pages/LandingPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { PricingPage } from './pages/PricingPage';
 import { SiteSeo } from './seo/SiteSeo';
 
 const ProductApp = lazy(() => import('../App'));
@@ -37,6 +38,7 @@ export const SiteRouter = () => {
     );
   }
   if (path === '/') return <LandingPage />;
+  if (path === '/pricing' || path === '/bang-gia') return <PricingPage />;
   if (path === '/tin-tuc' || path === '/bai-viet') return <ArticlesPage />;
   if (path === '/gioi-thieu' || path === '/about') return <AboutPage />;
   if (path === '/lien-he' || path === '/contact') return <ContactPage />;

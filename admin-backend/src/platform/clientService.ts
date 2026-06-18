@@ -303,6 +303,17 @@ export const getPaymentInfoPostgres = async () => {
       '6M': Number(getPlatformSystemConfig('discount_6m') || '5'),
       '12M': Number(getPlatformSystemConfig('discount_12m') || '12'),
     },
+    companyInfo: {
+      phone: getPlatformSystemConfig('hkd_phone'),
+    },
+    zaloOaConfig: {
+      followUrl: getPlatformSystemConfig('zalo_oa_follow_url'),
+      pricingContactEnabled: getPlatformSystemConfig('pricing_contact_enabled') !== 'false',
+      pricingContactLabel: getPlatformSystemConfig('pricing_contact_label'),
+      pricingSalesPhone: getPlatformSystemConfig('pricing_sales_phone'),
+      pricingZaloUrl: getPlatformSystemConfig('pricing_zalo_url'),
+      pricingBotUrl: getPlatformSystemConfig('pricing_bot_url'),
+    },
     backend: 'postgres',
     checkoutHint: 'Dùng POST /api/v2/orders với deviceKey và planCode.',
   };

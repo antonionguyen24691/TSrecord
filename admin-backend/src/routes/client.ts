@@ -1143,6 +1143,17 @@ router.get('/payment-info', async (_req: Request, res: Response) => {
       '3M': parseInt(getSystemConfig('discount_3m') || '3', 10),
       '6M': parseInt(getSystemConfig('discount_6m') || '5', 10),
       '12M': parseInt(getSystemConfig('discount_12m') || '8', 10),
+    },
+    companyInfo: {
+      phone: getSystemConfig('hkd_phone'),
+    },
+    zaloOaConfig: {
+      followUrl: getSystemConfig('zalo_oa_follow_url'),
+      pricingContactEnabled: getSystemConfig('pricing_contact_enabled') !== 'false',
+      pricingContactLabel: getSystemConfig('pricing_contact_label'),
+      pricingSalesPhone: getSystemConfig('pricing_sales_phone'),
+      pricingZaloUrl: getSystemConfig('pricing_zalo_url'),
+      pricingBotUrl: getSystemConfig('pricing_bot_url'),
     }
   });
 });

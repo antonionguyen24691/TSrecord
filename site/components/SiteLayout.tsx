@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { useSiteLocale } from '../hooks/useSiteLocale';
+import { fetchPublicPaymentInfo, type PublicPaymentInfo } from '../services/publicConfig';
+import { PricingFloatingContactDock } from './PricingFloatingContactDock';
 import { SiteLanguageSwitcher } from './SiteLanguageSwitcher';
 
 type SiteLayoutProps = {
@@ -16,9 +18,11 @@ const BrandGlyph = () => (
 export const SiteLayout = ({ children }: SiteLayoutProps) => {
   const { copy } = useSiteLocale();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState<PublicPaymentInfo | null>(null);
   const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
   const navItems = [
     { href: '/', label: copy.common.home },
+    { href: '/pricing', label: copy.common.pricing },
     { href: '/tin-tuc', label: copy.common.articles },
     { href: '/tai-app', label: copy.common.download },
     { href: '/gioi-thieu', label: copy.common.about },
@@ -38,6 +42,10 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    fetchPublicPaymentInfo().then(setPaymentInfo);
+  }, []);
 
   return (
     <div className="site-shell">
@@ -148,6 +156,10 @@ export const SiteLayout = ({ children }: SiteLayoutProps) => {
           <span>{copy.common.footerNote}</span>
         </div>
       </footer>
+      <PricingFloatingContactDock
+        config={paymentInfo?.zaloOaConfig}
+        companyPhone={paymentInfo?.companyInfo?.phone}
+      />
     </div>
   );
 };

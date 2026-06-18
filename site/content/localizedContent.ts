@@ -38,6 +38,7 @@ export const siteCopy = {
       articles: 'Bài viết',
       about: 'Giới thiệu',
       contact: 'Liên hệ',
+      pricing: 'Bảng giá',
       openApp: 'Mở ứng dụng',
       navLabel: 'Điều hướng chính',
       mobileNavLabel: 'Điều hướng di động',
@@ -139,6 +140,7 @@ export const siteCopy = {
   en: {
     common: {
       skip: 'Skip to content', home: 'Home', articles: 'Articles', about: 'About', contact: 'Contact',
+      pricing: 'Pricing',
       openApp: 'Open app', navLabel: 'Main navigation', mobileNavLabel: 'Mobile navigation',
       openMenu: 'Open menu', closeMenu: 'Close menu', explore: 'Explore TSrecord',
       tagline: 'Turn recordings into usable content.', product: 'Product', webApp: 'Web app',
@@ -201,6 +203,7 @@ export const siteCopy = {
   zh: {
     common: {
       skip: '跳到主要内容', home: '首页', articles: '文章', about: '关于我们', contact: '联系我们',
+      pricing: '价格',
       openApp: '打开应用', navLabel: '主导航', mobileNavLabel: '移动端导航', openMenu: '打开菜单',
       closeMenu: '关闭菜单', explore: '探索 TSrecord', tagline: '将录音转化为可用内容。',
       product: '产品', webApp: '网页应用', guides: '知识与指南', information: '信息',
@@ -258,6 +261,7 @@ export const siteCopy = {
   ko: {
     common: {
       skip: '본문으로 이동', home: '홈', articles: '글', about: '소개', contact: '문의',
+      pricing: '요금',
       openApp: '앱 열기', navLabel: '주요 탐색', mobileNavLabel: '모바일 탐색', openMenu: '메뉴 열기',
       closeMenu: '메뉴 닫기', explore: 'TSrecord 살펴보기', tagline: '녹음을 활용 가능한 콘텐츠로 바꾸세요.',
       product: '제품', webApp: '웹 앱', guides: '지식과 가이드', information: '정보',

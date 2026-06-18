@@ -423,6 +423,13 @@ const renderConfig = async (el) => {
     'API Key hệ thống (AI)': configs.filter(c => c.key.startsWith('admin_')),
     'Google Drive hệ thống': configs.filter(c => c.key.startsWith('system_google_')),
     'Thông tin HKD (Hộ Kinh Doanh)': configs.filter(c => c.key.startsWith('hkd_')),
+    'Liên hệ Zalo/OA & trang giá': configs.filter(c =>
+      c.key === 'zalo_oa_follow_url'
+      || c.key.startsWith('pricing_contact_')
+      || c.key.startsWith('pricing_sales_')
+      || c.key.startsWith('pricing_zalo_')
+      || c.key.startsWith('pricing_bot_')
+    ),
     'Hóa đơn': configs.filter(c => c.key.startsWith('invoice_')),
     'Webhook': configs.filter(c => c.key.startsWith('webhook_')),
   };
